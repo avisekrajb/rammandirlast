@@ -33,21 +33,47 @@
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+    width: 100%;
   }
   
   h1, h2, h3, h4 {
     font-family: 'Fraunces', serif;
     letter-spacing: -0.01em;
   }
+
+  /* Responsive font sizes - INCREASED FOR MOBILE */
+  html {
+    font-size: 16px;
+  }
+
+  @media (max-width: 640px) {
+    html {
+      font-size: 15px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    html {
+      font-size: 14.5px;
+    }
+  }
 }
 
 @layer components {
   .rt-container {
-    @apply max-w-7xl mx-auto px-6 py-14;
+    @apply max-w-7xl mx-auto px-4 sm:px-6 py-10 sm:py-14;
   }
   
   .rt-btn {
-    @apply inline-flex items-center gap-2 px-6 py-3 rounded-full font-semibold text-sm transition-all duration-200 whitespace-nowrap;
+    @apply inline-flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-full font-semibold text-xs sm:text-sm transition-all duration-200 whitespace-nowrap;
+  }
+  
+  @media (max-width: 640px) {
+    .rt-btn {
+      font-size: 0.85rem;
+      padding: 0.6rem 1.2rem;
+    }
   }
   
   .rt-btn-primary {
@@ -71,7 +97,7 @@
   }
   
   .rt-card {
-    @apply bg-white border border-line rounded-rt shadow-rt p-6;
+    @apply bg-white border border-line rounded-rt shadow-rt p-4 sm:p-6;
   }
   
   .rt-header {
@@ -79,7 +105,120 @@
   }
   
   .rt-header-spacer {
-    @apply h-16;
+    @apply h-16 sm:h-16;
+  }
+}
+
+/* ============================================
+   LOGO TEXT - INCREASED FOR BOTH MOBILE & DESKTOP
+   ============================================ */
+
+.logo-text {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+@media (max-width: 1024px) {
+  .logo-text {
+    font-size: 1.3rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .logo-text {
+    font-size: 1.35rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .logo-text {
+    font-size: 1.5rem !important;
+    letter-spacing: -0.01em;
+  }
+}
+
+@media (max-width: 480px) {
+  .logo-text {
+    font-size: 1.4rem !important;
+  }
+}
+
+/* Logo container */
+.logo-container {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+@media (max-width: 640px) {
+  .logo-container {
+    gap: 0.7rem;
+  }
+  
+  .logo-container img {
+    width: 42px !important;
+    height: 42px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .logo-container img {
+    width: 38px !important;
+    height: 38px !important;
+  }
+}
+
+/* ============================================
+   HEADER ICONS - INCREASED FOR MOBILE
+   ============================================ */
+
+.header-icon {
+  width: 20px;
+  height: 20px;
+}
+
+@media (max-width: 640px) {
+  .header-icon {
+    width: 24px !important;
+    height: 24px !important;
+  }
+}
+
+.header-icon-btn {
+  padding: 0.4rem;
+}
+
+@media (max-width: 640px) {
+  .header-icon-btn {
+    padding: 0.5rem !important;
+  }
+  
+  .header-icon-btn svg {
+    width: 24px !important;
+    height: 24px !important;
+  }
+}
+
+/* Navigation links - mobile */
+@media (max-width: 640px) {
+  .nav-link {
+    font-size: 1rem !important;
+    padding: 0.6rem 0 !important;
+  }
+}
+
+/* Mobile menu items */
+.mobile-menu-item {
+  font-size: 1.1rem;
+  padding: 0.75rem 0;
+}
+
+@media (max-width: 640px) {
+  .mobile-menu-item {
+    font-size: 1.15rem;
+    padding: 0.85rem 0;
   }
 }
 
@@ -138,20 +277,10 @@ body {
 }
 
 /* ============================================
-   MODAL ANIMATIONS
+   MODAL ANIMATIONS - BOTTOM SHEET FOR MOBILE
    ============================================ */
 
-@keyframes modalSlideUp {
-  from {
-    transform: translateY(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
+/* Desktop modal animation */
 @keyframes modalFadeIn {
   from {
     transform: translateY(10px) scale(0.98);
@@ -172,18 +301,225 @@ body {
   }
 }
 
-.rt-modal-backdrop {
-  animation: modalBackdropIn 0.25s ease forwards;
-}
-
-.rt-modal-sheet {
-  animation: modalSlideUp 0.3s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
-}
-
-@media (min-width: 768px) {
-  .rt-modal-sheet {
-    animation: modalFadeIn 0.25s ease forwards;
+/* Mobile bottom sheet animation */
+@keyframes modalSlideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
   }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes modalSlideDown {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
+/* Modal backdrop */
+.rt-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 9998;
+  animation: modalBackdropIn 0.3s ease forwards;
+}
+
+/* Modal container */
+.rt-modal {
+  position: fixed;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inset: 0;
+  padding: 1.5rem;
+}
+
+/* Desktop modal */
+.rt-modal-content {
+  background: white;
+  border-radius: 20px;
+  max-width: 600px;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 2rem;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);
+  animation: modalFadeIn 0.3s ease forwards;
+}
+
+/* Mobile modal - bottom sheet */
+@media (max-width: 640px) {
+  .rt-modal {
+    align-items: flex-end;
+    padding: 0;
+  }
+  
+  .rt-modal-content {
+    border-radius: 24px 24px 0 0;
+    max-width: 100%;
+    width: 100%;
+    max-height: 92vh;
+    min-height: 40vh;
+    padding: 1.5rem 1.25rem 2rem;
+    animation: modalSlideUp 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.15);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Drag handle / indicator at top of bottom sheet */
+  .rt-modal-content::before {
+    content: '';
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 40px;
+    height: 4px;
+    background: #d1d5db;
+    border-radius: 4px;
+    opacity: 0.6;
+  }
+  
+  /* Close button for mobile */
+  .rt-modal-close {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    justify-content: flex-end;
+    padding-bottom: 0.75rem;
+    background: white;
+    margin: -0.5rem -0.5rem 0.5rem -0.5rem;
+    padding: 0.5rem 0.5rem 0.75rem 0.5rem;
+    border-radius: 24px 24px 0 0;
+  }
+  
+  .rt-modal-close button {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: none;
+    background: #f3f4f6;
+    color: #4b5563;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 1.2rem;
+  }
+  
+  .rt-modal-close button:hover {
+    background: #e5e7eb;
+  }
+  
+  .rt-modal-close button:active {
+    transform: scale(0.9);
+  }
+}
+
+/* Extra small devices */
+@media (max-width: 380px) {
+  .rt-modal-content {
+    padding: 1rem 0.75rem 1.5rem;
+    max-height: 95vh;
+  }
+  
+  .rt-modal-close {
+    padding: 0.25rem 0.25rem 0.5rem 0.25rem;
+  }
+  
+  .rt-modal-close button {
+    width: 36px;
+    height: 36px;
+    font-size: 1rem;
+  }
+}
+
+/* Modal content padding for all screens */
+.rt-modal-body {
+  padding: 0.5rem 0;
+}
+
+@media (max-width: 640px) {
+  .rt-modal-body {
+    padding: 0.25rem 0 1rem;
+  }
+}
+
+/* Modal title - responsive */
+.rt-modal-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-family: 'Fraunces', serif;
+  color: #201F23;
+  margin-bottom: 0.5rem;
+}
+
+@media (max-width: 640px) {
+  .rt-modal-title {
+    font-size: 1.3rem;
+    margin-bottom: 0.25rem;
+  }
+}
+
+/* Modal subtitle */
+.rt-modal-subtitle {
+  font-size: 0.95rem;
+  color: #6B6B72;
+  line-height: 1.6;
+}
+
+@media (max-width: 640px) {
+  .rt-modal-subtitle {
+    font-size: 0.9rem;
+  }
+}
+
+/* Modal actions - responsive */
+.rt-modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #f3f4f6;
+}
+
+@media (max-width: 640px) {
+  .rt-modal-actions {
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+  }
+  
+  .rt-modal-actions button {
+    width: 100%;
+    justify-content: center;
+    padding: 0.75rem !important;
+    font-size: 0.95rem !important;
+  }
+}
+
+/* Prevent body scroll when modal is open */
+body.modal-open {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100%;
 }
 
 /* ============================================
@@ -220,26 +556,36 @@ body {
   animation: toast-in 0.3s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
 }
 
-/* Toast container */
+/* Toast container - responsive */
 .toast-container {
   position: fixed;
   bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 999;
+  z-index: 9999;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
   pointer-events: none;
+  width: auto;
+  max-width: 90vw;
+}
+
+@media (max-width: 640px) {
+  .toast-container {
+    bottom: 16px;
+    max-width: 95vw;
+    width: 100%;
+  }
 }
 
 .toast-item {
   pointer-events: auto;
-  padding: 12px 20px;
+  padding: 10px 16px;
   border-radius: 999px;
   color: white;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
   display: flex;
@@ -248,6 +594,20 @@ body {
   max-width: 90vw;
   cursor: pointer;
   transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .toast-item {
+    padding: 12px 18px;
+    font-size: 14px;
+    max-width: 95vw;
+    white-space: normal;
+    word-break: break-word;
+    border-radius: 12px;
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 .toast-item:hover {
@@ -392,4 +752,699 @@ body {
 .scroll-x-hidden::-webkit-scrollbar {
   height: 0;
   display: none;
+}
+
+/* ============================================
+   RESPONSIVE UTILITY CLASSES - INCREASED SIZES
+   ============================================ */
+
+/* Mobile-first responsive images */
+.responsive-img {
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  object-fit: cover;
+}
+
+/* Responsive grid gaps */
+.responsive-grid {
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .responsive-grid {
+    gap: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .responsive-grid {
+    gap: 2rem;
+  }
+}
+
+/* Mobile padding adjustments */
+.responsive-padding {
+  padding: 1rem;
+}
+
+@media (min-width: 640px) {
+  .responsive-padding {
+    padding: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .responsive-padding {
+    padding: 2rem;
+  }
+}
+
+/* Responsive text sizes - INCREASED FOR MOBILE */
+.responsive-text-sm {
+  font-size: 0.85rem;
+}
+
+@media (min-width: 640px) {
+  .responsive-text-sm {
+    font-size: 0.875rem;
+  }
+}
+
+.responsive-text-base {
+  font-size: 1rem;
+}
+
+@media (min-width: 640px) {
+  .responsive-text-base {
+    font-size: 1rem;
+  }
+}
+
+.responsive-text-lg {
+  font-size: 1.1rem;
+}
+
+@media (min-width: 640px) {
+  .responsive-text-lg {
+    font-size: 1.125rem;
+  }
+}
+
+.responsive-text-xl {
+  font-size: 1.25rem;
+}
+
+@media (min-width: 640px) {
+  .responsive-text-xl {
+    font-size: 1.25rem;
+  }
+}
+
+.responsive-text-2xl {
+  font-size: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  .responsive-text-2xl {
+    font-size: 1.5rem;
+  }
+}
+
+.responsive-text-3xl {
+  font-size: 1.75rem;
+}
+
+@media (min-width: 640px) {
+  .responsive-text-3xl {
+    font-size: 1.875rem;
+  }
+}
+
+/* Mobile-friendly containers */
+.container-mobile {
+  width: 100%;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (min-width: 640px) {
+  .container-mobile {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+    max-width: 640px;
+  }
+}
+
+@media (min-width: 768px) {
+  .container-mobile {
+    max-width: 768px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .container-mobile {
+    max-width: 1024px;
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .container-mobile {
+    max-width: 1280px;
+  }
+}
+
+/* Prevent horizontal scroll on mobile */
+.prevent-overflow {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* Mobile touch targets (minimum 44px) - INCREASED */
+.touch-target {
+  min-width: 48px;
+  min-height: 48px;
+}
+
+@media (max-width: 640px) {
+  .touch-target {
+    min-width: 52px;
+    min-height: 52px;
+  }
+}
+
+/* Responsive hiding */
+.hide-mobile {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .hide-mobile {
+    display: block;
+  }
+}
+
+.hide-desktop {
+  display: block;
+}
+
+@media (min-width: 640px) {
+  .hide-desktop {
+    display: none;
+  }
+}
+
+/* ============================================
+   FLOATING SOCIAL ICONS - RESPONSIVE FIX
+   ============================================ */
+
+/* Social floating - desktop */
+.social-floating {
+  position: fixed;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Social floating - mobile - INCREASED SIZE */
+@media (max-width: 640px) {
+  .social-floating {
+    top: auto;
+    bottom: 100px;
+    right: 12px;
+    transform: none;
+    gap: 12px;
+  }
+  
+  .social-floating .social-icon {
+    width: 50px !important;
+    height: 50px !important;
+    min-width: 50px !important;
+    min-height: 50px !important;
+  }
+  
+  .social-floating .social-icon svg {
+    width: 24px !important;
+    height: 24px !important;
+  }
+}
+
+/* ============================================
+   FOUNDER SECTION - RESPONSIVE
+   ============================================ */
+
+.founder-card {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+}
+
+@media (max-width: 768px) {
+  .founder-card {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .founder-card {
+    gap: 1rem;
+  }
+  
+  .founder-card .founder-image {
+    aspect-ratio: 4/3;
+  }
+  
+  .founder-card .founder-name {
+    font-size: 1.75rem !important;
+  }
+  
+  .founder-card .founder-title {
+    font-size: 1.1rem !important;
+  }
+  
+  .founder-card .founder-bio {
+    font-size: 1rem !important;
+    line-height: 1.7 !important;
+  }
+}
+
+/* ============================================
+   TIMELINE - RESPONSIVE
+   ============================================ */
+
+.timeline-item {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2.5rem;
+  align-items: center;
+}
+
+@media (max-width: 768px) {
+  .timeline-item {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  
+  .timeline-item.reverse {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  
+  .timeline-item.reverse .timeline-image {
+    order: 1;
+  }
+  
+  .timeline-item.reverse .timeline-content {
+    order: 2;
+  }
+}
+
+@media (max-width: 640px) {
+  .timeline-item {
+    gap: 1rem;
+  }
+  
+  .timeline-item .timeline-image {
+    height: 220px;
+  }
+  
+  .timeline-item .timeline-title {
+    font-size: 1.5rem !important;
+  }
+  
+  .timeline-item .timeline-desc {
+    font-size: 1rem !important;
+    line-height: 1.7 !important;
+  }
+  
+  .timeline-item .timeline-number {
+    font-size: 2.5rem !important;
+  }
+}
+
+/* ============================================
+   HISTORICAL TABLE - RESPONSIVE
+   ============================================ */
+
+.historical-table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -1rem;
+  padding: 0 1rem;
+}
+
+@media (max-width: 640px) {
+  .historical-table-wrapper {
+    margin: 0 -0.5rem;
+    padding: 0 0.5rem;
+  }
+  
+  .historical-table-wrapper table {
+    font-size: 0.85rem;
+  }
+  
+  .historical-table-wrapper table th,
+  .historical-table-wrapper table td {
+    padding: 0.6rem 0.75rem;
+    min-width: 130px;
+  }
+  
+  .historical-table-wrapper table th:first-child,
+  .historical-table-wrapper table td:first-child {
+    min-width: 70px;
+  }
+  
+  .historical-table-wrapper table th {
+    font-size: 0.8rem !important;
+  }
+  
+  .historical-table-wrapper table td {
+    font-size: 0.85rem !important;
+    line-height: 1.6 !important;
+  }
+}
+
+/* ============================================
+   HERO SECTION - RESPONSIVE
+   ============================================ */
+
+.hero-section {
+  min-height: 100svh;
+  height: 100svh;
+}
+
+@media (max-width: 640px) {
+  .hero-section {
+    min-height: 80vh;
+    height: 80vh;
+  }
+  
+  .hero-section h1 {
+    font-size: 2.8rem !important;
+    line-height: 1.2 !important;
+  }
+  
+  .hero-section p {
+    font-size: 1.05rem !important;
+    max-width: 90% !important;
+    line-height: 1.6 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-section {
+    min-height: 75vh;
+    height: 75vh;
+  }
+  
+  .hero-section h1 {
+    font-size: 2.2rem !important;
+  }
+  
+  .hero-section p {
+    font-size: 0.95rem !important;
+  }
+}
+
+/* ============================================
+   GALLERY - RESPONSIVE
+   ============================================ */
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+@media (max-width: 1024px) {
+  .gallery-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .gallery-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .gallery-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+  }
+}
+
+/* ============================================
+   BOOKING CARDS - RESPONSIVE
+   ============================================ */
+
+.booking-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+@media (max-width: 640px) {
+  .booking-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .booking-card {
+    padding: 1.25rem !important;
+  }
+  
+  .booking-card h3 {
+    font-size: 1.2rem !important;
+  }
+  
+  .booking-card p {
+    font-size: 0.95rem !important;
+  }
+}
+
+/* ============================================
+   HEADER - RESPONSIVE ENHANCEMENTS
+   ============================================ */
+
+@media (max-width: 640px) {
+  .header-container {
+    padding: 0 0.75rem !important;
+  }
+  
+  .header-logo img {
+    width: 42px !important;
+    height: 42px !important;
+  }
+  
+  .header-logo-text {
+    font-size: 1.5rem !important;
+  }
+  
+  .header-actions {
+    gap: 0.75rem !important;
+  }
+  
+  .header-actions button {
+    padding: 0.5rem !important;
+  }
+  
+  .header-actions button svg {
+    width: 26px !important;
+    height: 26px !important;
+  }
+}
+
+/* ============================================
+   FOOTER - RESPONSIVE
+   ============================================ */
+
+@media (max-width: 640px) {
+  .footer-container {
+    padding: 1.5rem 1rem !important;
+  }
+  
+  .footer-text {
+    font-size: 0.95rem !important;
+    line-height: 1.6 !important;
+  }
+  
+  .footer-links {
+    gap: 0.75rem !important;
+  }
+  
+  .footer-links a {
+    font-size: 0.95rem !important;
+    padding: 0.4rem 0 !important;
+  }
+  
+  .footer-social-icons {
+    gap: 0.75rem !important;
+  }
+  
+  .footer-social-icons a {
+    width: 44px !important;
+    height: 44px !important;
+  }
+  
+  .footer-social-icons a svg {
+    width: 22px !important;
+    height: 22px !important;
+  }
+}
+
+/* ============================================
+   SECTION TITLES - RESPONSIVE
+   ============================================ */
+
+.section-title {
+  font-size: 2.2rem;
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .section-title {
+    font-size: 1.8rem !important;
+  }
+}
+
+.section-subtitle {
+  font-size: 1.1rem;
+}
+
+@media (max-width: 640px) {
+  .section-subtitle {
+    font-size: 1rem !important;
+    line-height: 1.6 !important;
+  }
+}
+
+/* ============================================
+   CARDS - RESPONSIVE
+   ============================================ */
+
+@media (max-width: 640px) {
+  .card {
+    padding: 1rem !important;
+  }
+  
+  .card-title {
+    font-size: 1.1rem !important;
+  }
+  
+  .card-text {
+    font-size: 0.95rem !important;
+    line-height: 1.6 !important;
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* ============================================
+   FULLSCREEN - Hide taskbar and tabs
+   ============================================ */
+
+/* Fullscreen fallback for browsers without fullscreen API support */
+.fullscreen-fallback,
+.fullscreen-fallback body {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.fullscreen-fallback {
+  z-index: 9999 !important;
+  background: black !important;
+}
+
+.fullscreen-fallback body {
+  z-index: 9998 !important;
+}
+
+/* Hide scrollbars in fullscreen */
+:fullscreen,
+:-webkit-full-screen,
+:-moz-full-screen,
+:ms-fullscreen {
+  overflow: hidden !important;
+}
+
+:fullscreen body,
+:-webkit-full-screen body,
+:-moz-full-screen body,
+:ms-fullscreen body {
+  overflow: hidden !important;
+}
+
+/* Hide browser UI elements in fullscreen mode */
+:fullscreen .hide-in-fullscreen,
+:-webkit-full-screen .hide-in-fullscreen,
+:-moz-full-screen .hide-in-fullscreen,
+:ms-fullscreen .hide-in-fullscreen {
+  display: none !important;
+}
+
+/* Fullscreen video container styling */
+.fullscreen-video-container {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  background: black;
+}
+
+.fullscreen-video-container video,
+.fullscreen-video-container iframe {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* ============================================
+   SNAKE BORDER - ANIMATED GRADIENT BORDER
+   ============================================ */
+.snake-border {
+  position: relative;
+  border-radius: 16px;
+  padding: 3px;
+  background: #ffffff;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.snake-border::before {
+  content: '';
+  position: absolute;
+  inset: -150%;
+  z-index: 0;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 300deg,
+    #7A0000 325deg,
+    #E8A93D 345deg,
+    #7A0000 360deg
+  );
+  animation: snake-spin 3s linear infinite;
+}
+
+.snake-border > * {
+  position: relative;
+  z-index: 1;
+  border-radius: 13px;
+  background: #ffffff;
+}
+
+@keyframes snake-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }

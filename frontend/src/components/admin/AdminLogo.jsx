@@ -14,14 +14,17 @@ const AdminLogo = ({ settings, updateSettings, t }) => {
   // Logo settings
   const [logoPhoto, setLogoPhoto] = useState(settings?.logo?.photo || null);
   const [logoText, setLogoText] = useState({});
-  const [logoSize, setLogoSize] = useState(settings?.logo?.size || 'w-14 h-14');
+  
+  // Logo size settings - MODERN approach with max constraints
+  const [logoSize, setLogoSize] = useState(settings?.logo?.size || 'w-12 h-12');
   const [logoShape, setLogoShape] = useState(settings?.logo?.shape || 'rounded-xl');
   const [logoBgColor, setLogoBgColor] = useState(settings?.logo?.bgColor || 'from-vermilion to-maroon-deep');
   const [showText, setShowText] = useState(settings?.logo?.showText !== false);
   const [textColor, setTextColor] = useState(settings?.logo?.textColor || 'text-maroon');
-  const [textSize, setTextSize] = useState(settings?.logo?.textSize || 'text-base md:text-xl');
+  const [textSize, setTextSize] = useState(settings?.logo?.textSize || 'text-sm md:text-base');
   const [fontWeight, setFontWeight] = useState(settings?.logo?.fontWeight || 'font-bold');
   const [showLocation, setShowLocation] = useState(settings?.logo?.showLocation !== false);
+  const [logoMaxWidth, setLogoMaxWidth] = useState(settings?.logo?.maxWidth || 'max-w-[40px] sm:max-w-[50px]');
 
   // Initialize logo text from settings
   useEffect(() => {
@@ -84,6 +87,7 @@ const AdminLogo = ({ settings, updateSettings, t }) => {
           textSize: textSize,
           fontWeight: fontWeight,
           showLocation: showLocation,
+          maxWidth: logoMaxWidth,
         } 
       });
       showToast(t.photoUploaded || 'Logo uploaded successfully', 'success');
@@ -112,6 +116,7 @@ const AdminLogo = ({ settings, updateSettings, t }) => {
         textSize: textSize,
         fontWeight: fontWeight,
         showLocation: showLocation,
+        maxWidth: logoMaxWidth,
       } 
     });
     showToast('Logo removed', 'success');
@@ -131,6 +136,7 @@ const AdminLogo = ({ settings, updateSettings, t }) => {
         textSize: textSize,
         fontWeight: fontWeight,
         showLocation: showLocation,
+        maxWidth: logoMaxWidth,
       };
       await updateSettings({ logo: newLogo });
       showToast(t.savedSuccess || 'Logo settings saved successfully', 'success');
@@ -149,23 +155,24 @@ const AdminLogo = ({ settings, updateSettings, t }) => {
     { value: 'rounded-none', label: 'Square' },
   ];
 
-  // Size options
+  // Size options - MODERN sizes with max width constraints
   const sizeOptions = [
-    { value: 'w-10 h-10', label: 'XS' },
-    { value: 'w-12 h-12', label: 'Small' },
-    { value: 'w-14 h-14', label: 'Medium' },
-    { value: 'w-16 h-16', label: 'Large' },
-    { value: 'w-20 h-20', label: 'XL' },
+    { value: 'w-8 h-8', label: 'XS (32px)', maxW: 'max-w-[32px]' },
+    { value: 'w-10 h-10', label: 'Small (40px)', maxW: 'max-w-[40px]' },
+    { value: 'w-12 h-12', label: 'Medium (48px)', maxW: 'max-w-[48px]' },
+    { value: 'w-14 h-14', label: 'Large (56px)', maxW: 'max-w-[56px]' },
+    { value: 'w-16 h-16', label: 'XL (64px)', maxW: 'max-w-[64px]' },
+    { value: 'w-20 h-20', label: '2XL (80px)', maxW: 'max-w-[80px]' },
   ];
 
   // Text size options
   const textSizeOptions = [
-    { value: 'text-xs', label: 'XS' },
-    { value: 'text-sm', label: 'Small' },
-    { value: 'text-base', label: 'Medium' },
-    { value: 'text-lg', label: 'Large' },
-    { value: 'text-xl', label: 'XL' },
-    { value: 'text-2xl', label: '2XL' },
+    { value: 'text-[8px] sm:text-[10px]', label: 'XS' },
+    { value: 'text-[10px] sm:text-xs', label: 'Small' },
+    { value: 'text-xs sm:text-sm', label: 'Medium' },
+    { value: 'text-sm sm:text-base', label: 'Large' },
+    { value: 'text-base sm:text-lg', label: 'XL' },
+    { value: 'text-lg sm:text-xl', label: '2XL' },
   ];
 
   // Font weight options
@@ -198,6 +205,12 @@ const AdminLogo = ({ settings, updateSettings, t }) => {
   const currentText = getLocalizedText(logoText);
   const templeSub = t.templeSub || 'Gaushala, Kathmandu';
 
+  // Get max width for selected size
+  const getMaxWidth = (size) => {
+    const option = sizeOptions.find(opt => opt.value === size);
+    return option ? option.maxW : 'max-w-[48px]';
+  };
+
   return (
     <div className="space-y-6">
       {/* Live Preview */}
@@ -215,21 +228,21 @@ const AdminLogo = ({ settings, updateSettings, t }) => {
         
         {previewMode && (
           <div className="bg-gray-50 rounded-xl p-6 flex items-center justify-center border border-gray-200">
-            <div className="flex items-center gap-3">
-              <div className={`${logoSize} rounded-xl bg-gradient-to-br ${logoBgColor} text-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-lg shadow-vermilion/20`}>
+            <div className="flex items-center gap-3 max-w-full overflow-hidden">
+              <div className={`${logoSize} ${logoShape} bg-gradient-to-br ${logoBgColor} text-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-lg shadow-vermilion/20 ${getMaxWidth(logoSize)}`}>
                 {logoPhoto ? (
                   <img src={logoPhoto} alt="Logo" className="w-full h-full object-cover" />
                 ) : (
-                  <span className="text-2xl">🕉</span>
+                  <span className="text-xl">🕉</span>
                 )}
               </div>
               {showText && (
-                <div className="flex flex-col leading-tight">
+                <div className="flex flex-col leading-tight min-w-0 flex-1">
                   <span className={`font-serif ${textSize} ${fontWeight} ${textColor} truncate max-w-[150px] sm:max-w-[200px]`}>
                     {currentText || 'Shree Ramchandra'}
                   </span>
                   {showLocation && (
-                    <span className="text-[10px] text-ink-soft flex items-center gap-1 truncate max-w-[150px] sm:max-w-[200px]">
+                    <span className="text-[8px] sm:text-[10px] text-ink-soft flex items-center gap-1 truncate max-w-[150px] sm:max-w-[200px]">
                       <MapPin size={10} className="text-vermilion flex-shrink-0" />
                       {templeSub}
                     </span>
@@ -305,7 +318,7 @@ const AdminLogo = ({ settings, updateSettings, t }) => {
           />
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
           <label className="flex items-center gap-2 text-sm font-medium text-ink">
             <input
               type="checkbox"
@@ -347,6 +360,7 @@ const AdminLogo = ({ settings, updateSettings, t }) => {
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
+            <p className="text-[10px] text-ink-soft/60 mt-1">Logo will be constrained to prevent stretching</p>
           </div>
 
           {/* Logo Shape */}

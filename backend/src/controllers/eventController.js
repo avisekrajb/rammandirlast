@@ -1,4 +1,6 @@
+const mongoose = require('mongoose');
 const Event = require('../models/Event');
+const { notifySubscribers } = require('../services/emailService');
 
 // @desc    Get all events
 // @route   GET /api/events
@@ -76,12 +78,88 @@ exports.getEventById = async (req, res) => {
   }
 };
 
-// @desc    Create event (admin only)
+// @desc    Upload event photo (admin only)
+// @route   POST /api/admin/upload/event
+// @access  Private/Admin
+exports.uploadEventPhoto = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'No image uploaded' 
+      });
+    }
+
+    // Validate file type
+    if (!req.file.mimetype.startsWith('image/')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please upload an image file (JPG, PNG, WEBP)'
+      });
+    }
+
+    // Validate file size (max 5MB)
+    if (req.file.size > 5 * 1024 * 1024) {
+      return res.status(400).json({
+        success: false,
+        message: 'Image must be less than 5MB'
+      });
+    }
+
+    // Get the URL from Cloudinary or local storage
+    let photoUrl = req.file.path;
+    
+    // If using local storage (multer diskStorage)
+    if (!photoUrl && req.file.filename) {
+      photoUrl = `/uploads/events/${req.file.filename}`;
+    }
+
+    res.json({
+      success: true,
+      url: photoUrl,
+      message: 'Photo uploaded successfully'
+    });
+  } catch (error) {
+    console.error('Upload event photo error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || 'Server error' 
+    });
+  }
+};
+
+// @desc    Create event with photo (admin only)
 // @route   POST /api/events
 // @access  Private/Admin
 exports.createEvent = async (req, res) => {
   try {
-    const event = await Event.create(req.body);
+    let eventData = { ...req.body };
+    
+    // Handle photo if uploaded
+    if (req.file) {
+      eventData.photo = req.file.path || `/uploads/events/${req.file.filename}`;
+    }
+    
+    // Initialize default values
+    eventData.interestedCount = 0;
+    eventData.views = 0;
+    eventData.shareCount = 0;
+    eventData.interestedBy = [];
+
+    const event = await Event.create(eventData);
+    
+    // Notify email subscribers about the new event
+    try {
+      await notifySubscribers({
+        type: 'event',
+        title: event.title?.en || 'New Temple Event',
+        summary: event.desc?.en || '',
+        url: `${process.env.FRONTEND_URL || 'http://localhost:4000'}/events`,
+      });
+    } catch (notifyError) {
+      console.error('Event subscriber notification error:', notifyError.message);
+    }
+
     res.status(201).json({
       success: true,
       data: event,
@@ -93,13 +171,20 @@ exports.createEvent = async (req, res) => {
   }
 };
 
-// @desc    Update event (admin only)
+// @desc    Update event with photo (admin only)
 // @route   PUT /api/events/:id
 // @access  Private/Admin
 exports.updateEvent = async (req, res) => {
   try {
     const { id } = req.params;
-    const event = await Event.findByIdAndUpdate(id, req.body, {
+    const updateData = { ...req.body };
+    
+    // Handle photo if uploaded
+    if (req.file) {
+      updateData.photo = req.file.path || `/uploads/events/${req.file.filename}`;
+    }
+    
+    const event = await Event.findByIdAndUpdate(id, updateData, {
       new: true,
       runValidators: true,
     });
@@ -137,6 +222,199 @@ exports.deleteEvent = async (req, res) => {
     });
   } catch (error) {
     console.error('Delete event error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Get popular events
+// @route   GET /api/events/popular
+// @access  Public
+exports.getPopularEvents = async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 5;
+    const events = await Event.find({ upcoming: true })
+      .sort({ interestedCount: -1, views: -1 })
+      .limit(limit);
+    res.json({
+      success: true,
+      data: events,
+    });
+  } catch (error) {
+    console.error('Get popular events error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Track event view
+// @route   POST /api/events/:id/view
+// @access  Public
+exports.trackEventView = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id);
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+    event.views = (event.views || 0) + 1;
+    await event.save();
+    res.json({ success: true, views: event.views });
+  } catch (error) {
+    console.error('Track view error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Track event share
+// @route   POST /api/events/:id/share
+// @access  Public
+exports.trackEventShare = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id);
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+    event.shareCount = (event.shareCount || 0) + 1;
+    await event.save();
+    res.json({ success: true, shareCount: event.shareCount });
+  } catch (error) {
+    console.error('Track share error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Mark event as interested
+// @route   POST /api/events/:id/interested
+// @access  Private
+exports.markInterested = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id);
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+    
+    if (!event.interestedBy) event.interestedBy = [];
+    
+    if (event.interestedBy.some(id => id.toString() === req.user.id)) {
+      return res.status(400).json({ message: 'Already interested in this event' });
+    }
+    
+    event.interestedBy.push(req.user.id);
+    event.interestedCount = (event.interestedCount || 0) + 1;
+    await event.save();
+    
+    res.json({ 
+      success: true, 
+      count: event.interestedCount,
+      message: 'Marked as interested'
+    });
+  } catch (error) {
+    console.error('Interested error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Remove interest from event
+// @route   POST /api/events/:id/uninterested
+// @access  Private
+exports.unmarkInterested = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id);
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+    
+    if (!event.interestedBy) event.interestedBy = [];
+    
+    event.interestedBy = event.interestedBy.filter(id => id.toString() !== req.user.id);
+    event.interestedCount = Math.max(0, (event.interestedCount || 0) - 1);
+    await event.save();
+    
+    res.json({ 
+      success: true, 
+      count: event.interestedCount,
+      message: 'Removed from interested'
+    });
+  } catch (error) {
+    console.error('Uninterested error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Get user's interested events
+// @route   GET /api/events/interested
+// @access  Private
+exports.getInterestedEvents = async (req, res) => {
+  try {
+    const events = await Event.find({ 
+      interestedBy: req.user.id,
+      upcoming: true 
+    }).sort({ date: 1 });
+    res.json(events);
+  } catch (error) {
+    console.error('Get interested events error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Get event engagement stats (admin only)
+// @route   GET /api/events/stats/engagement
+// @access  Private/Admin
+exports.getEngagementStats = async (req, res) => {
+  try {
+    const totalEvents = await Event.countDocuments();
+    const upcomingEvents = await Event.countDocuments({ upcoming: true });
+    const pastEvents = await Event.countDocuments({ upcoming: false });
+    
+    const stats = await Event.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalInterested: { $sum: '$interestedCount' },
+          totalViews: { $sum: '$views' },
+          totalShares: { $sum: '$shareCount' },
+          avgInterested: { $avg: '$interestedCount' },
+          avgViews: { $avg: '$views' },
+        }
+      }
+    ]);
+    
+    const mostInterested = await Event.find({ upcoming: true })
+      .sort({ interestedCount: -1 })
+      .limit(5)
+      .select('title interestedCount views');
+    
+    res.json({
+      success: true,
+      data: {
+        totalEvents,
+        upcomingEvents,
+        pastEvents,
+        ...(stats[0] || { totalInterested: 0, totalViews: 0, totalShares: 0, avgInterested: 0, avgViews: 0 }),
+        mostInterested,
+      }
+    });
+  } catch (error) {
+    console.error('Get engagement stats error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Get all interested users for an event (admin only)
+// @route   GET /api/events/:id/interested-users
+// @access  Private/Admin
+exports.getInterestedUsers = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id).populate('interestedBy', 'name email phone profilePhoto');
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+    res.json({
+      success: true,
+      event: event.title,
+      count: event.interestedBy.length,
+      users: event.interestedBy,
+    });
+  } catch (error) {
+    console.error('Get interested users error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };

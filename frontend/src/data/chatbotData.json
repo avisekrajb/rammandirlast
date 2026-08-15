@@ -1,0 +1,159 @@
+{
+  "temple": {
+    "name": "Shree Ramchandra Temple",
+    "description": "A sacred Vaishnava temple dedicated to Lord Ram, Sita, and Lakshman, serving devotees for generations on the banks of the Bagmati River.",
+    "location": "Gaushala, Kathmandu",
+    "address": "Battisputali, Gaushala, Kathmandu, Nepal",
+    "hours": "5:00 AM – 10:00 PM (Daily)",
+    "phone": "+977-1-4XXXXXX",
+    "email": "info@ramchandratemple.org.np"
+  },
+  "founder": {
+    "name": "Late Mr. Sanak Singh Tandon Lahuri Chhetri",
+    "bio": "Founder of Shri Ramchandra Temple",
+    "dedication": "Our team dedicated to the management and service of the temple"
+  },
+  "team": [
+    {
+      "id": 1,
+      "name": "Mr. Shishir Tandon",
+      "role": "Coordinator",
+      "bio": "The Coordinator leads the committee, ensures smooth operations, and guides the team in fulfilling the temple's mission.",
+      "email": "shishirtandan@gmail.com",
+      "phone": "981234567890"
+    },
+    {
+      "id": 2,
+      "name": "Dr. Uttam Upadhyay Neupane",
+      "role": "Co-Coordinator / Assistant Coordinator",
+      "bio": "The Co-coordinator works closely with the Coordinator to support committee activities, strengthen teamwork, ensure smooth coordination among members, and contribute to achieving the organization's goals effectively.",
+      "email": "uttamupadahaya@gmail.com",
+      "phone": "1234567899"
+    },
+    {
+      "id": 3,
+      "name": "Mr. Assistant Professor Gyanamba Gyawali",
+      "role": "Co-Coordinator / Assistant Coordinator",
+      "bio": "The Co-coordinator works closely with the Coordinator to support committee activities, strengthen teamwork, ensure smooth coordination among members, and contribute to achieving the organization's goals effectively.",
+      "email": "gyanambagyawali@gmail.com",
+      "phone": "1234567899"
+    },
+    {
+      "id": 4,
+      "name": "Mr. Sulochan Acharya",
+      "role": "Member",
+      "bio": "A Member actively participates in committee activities, supports teamwork, shares valuable ideas, and contributes to achieving the organization's goals.",
+      "email": "sulochanacharya@gmail.com",
+      "phone": "1234567899"
+    },
+    {
+      "id": 5,
+      "name": "Mrs. Pramila Khatiwada Koirala",
+      "role": "Member",
+      "bio": "The Co-coordinator works closely with the Coordinator to support committee activities, strengthen teamwork, ensure smooth coordination among members, and contribute to achieving the organization's goals effectively.",
+      "email": "pramilakhatiwada@gmail.com",
+      "phone": "1234567890"
+    },
+    {
+      "id": 6,
+      "name": "Mr. Deendayal Aimi",
+      "role": "Member",
+      "bio": "The Co-coordinator works closely with the Coordinator to support committee activities, strengthen teamwork, ensure smooth coordination among members, and contribute to achieving the organization's goals effectively.",
+      "email": "deendayal@gmail.com",
+      "phone": "1234567890"
+    },
+    {
+      "id": 7,
+      "name": "Mr. Bholanath Upadhyay",
+      "role": "Member",
+      "bio": "The Co-coordinator works closely with the Coordinator to support committee activities, strengthen teamwork, ensure smooth coordination among members, and contribute to achieving the organization's goals effectively.",
+      "email": "bholenath@gmail.com",
+      "phone": "1234567890"
+    }
+  ],
+  "events": [
+    {
+      "id": 1,
+      "title": "Ram Navami Celebration",
+      "date": "April 17, 2026",
+      "description": "Celebrate the birth of Lord Ram with special puja, bhajans, and prasad distribution.",
+      "location": "Shree Ramchandra Temple, Gaushala"
+    },
+    {
+      "id": 2,
+      "title": "Weekly Satsang",
+      "date": "Every Sunday",
+      "description": "Join us for spiritual discourse, bhajan, and meditation.",
+      "location": "Temple Hall"
+    },
+    {
+      "id": 3,
+      "title": "Annual Temple Festival",
+      "date": "November 12-15, 2026",
+      "description": "Three-day festival with special rituals, cultural programs, and community feast.",
+      "location": "Shree Ramchandra Temple Premises"
+    }
+  ],
+  "donations": {
+    "info": "Support the temple through donations. Your contributions help maintain the temple and support community programs.",
+    "methods": ["Bank Transfer", "Cash Donation", "Online Payment", "Cheque"],
+    "contact": "info@ramchandratemple.org.np",
+    "bankDetails": {
+      "bankName": "Nepal Bank Limited",
+      "accountName": "Shree Ramchandra Temple",
+      "accountNumber": "1234567890"
+    }
+  },
+  "booking": {
+    "info": "Bookings are available for temple events, ceremonies, and community hall rental.",
+    "contact": "info@ramchandratemple.org.np",
+    "phone": "+977-1-4XXXXXX"
+  },
+  "faqs": [
+    {
+      "id": 1,
+      "question": "What are the temple hours?",
+      "answer": "The temple is open daily from 5:00 AM to 10:00 PM for darshan and prayers."
+    },
+    {
+      "id": 2,
+      "question": "Where is the temple located?",
+      "answer": "The temple is located at Battisputali, Gaushala, Kathmandu, Nepal."
+    },
+    {
+      "id": 3,
+      "question": "How can I donate to the temple?",
+      "answer": "You can donate through bank transfer, cash, online payment, or cheque. Please contact info@ramchandratemple.org.np for details."
+    },
+    {
+      "id": 4,
+      "question": "Can I book the temple for events?",
+      "answer": "Yes, bookings are available for temple events, ceremonies, and community hall rental. Contact info@ramchandratemple.org.np or call +977-1-4XXXXXX."
+    },
+    {
+      "id": 5,
+      "question": "Who founded the temple?",
+      "answer": "The temple was founded by Late Mr. Sanak Singh Tandon Lahuri Chhetri."
+    }
+  ],
+  "gallery": [
+    {
+      "id": 1,
+      "title": "Main Temple",
+      "description": "The beautiful architecture of Shree Ramchandra Temple",
+      "category": "Temple"
+    },
+    {
+      "id": 2,
+      "title": "Ram Navami Celebration",
+      "description": "Devotees celebrating Ram Navami at the temple",
+      "category": "Festival"
+    },
+    {
+      "id": 3,
+      "title": "Evening Aarti",
+      "description": "The mesmerizing evening aarti at the temple",
+      "category": "Rituals"
+    }
+  ]
+}

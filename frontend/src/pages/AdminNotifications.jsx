@@ -3,6 +3,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import OmLoader from '../components/common/OmLoader';
 import {
   Bell, User, Gift, Calendar, Mail, Phone, MapPin, 
   Check, X, Clock, Eye, EyeOff, Trash2, Users,
@@ -10,7 +11,7 @@ import {
   Filter, Search, ChevronDown, ChevronUp, RefreshCw,
   Award, Heart, Star, Sparkles, TrendingUp, AlertCircle,
   BookOpen, Image, Settings, Home, CreditCard, Shield,
-  AlertTriangle
+  AlertTriangle, Download, Printer, Filter as FilterIcon
 } from 'lucide-react';
 
 // Delete Confirmation Modal Component
@@ -19,7 +20,7 @@ const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, title, message, count 
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in duration-200">
         <div className="text-center">
           <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
             <AlertTriangle size={28} className="text-red-500" />
@@ -40,10 +41,159 @@ const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, title, message, count 
             </button>
             <button
               onClick={onConfirm}
-              className="flex-1 px-4 py-2.5 rounded-xl bg-red-500 text-white font-medium hover:bg-red-600 transition-all"
+              className="flex-1 px-4 py-2.5 rounded-xl bg-red-500 text-white font-medium hover:bg-red-600 transition-all shadow-lg shadow-red-500/20"
             >
               Delete All
             </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Notification Item Component
+const NotificationItem = ({ notification, onMarkRead, onDelete, onToggleExpand, isExpanded, getTimeAgo }) => {
+  const isUnread = !notification.read;
+  const isOld = new Date(notification.time) < new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  return (
+    <div
+      className={`border rounded-xl p-4 transition-all duration-300 ${
+        isUnread 
+          ? 'bg-white shadow-md border-gray-200 hover:shadow-lg' 
+          : 'bg-gray-50/50 border-gray-100 opacity-80'
+      } ${isOld ? 'border-l-4 border-l-amber-400' : ''}`}
+    >
+      <div className="flex items-start gap-3">
+        {/* Icon */}
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${notification.bgColor}`}>
+          {notification.icon}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h4 className={`text-sm font-semibold ${isUnread ? 'text-ink' : 'text-ink-soft'}`}>
+                  {notification.title}
+                </h4>
+                {isUnread && (
+                  <span className="w-2 h-2 rounded-full bg-vermilion flex-shrink-0 animate-pulse" />
+                )}
+                {isOld && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-600 font-medium">
+                    Old
+                  </span>
+                )}
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                  notification.type === 'user' ? 'bg-blue-50 text-blue-600' :
+                  notification.type === 'booking' ? 'bg-vermilion/10 text-vermilion' :
+                  notification.type === 'donation' ? 'bg-green-50 text-green-600' :
+                  notification.type === 'contact' ? 'bg-purple-50 text-purple-600' :
+                  'bg-gray-100 text-gray-600'
+                }`}>
+                  {notification.type}
+                </span>
+              </div>
+              <p className={`text-sm ${isUnread ? 'text-ink-soft' : 'text-ink-soft/60'}`}>
+                {notification.message}
+              </p>
+              {isExpanded && notification.data && (
+                <div className="mt-3 p-3 bg-gray-50 rounded-lg text-xs space-y-1 border border-gray-100">
+                  {notification.type === 'user' && (
+                    <>
+                      <p><strong className="text-ink">Name:</strong> <span className="text-ink-soft">{notification.data.name}</span></p>
+                      <p><strong className="text-ink">Email:</strong> <span className="text-ink-soft">{notification.data.email}</span></p>
+                      <p><strong className="text-ink">Phone:</strong> <span className="text-ink-soft">{notification.data.phone || 'N/A'}</span></p>
+                      <p><strong className="text-ink">Role:</strong> <span className="text-ink-soft">{notification.data.role || 'user'}</span></p>
+                      <p><strong className="text-ink">Joined:</strong> <span className="text-ink-soft">{new Date(notification.data.createdAt).toLocaleDateString()}</span></p>
+                    </>
+                  )}
+                  {notification.type === 'booking' && (
+                    <>
+                      <p><strong className="text-ink">Name:</strong> <span className="text-ink-soft">{notification.data.name}</span></p>
+                      <p><strong className="text-ink">Puja Type:</strong> <span className="text-ink-soft">{notification.data.type}</span></p>
+                      <p><strong className="text-ink">Date:</strong> <span className="text-ink-soft">{notification.data.date}</span></p>
+                      <p><strong className="text-ink">Time:</strong> <span className="text-ink-soft">{notification.data.time || 'N/A'}</span></p>
+                      <p><strong className="text-ink">Status:</strong> <span className={`px-2 py-0.5 rounded-full text-xs ${
+                        notification.data.status === 'confirmed' ? 'bg-green-100 text-green-700' :
+                        notification.data.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                        notification.data.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                        'bg-gray-100 text-gray-700'
+                      }`}>{notification.data.status || 'pending'}</span></p>
+                    </>
+                  )}
+                  {notification.type === 'donation' && (
+                    <>
+                      <p><strong className="text-ink">Name:</strong> <span className="text-ink-soft">{notification.data.name}</span></p>
+                      <p><strong className="text-ink">Amount:</strong> <span className="text-ink-soft font-bold text-vermilion">₹{notification.data.amount}</span></p>
+                      <p><strong className="text-ink">Date:</strong> <span className="text-ink-soft">{new Date(notification.data.date).toLocaleDateString()}</span></p>
+                      <p><strong className="text-ink">Status:</strong> <span className={`px-2 py-0.5 rounded-full text-xs ${
+                        notification.data.status === 'completed' ? 'bg-green-100 text-green-700' :
+                        notification.data.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-gray-100 text-gray-700'
+                      }`}>{notification.data.status || 'pending'}</span></p>
+                    </>
+                  )}
+                  {notification.type === 'contact' && (
+                    <>
+                      <p><strong className="text-ink">Name:</strong> <span className="text-ink-soft">{notification.data.name}</span></p>
+                      <p><strong className="text-ink">Email:</strong> <span className="text-ink-soft">{notification.data.email}</span></p>
+                      <p><strong className="text-ink">Phone:</strong> <span className="text-ink-soft">{notification.data.phone || 'N/A'}</span></p>
+                      <p><strong className="text-ink">Message:</strong> <span className="text-ink-soft">{notification.data.message}</span></p>
+                      <p><strong className="text-ink">Status:</strong> <span className={`px-2 py-0.5 rounded-full text-xs ${
+                        notification.data.status === 'replied' ? 'bg-green-100 text-green-700' :
+                        notification.data.status === 'read' ? 'bg-blue-100 text-blue-700' :
+                        'bg-yellow-100 text-yellow-700'
+                      }`}>{notification.data.status || 'new'}</span></p>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <button
+                onClick={() => onToggleExpand(notification.id)}
+                className="p-1 rounded hover:bg-gray-200 transition-colors"
+                title="Expand"
+              >
+                {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </button>
+              <button
+                onClick={() => onMarkRead(notification.id)}
+                className="p-1 rounded hover:bg-gray-200 transition-colors"
+                title={isUnread ? 'Mark as read' : 'Mark as unread'}
+              >
+                {isUnread ? <Eye size={16} className="text-ink-soft" /> : <EyeOff size={16} className="text-ink-soft" />}
+              </button>
+              <button
+                onClick={() => onDelete(notification.id)}
+                className="p-1 rounded hover:bg-red-100 transition-colors text-red-400 hover:text-red-600"
+                title="Delete"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 mt-2">
+            <span className="text-xs text-ink-soft/60 flex items-center gap-1">
+              <Clock size={12} />
+              {getTimeAgo(notification.time)}
+            </span>
+            {isUnread && (
+              <span className="text-[10px] text-vermilion font-medium flex items-center gap-1">
+                <AlertCircle size={10} />
+                New
+              </span>
+            )}
+            {isOld && (
+              <span className="text-[10px] text-amber-600 font-medium flex items-center gap-1">
+                <Clock size={10} />
+                30+ days
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -61,7 +211,7 @@ const AdminNotifications = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedId, setExpandedId] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deleteType, setDeleteType] = useState(null); // 'single' or 'all'
+  const [deleteType, setDeleteType] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [stats, setStats] = useState({
     total: 0,
@@ -103,12 +253,6 @@ const AdminNotifications = () => {
     }
   };
 
-  // Check if notification is deleted
-  const isDeleted = (id) => {
-    const deletedIds = getDeletedIds();
-    return deletedIds.includes(id);
-  };
-
   // Auto-delete notifications older than 6 months
   const cleanupOldNotifications = useCallback((notifs) => {
     const sixMonthsAgo = new Date();
@@ -119,7 +263,6 @@ const AdminNotifications = () => {
       return notifDate >= sixMonthsAgo;
     });
     
-    // Mark old notifications as deleted
     const deletedIds = getDeletedIds();
     const newDeletedIds = [...deletedIds];
     
@@ -144,7 +287,7 @@ const AdminNotifications = () => {
     const deletedIds = getDeletedIds();
 
     // New Users
-    usersData.slice(0, 10).forEach(u => {
+    usersData.slice(0, 20).forEach(u => {
       const id = `user-${u._id}`;
       if (!seenIds.has(id) && !deletedIds.includes(id)) {
         seenIds.add(id);
@@ -165,7 +308,7 @@ const AdminNotifications = () => {
     });
 
     // New Bookings
-    bookingsData.slice(0, 10).forEach(b => {
+    bookingsData.slice(0, 20).forEach(b => {
       const id = `booking-${b._id}`;
       if (!seenIds.has(id) && !deletedIds.includes(id)) {
         seenIds.add(id);
@@ -186,7 +329,7 @@ const AdminNotifications = () => {
     });
 
     // New Donations
-    donationsData.slice(0, 10).forEach(d => {
+    donationsData.slice(0, 20).forEach(d => {
       const id = `donation-${d._id}`;
       if (!seenIds.has(id) && !deletedIds.includes(id)) {
         seenIds.add(id);
@@ -207,7 +350,7 @@ const AdminNotifications = () => {
     });
 
     // Contact Messages
-    contactsData.slice(0, 10).forEach(c => {
+    contactsData.slice(0, 20).forEach(c => {
       const id = `contact-${c._id}`;
       if (!seenIds.has(id) && !deletedIds.includes(id)) {
         seenIds.add(id);
@@ -251,10 +394,7 @@ const AdminNotifications = () => {
           contactsRes.data?.data || []
         );
 
-        // Sort by time (newest first)
         notifications.sort((a, b) => new Date(b.time) - new Date(a.time));
-
-        // Auto-cleanup old notifications (6 months) - updates localStorage
         notifications = cleanupOldNotifications(notifications);
 
         setNotifications(notifications);
@@ -291,7 +431,6 @@ const AdminNotifications = () => {
 
     fetchNotifications();
 
-    // Auto-cleanup every 6 hours
     cleanupInterval.current = setInterval(() => {
       setNotifications(prev => {
         const cleaned = cleanupOldNotifications(prev);
@@ -318,10 +457,8 @@ const AdminNotifications = () => {
 
   const confirmDelete = () => {
     const id = deleteId;
-    // Add to localStorage deleted list
     addDeletedId(id);
     
-    // Remove from state
     const updatedNotifications = notifications.filter(n => n.id !== id);
     setNotifications(updatedNotifications);
     updateStats(updatedNotifications);
@@ -339,11 +476,9 @@ const AdminNotifications = () => {
   };
 
   const confirmDeleteAll = () => {
-    // Add all current notification IDs to deleted list
     const allIds = notifications.map(n => n.id);
     allIds.forEach(id => addDeletedId(id));
     
-    // Clear state
     setNotifications([]);
     setStats({
       total: 0,
@@ -400,9 +535,6 @@ const AdminNotifications = () => {
   const refreshNotifications = async () => {
     setLoading(true);
     try {
-      // Clear deleted IDs cache for this refresh (optional)
-      // This allows new notifications to appear even if old ones were deleted
-      
       const [usersRes, bookingsRes, donationsRes, contactsRes] = await Promise.all([
         api.get('/admin/users'),
         api.get('/admin/bookings'),
@@ -456,7 +588,8 @@ const AdminNotifications = () => {
   const filteredNotifications = notifications.filter(n => {
     const matchesFilter = filter === 'all' || n.type === filter;
     const matchesSearch = n.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          n.message.toLowerCase().includes(searchTerm.toLowerCase());
+                          n.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (n.data?.name && n.data.name.toLowerCase().includes(searchTerm.toLowerCase()));
     return matchesFilter && matchesSearch;
   });
 
@@ -482,7 +615,7 @@ const AdminNotifications = () => {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-vermilion border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <OmLoader size="lg" color="vermilion" className="mx-auto mb-4" />
           <p className="text-ink-soft text-sm">Loading notifications...</p>
         </div>
       </div>
@@ -493,27 +626,27 @@ const AdminNotifications = () => {
     <div className="max-w-6xl mx-auto px-4 py-6">
       {/* Stats Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3 text-center">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3 text-center hover:shadow-md transition-all">
           <div className="text-xl font-bold text-ink">{stats.total}</div>
           <div className="text-[10px] text-ink-soft font-medium">Total</div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-vermilion/20 p-3 text-center">
+        <div className="bg-white rounded-xl shadow-sm border border-vermilion/20 p-3 text-center hover:shadow-md transition-all">
           <div className="text-xl font-bold text-vermilion">{stats.unread}</div>
           <div className="text-[10px] text-ink-soft font-medium">Unread</div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-blue-100 p-3 text-center">
+        <div className="bg-white rounded-xl shadow-sm border border-blue-100 p-3 text-center hover:shadow-md transition-all">
           <div className="text-xl font-bold text-blue-600">{stats.users}</div>
           <div className="text-[10px] text-ink-soft font-medium">Users</div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-vermilion/10 p-3 text-center">
+        <div className="bg-white rounded-xl shadow-sm border border-vermilion/10 p-3 text-center hover:shadow-md transition-all">
           <div className="text-xl font-bold text-vermilion">{stats.bookings}</div>
           <div className="text-[10px] text-ink-soft font-medium">Bookings</div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-green-100 p-3 text-center">
+        <div className="bg-white rounded-xl shadow-sm border border-green-100 p-3 text-center hover:shadow-md transition-all">
           <div className="text-xl font-bold text-green-600">{stats.donations}</div>
           <div className="text-[10px] text-ink-soft font-medium">Donations</div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-purple-100 p-3 text-center">
+        <div className="bg-white rounded-xl shadow-sm border border-purple-100 p-3 text-center hover:shadow-md transition-all">
           <div className="text-xl font-bold text-purple-600">{stats.contacts}</div>
           <div className="text-[10px] text-ink-soft font-medium">Contacts</div>
         </div>
@@ -592,145 +725,17 @@ const AdminNotifications = () => {
         </div>
       ) : (
         <div className="space-y-3">
-          {filteredNotifications.map((notification) => {
-            const isExpanded = expandedId === notification.id;
-            const isUnread = !notification.read;
-            const isOld = new Date(notification.time) < new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-
-            return (
-              <div
-                key={notification.id}
-                className={`border rounded-xl p-4 transition-all duration-300 ${
-                  isUnread 
-                    ? 'bg-white shadow-md border-gray-200 hover:shadow-lg' 
-                    : 'bg-gray-50/50 border-gray-100 opacity-80'
-                } ${isOld ? 'border-l-4 border-l-amber-400' : ''}`}
-              >
-                <div className="flex items-start gap-3">
-                  {/* Icon */}
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${notification.bgColor}`}>
-                    {notification.icon}
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className={`text-sm font-semibold ${isUnread ? 'text-ink' : 'text-ink-soft'}`}>
-                            {notification.title}
-                          </h4>
-                          {isUnread && (
-                            <span className="w-2 h-2 rounded-full bg-vermilion flex-shrink-0 animate-pulse" />
-                          )}
-                          {isOld && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-600 font-medium">
-                              Old
-                            </span>
-                          )}
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                            notification.type === 'user' ? 'bg-blue-50 text-blue-600' :
-                            notification.type === 'booking' ? 'bg-vermilion/10 text-vermilion' :
-                            notification.type === 'donation' ? 'bg-green-50 text-green-600' :
-                            'bg-purple-50 text-purple-600'
-                          }`}>
-                            {notification.type}
-                          </span>
-                        </div>
-                        <p className={`text-sm ${isUnread ? 'text-ink-soft' : 'text-ink-soft/60'}`}>
-                          {notification.message}
-                        </p>
-                        {isExpanded && notification.data && (
-                          <div className="mt-3 p-3 bg-gray-50 rounded-lg text-xs space-y-1 border border-gray-100">
-                            {notification.type === 'user' && (
-                              <>
-                                <p><strong className="text-ink">Name:</strong> <span className="text-ink-soft">{notification.data.name}</span></p>
-                                <p><strong className="text-ink">Email:</strong> <span className="text-ink-soft">{notification.data.email}</span></p>
-                                <p><strong className="text-ink">Phone:</strong> <span className="text-ink-soft">{notification.data.phone || 'N/A'}</span></p>
-                                <p><strong className="text-ink">Role:</strong> <span className="text-ink-soft">{notification.data.role || 'user'}</span></p>
-                              </>
-                            )}
-                            {notification.type === 'booking' && (
-                              <>
-                                <p><strong className="text-ink">Name:</strong> <span className="text-ink-soft">{notification.data.name}</span></p>
-                                <p><strong className="text-ink">Puja Type:</strong> <span className="text-ink-soft">{notification.data.type}</span></p>
-                                <p><strong className="text-ink">Date:</strong> <span className="text-ink-soft">{notification.data.date}</span></p>
-                                <p><strong className="text-ink">Status:</strong> <span className={`px-2 py-0.5 rounded-full text-xs ${
-                                  notification.data.status === 'confirmed' ? 'bg-green-100 text-green-700' :
-                                  notification.data.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                                  notification.data.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                                  'bg-gray-100 text-gray-700'
-                                }`}>{notification.data.status}</span></p>
-                              </>
-                            )}
-                            {notification.type === 'donation' && (
-                              <>
-                                <p><strong className="text-ink">Name:</strong> <span className="text-ink-soft">{notification.data.name}</span></p>
-                                <p><strong className="text-ink">Amount:</strong> <span className="text-ink-soft font-bold text-vermilion">₹{notification.data.amount}</span></p>
-                                <p><strong className="text-ink">Date:</strong> <span className="text-ink-soft">{new Date(notification.data.date).toLocaleDateString()}</span></p>
-                              </>
-                            )}
-                            {notification.type === 'contact' && (
-                              <>
-                                <p><strong className="text-ink">Name:</strong> <span className="text-ink-soft">{notification.data.name}</span></p>
-                                <p><strong className="text-ink">Message:</strong> <span className="text-ink-soft">{notification.data.message}</span></p>
-                                <p><strong className="text-ink">Status:</strong> <span className={`px-2 py-0.5 rounded-full text-xs ${
-                                  notification.data.status === 'replied' ? 'bg-green-100 text-green-700' :
-                                  notification.data.status === 'read' ? 'bg-blue-100 text-blue-700' :
-                                  'bg-yellow-100 text-yellow-700'
-                                }`}>{notification.data.status}</span></p>
-                              </>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <button
-                          onClick={() => toggleExpand(notification.id)}
-                          className="p-1 rounded hover:bg-gray-200 transition-colors"
-                          title="Expand"
-                        >
-                          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                        </button>
-                        <button
-                          onClick={() => handleMarkRead(notification.id)}
-                          className="p-1 rounded hover:bg-gray-200 transition-colors"
-                          title={isUnread ? 'Mark as read' : 'Mark as unread'}
-                        >
-                          {isUnread ? <Eye size={16} className="text-ink-soft" /> : <EyeOff size={16} className="text-ink-soft" />}
-                        </button>
-                        <button
-                          onClick={() => handleDelete(notification.id)}
-                          className="p-1 rounded hover:bg-red-100 transition-colors text-red-400 hover:text-red-600"
-                          title="Delete"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 mt-2">
-                      <span className="text-xs text-ink-soft/60 flex items-center gap-1">
-                        <Clock size={12} />
-                        {getTimeAgo(notification.time)}
-                      </span>
-                      {isUnread && (
-                        <span className="text-[10px] text-vermilion font-medium flex items-center gap-1">
-                          <AlertCircle size={10} />
-                          New
-                        </span>
-                      )}
-                      {isOld && (
-                        <span className="text-[10px] text-amber-600 font-medium flex items-center gap-1">
-                          <Clock size={10} />
-                           30 days
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {filteredNotifications.map((notification) => (
+            <NotificationItem
+              key={notification.id}
+              notification={notification}
+              onMarkRead={handleMarkRead}
+              onDelete={handleDelete}
+              onToggleExpand={toggleExpand}
+              isExpanded={expandedId === notification.id}
+              getTimeAgo={getTimeAgo}
+            />
+          ))}
         </div>
       )}
 

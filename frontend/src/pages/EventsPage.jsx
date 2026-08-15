@@ -4,6 +4,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import api from '../services/api';
+import OmLoader from '../components/common/OmLoader';
 import { 
   Heart, Share2, Users, X, Calendar, MapPin, Clock, 
   ThumbsUp, Eye, Loader2 
@@ -24,7 +25,6 @@ const getLocalizedText = (obj, lang) => {
   if (typeof obj === 'string') return obj;
   return obj[lang] || obj.en || '';
 };
-
 // Event Detail Modal Component
 const EventDetailModal = ({ event, onClose, lang, t, user, onInterested, isInterested, interestedCount }) => {
   const { showToast } = useToast();
@@ -95,12 +95,12 @@ const EventDetailModal = ({ event, onClose, lang, t, user, onInterested, isInter
         onClick={(e) => e.stopPropagation()}
         className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-2xl"
       >
-        {/* Close button */}
+        {/* Close button - white transparent */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-black/10 hover:bg-black/20 transition-colors"
+          className="absolute top-4 right-4 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-sm transition-all"
         >
-          <X className="w-5 h-5 text-gray-700" />
+          <X className="w-5 h-5 text-white" />
         </button>
 
         {/* Image */}
@@ -117,8 +117,9 @@ const EventDetailModal = ({ event, onClose, lang, t, user, onInterested, isInter
               {dateText || gregText || ''}
             </span>
           </div>
+          {/* Upcoming badge - left side */}
           {event.upcoming && (
-            <div className="absolute top-4 right-4 bg-red-900 text-white px-4 py-1.5 text-xs font-bold rounded-full shadow-lg">
+            <div className="absolute top-4 left-4 bg-red-900 text-white px-4 py-1.5 text-xs font-bold rounded-full shadow-lg z-10">
               Upcoming
             </div>
           )}
@@ -160,7 +161,7 @@ const EventDetailModal = ({ event, onClose, lang, t, user, onInterested, isInter
               }`}
             >
               <Heart size={18} className={isInterested ? 'fill-white' : ''} />
-              {isInterested ? 'Interested' : 'Mark Interested'}
+              {isInterested ? (t.interested || 'Interested') : (t.markInterested || 'Mark Interested')}
               <span className="ml-1 text-xs bg-white/20 px-2 py-0.5 rounded-full">
                 {interestedCount || 0}
               </span>
@@ -176,7 +177,7 @@ const EventDetailModal = ({ event, onClose, lang, t, user, onInterested, isInter
               ) : (
                 <Share2 size={18} />
               )}
-              Share
+              {t.share || 'Share'}
             </button>
 
             <div className="ml-auto flex items-center gap-2 text-xs text-ink-soft">
@@ -298,7 +299,7 @@ const EventsPage = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 border-3 border-maroon rounded-full animate-spin border-t-transparent" />
+        <OmLoader size="md" color="maroon" />
       </div>
     );
   }

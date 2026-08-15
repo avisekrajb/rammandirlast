@@ -3,6 +3,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import OmLoader from '../components/common/OmLoader';
 import {
   Image, Video, Search, X, Download, Trash2,
   FolderOpen, HardDrive, Calendar,
@@ -35,7 +36,7 @@ const CloudGalleryPage = () => {
   const fetched = useRef(false);
 
   // Check if user is admin
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
 
   const fetchResources = useCallback(async (cursor = null, search = '', type = 'all') => {
     setLoading(true);
@@ -530,7 +531,7 @@ const CloudGalleryPage = () => {
       {/* Resources Grid */}
       {loading && resources.length === 0 ? (
         <div className="flex items-center justify-center py-20">
-          <Loader2 size={40} className="animate-spin text-vermilion" />
+          <OmLoader size="lg" color="vermilion" />
         </div>
       ) : resources.length === 0 ? (
         <div className="text-center py-20">

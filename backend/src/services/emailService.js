@@ -1,4 +1,6 @@
+// backend/services/emailService.js
 const nodemailer = require('nodemailer');
+const Subscriber = require('../models/Subscriber');
 
 // Check if email is configured
 const isEmailConfigured = () => {
@@ -1470,6 +1472,91 @@ const sendContactReply = async (contact, reply) => {
 };
 
 // ============================================
+// SUBSCRIBER UPDATE EMAILS
+// ============================================
+
+/**
+ * Notify all email subscribers about a new event/blog update
+ * @param {Object} options - Update options
+ * @param {string} options.type - 'event' or 'blog'
+ * @param {string} options.title - Title of the update
+ * @param {string} options.summary - Short summary/description
+ * @param {string} options.url - Link to view the update
+ * @returns {Promise<Object>} Send result summary
+ */
+const notifySubscribers = async ({ type, title, summary, url }) => {
+  try {
+    const subscribers = await Subscriber.find({}, 'email');
+    if (!subscribers || subscribers.length === 0) {
+      console.log('📧 No subscribers to notify');
+      return { skipped: true, count: 0 };
+    }
+
+    const typeLabel = type === 'event' ? '📅 New Event' : '📰 New Blog';
+    const subject = `🕉 ${typeLabel}: ${title} - Shree Ramchandra Temple`;
+    const link = url || process.env.FRONTEND_URL || 'http://localhost:4000';
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background: #fafafa; }
+          .container { background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+          .header { background: linear-gradient(135deg, #7A1F2B 0%, #5B1420 100%); color: white; padding: 30px 20px; text-align: center; }
+          .header .om { font-size: 32px; display: block; margin-bottom: 8px; }
+          .header h1 { margin: 0; font-size: 24px; }
+          .content { padding: 30px 25px; border: 1px solid #e8e4e0; border-top: none; border-radius: 0 0 16px 16px; }
+          .update-title { font-size: 20px; font-weight: 700; color: #7A1F2B; margin: 0 0 10px 0; }
+          .summary { color: #4a4a5a; margin-bottom: 20px; }
+          .btn { display: inline-block; padding: 12px 28px; background: #7A1F2B; color: white; text-decoration: none; border-radius: 8px; font-weight: 600; }
+          .btn:hover { background: #5B1420; }
+          .footer { text-align: center; padding: 20px; border-top: 1px solid #e8e4e0; font-size: 12px; color: #888; background: #fafafa; }
+          .temple-name { color: #7A1F2B; font-weight: 600; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <span class="om">🕉</span>
+            <h1>${typeLabel}</h1>
+            <p style="margin: 4px 0 0; opacity: 0.85; font-size: 14px;">Shree Ramchandra Temple, Gaushala</p>
+          </div>
+          <div class="content">
+            <p style="font-size: 16px; color: #1a1a2e;">Dear Devotee,</p>
+            <p class="update-title">${title}</p>
+            ${summary ? `<p class="summary">${summary}</p>` : ''}
+            <div style="text-align: center; margin: 20px 0;">
+              <a href="${link}" class="btn">View Details</a>
+            </div>
+            <p style="margin-top: 16px; font-size: 14px; color: #7A1F2B; font-weight: 600;">Jai Shree Ram! 🙏</p>
+          </div>
+          <div class="footer">
+            <p style="margin: 0;"><span class="temple-name">Shree Ramchandra Temple</span></p>
+            <p style="margin: 4px 0 0;">Gaushala, Kathmandu, Nepal</p>
+            <p style="margin: 10px 0 0; font-size: 11px; color: #aaa;">You are receiving this because you subscribed to temple updates.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    let sent = 0;
+    for (const sub of subscribers) {
+      const result = await sendEmail({ to: sub.email, subject, html });
+      if (!result || !result.error) sent++;
+    }
+
+    console.log(`📧 Update email sent to ${sent}/${subscribers.length} subscribers`);
+    return { count: subscribers.length, sent };
+  } catch (error) {
+    console.error('Notify subscribers error:', error.message);
+    return { error: error.message };
+  }
+};
+
+// ============================================
 // EXPORTS
 // ============================================
 
@@ -1484,5 +1571,6 @@ module.exports = {
   sendDonationConfirmationWithPDF,
   sendTeamWelcomeEmail,
   sendContactReply,
+  notifySubscribers,
   isEmailConfigured,
 };

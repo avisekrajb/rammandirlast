@@ -3,6 +3,7 @@ import { Save, Eye, EyeOff, Edit, X, QrCode, Upload } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import LanguageSwitcher from '../common/LanguageSwitcher';
 import api from '../../services/api';
+import OmLoader from '../../components/common/OmLoader';
 
 const AdminNotice = ({ settings, updateSettings, t }) => {
   const { showToast } = useToast();
@@ -249,7 +250,7 @@ const AdminNotice = ({ settings, updateSettings, t }) => {
               </label>
               {uploading && (
                 <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                  <div className="w-8 h-8 border-3 border-white border-t-transparent rounded-full animate-spin" />
+                  <OmLoader size="md" color="white" />
                 </div>
               )}
               {qrPhoto && !uploading && (

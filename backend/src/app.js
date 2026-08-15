@@ -10,7 +10,7 @@ dotenv.config();
 
 const app = express();
 
-// ============================================
+// ============================================ 
 // SESSION CONFIGURATION (for Google OAuth)
 // ============================================
 app.use(session({
@@ -110,6 +110,10 @@ app.use('/api/users', userRoutes);
 const adminRoutes = require('./routes/adminRoutes');
 app.use('/api/admin', adminRoutes);
 
+// Admin Profile Routes
+const adminProfileRoutes = require('./routes/adminProfileRoutes');
+app.use('/api/admin/profile', adminProfileRoutes);
+
 // Admin Activity Log Routes
 const adminLogRoutes = require('./routes/adminLogRoutes');
 app.use('/api/admin/activity', adminLogRoutes);
@@ -117,6 +121,10 @@ app.use('/api/admin/activity', adminLogRoutes);
 // Backup Routes
 const backupRoutes = require('./routes/backupRoutes');
 app.use('/api/admin/backup', backupRoutes);
+
+// About Routes
+const aboutRoutes = require('./routes/aboutRoutes');
+app.use('/api/about', aboutRoutes);
 
 // Event Routes
 const eventRoutes = require('./routes/eventRoutes');
@@ -149,6 +157,10 @@ app.use('/api/subscribe', subscribeRoutes);
 // Payment Routes
 const paymentRoutes = require('./routes/paymentRoutes');
 app.use('/api/payment', paymentRoutes);
+
+// Team Routes - For team member management
+const teamRoutes = require('./routes/teamRoutes');
+app.use('/api/team', teamRoutes);
 
 // ============================================
 // HEALTH & ROOT ENDPOINTS
@@ -183,6 +195,7 @@ app.get('/', (req, res) => {
       admin: '/api/admin',
       'admin/activity': '/api/admin/activity',
       'admin/backup': '/api/admin/backup',
+      about: '/api/about',
       events: '/api/events',
       bookings: '/api/bookings',
       donations: '/api/donations',
@@ -191,6 +204,7 @@ app.get('/', (req, res) => {
       visitors: '/api/visitors',
       subscribe: '/api/subscribe',
       payment: '/api/payment',
+      team: '/api/team',
       health: '/api/health',
     },
     docs: 'https://github.com/your-repo/shree-ramchandra-temple',
@@ -210,6 +224,7 @@ app.use((req, res) => {
       '/api/admin',
       '/api/admin/activity',
       '/api/admin/backup',
+      '/api/about',
       '/api/events',
       '/api/bookings',
       '/api/donations',
@@ -218,6 +233,7 @@ app.use((req, res) => {
       '/api/visitors',
       '/api/subscribe',
       '/api/payment',
+      '/api/team',
       '/api/health',
     ],
   });

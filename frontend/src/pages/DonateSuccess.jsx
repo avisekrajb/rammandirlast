@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
-import { Check, Loader2, X, Heart } from 'lucide-react';
+import OmLoader from '../components/common/OmLoader';
+import { Check, X, Heart } from 'lucide-react';
 
 const DonateSuccess = () => {
   const navigate = useNavigate();
@@ -65,7 +66,7 @@ const DonateSuccess = () => {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: "linear-gradient(180deg, #faf8f5 0%, #ffffff 50%, #faf8f5 100%)" }}>
         <div className="text-center">
-          <Loader2 size={40} className="animate-spin text-vermilion mx-auto mb-4" />
+          <OmLoader size="lg" color="vermilion" className="mx-auto mb-4" />
           <p className="text-ink-soft">Verifying your payment...</p>
         </div>
       </div>

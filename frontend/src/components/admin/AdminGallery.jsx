@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useToast } from '../../context/ToastContext';
 import { useLanguage } from '../../context/LanguageContext';
 import api from '../../services/api';
+import OmLoader from '../../components/common/OmLoader';
 import {
   Image, Video, Plus, Trash2, Edit, X, Download, Share2,
   Calendar, Tag, Eye, EyeOff, Upload, Search, Filter,
@@ -100,7 +101,7 @@ const AdminGallery = ({ gallery, setGallery, galleryVideos, setGalleryVideos, t 
     const formData = new FormData();
     formData.append('photo', file);
     formData.append('data', JSON.stringify({
-      cap: { en: file.name.split('.')[0] || 'Temple Photo' },
+      cap: { en: '' },
       category: 'general',
       hue: '#7A1F2B',
     }));
@@ -140,7 +141,7 @@ const AdminGallery = ({ gallery, setGallery, galleryVideos, setGalleryVideos, t 
     const formData = new FormData();
     formData.append('video', file);
     formData.append('data', JSON.stringify({
-      cap: { en: file.name.split('.')[0] || 'Temple Video' },
+      cap: { en: '' },
       category: 'general',
     }));
 
@@ -286,7 +287,7 @@ const AdminGallery = ({ gallery, setGallery, galleryVideos, setGalleryVideos, t 
   if (loading && allItems.length === 0) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 size={40} className="animate-spin text-vermilion" />
+        <OmLoader size="lg" color="vermilion" />
       </div>
     );
   }

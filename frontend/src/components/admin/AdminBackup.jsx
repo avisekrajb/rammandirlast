@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { useBackup } from '../../context/BackupContext';
+import OmLoader from '../../components/common/OmLoader';
 
 const AdminBackup = ({ t }) => {
   const { showToast } = useToast();
@@ -203,7 +204,7 @@ const AdminBackup = ({ t }) => {
         <div className="p-4">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 size={32} className="animate-spin text-[#7A0000]" />
+              <OmLoader size="md" color="maroon" />
             </div>
           ) : backups.length === 0 ? (
             <div className="text-center py-12">

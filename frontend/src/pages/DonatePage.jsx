@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import OmLoader from '../components/common/OmLoader';
 import PageHero from '../components/common/PageHero';
 import DonationReceipt from '../components/common/DonationReceipt';
 import { 
@@ -52,8 +53,6 @@ const DonatePage = () => {
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [settings, setSettings] = useState(null);
-  const [donationCount, setDonationCount] = useState(0);
-  const [realDonors, setRealDonors] = useState([]);
   const [selectedMethod, setSelectedMethod] = useState('esewa');
   const [amount, setAmount] = useState(501);
   const [name, setName] = useState("");
@@ -81,7 +80,6 @@ const DonatePage = () => {
   useEffect(() => {
     const fetchQR = async () => {
       try {
-        // Use public settings endpoint (no auth required)
         const response = await api.get('/admin/settings');
         const qrUrl = response.data?.donate?.qrPhoto || null;
         setQrPhoto(qrUrl);
@@ -95,35 +93,25 @@ const DonatePage = () => {
     fetchQR();
   }, []);
 
-  // Fetch donors and donation count
+  // Fetch settings only
   useEffect(() => {
-    const fetchDonors = async () => {
+    const fetchSettings = async () => {
       try {
-        const [settingsRes, donationsRes] = await Promise.all([
-          api.get('/admin/settings'),
-          api.get('/admin/donations')
-        ]);
-        setSettings(settingsRes.data);
-        
-        // Get real donors (completed donations)
-        const completedDonations = donationsRes.data?.filter(d => d.status === 'completed') || [];
-        setRealDonors(completedDonations.slice(0, 10));
-        setDonationCount(settingsRes.data?.donate?.baseCount + (donationsRes.data?.length || 0));
+        const response = await api.get('/admin/settings');
+        setSettings(response.data);
       } catch (error) {
-        console.error('Error fetching donors:', error);
+        console.error('Error fetching settings:', error);
       }
     };
-    fetchDonors();
+    fetchSettings();
   }, []);
 
   // Helper to get full Cloudinary URL
   const getFullImageUrl = (url) => {
     if (!url) return null;
-    // If it's already a full URL, return as is
     if (url.startsWith('http://') || url.startsWith('https://')) {
       return url;
     }
-    // If it's a relative path, prepend Cloudinary base URL
     if (url.startsWith('/')) {
       const cloudName = process.env.REACT_APP_CLOUDINARY_CLOUD_NAME || 'dibusz4ag';
       return `https://res.cloudinary.com/${cloudName}/image/upload/${url}`;
@@ -230,20 +218,10 @@ const DonatePage = () => {
       });
       
       setDone(true);
-      setDonationCount(prev => prev + 1);
       
       // Set current donation for receipt
       setCurrentDonation(response.data);
       setShowReceipt(true);
-      
-      // Add to real donors list
-      setRealDonors(prev => [{
-        name: name || user?.name || 'Anonymous',
-        amount: Number(amount),
-        date: new Date().toISOString(),
-        message: message || '🙏 Blessed',
-        _id: response.data._id
-      }, ...prev].slice(0, 10));
       
       showToast(t.donateThanks || `NPR ${amount} — Thank you for your generous donation!`, 'success');
       
@@ -320,7 +298,7 @@ const DonatePage = () => {
       <div className="min-h-screen flex items-center justify-center px-4" style={{ background: "linear-gradient(180deg, #faf8f5 0%, #ffffff 50%, #faf8f5 100%)" }}>
         <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 text-center">
           <div className="w-20 h-20 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-4">
-            <Loader2 size={40} className="animate-spin text-green-500" />
+            <OmLoader size="lg" color="green" />
           </div>
           <h2 className="text-2xl font-serif font-bold text-ink mb-2">Redirecting to eSewa...</h2>
           <p className="text-ink-soft">Please wait while we redirect you to the payment gateway.</p>
@@ -579,7 +557,7 @@ const DonatePage = () => {
               <div className="mx-auto w-44 h-44 bg-gray-50 rounded-xl grid place-items-center border border-gray-200 overflow-hidden relative">
                 {qrLoading ? (
                   <div className="flex flex-col items-center justify-center w-full h-full">
-                    <Loader2 size={32} className="animate-spin text-[#7A0000]" />
+                    <OmLoader size="md" color="maroon" />
                     <p className="text-xs text-gray-400 mt-2">Loading QR...</p>
                   </div>
                 ) : displayQrPhoto ? (
@@ -590,7 +568,6 @@ const DonatePage = () => {
                     onError={(e) => {
                       console.error('QR image failed to load:', displayQrPhoto);
                       e.target.style.display = 'none';
-                      // Show fallback
                       const parent = e.target.parentElement;
                       const fallback = document.createElement('div');
                       fallback.className = 'flex flex-col items-center justify-center w-full h-full';
@@ -599,7 +576,7 @@ const DonatePage = () => {
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h-2m2 0h2M4 12v1m4 0h4m-4 0v4m0-4h-2" />
                         </svg>
                         <p class="text-xs text-gray-400 mt-1">QR Code not available</p>
-                        <button class="mt-2 text-xs text-[#7A0000] hover:underline flex items-center gap-1">
+                        <button class="mt-2 text-xs text-[#7A0000] hover:underline flex items-center gap-1" onclick="window.location.reload()">
                           <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                           </svg>
@@ -619,48 +596,6 @@ const DonatePage = () => {
               </div>
               <p className="text-xs text-mute mt-3">eSewa / Khalti / IPS / FonePay</p>
             </div>
-
-            {/* Real Donors - No scrollbar */}
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 sm:p-8">
-              <div className="flex items-center gap-2 mb-4">
-                <Hand size={20} className="text-vermilion" />
-                <h3 className="font-serif text-lg" style={{ color: "#7A0000" }}>
-                  {t.recentDonors || 'Recent Devotees'}
-                </h3>
-                <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full ml-auto">
-                  {realDonors.length}
-                </span>
-              </div>
-              
-              <div className="space-y-3 max-h-60 overflow-y-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                {realDonors.length === 0 ? (
-                  <p className="text-center text-gray-400 text-sm py-4">No donations yet. Be the first!</p>
-                ) : (
-                  realDonors.map((donor, index) => (
-                    <div 
-                      key={donor._id || index} 
-                      className="flex items-start gap-3 p-3 rounded-lg border border-gray-50 hover:bg-gray-50 transition-colors"
-                    >
-                      <div className="w-10 h-10 rounded-full bg-[#7A0000]/10 flex items-center justify-center flex-shrink-0">
-                        <User size={18} className="text-[#7A0000]" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <p className="font-semibold text-sm truncate">{donor.name}</p>
-                          <span className="text-xs font-bold text-[#7A0000]">Rs. {donor.amount?.toLocaleString() || 0}</span>
-                        </div>
-                        <div className="flex items-center gap-3 text-xs text-mute">
-                          <span>{donor.date ? new Date(donor.date).toLocaleDateString() : 'Today'}</span>
-                          {donor.message && (
-                            <span className="text-gray-400">• "{donor.message}"</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
           </motion.div>
         </div>
       </div>
@@ -676,18 +611,6 @@ const DonatePage = () => {
           settings={settings}
         />
       )}
-
-      {/* Hide scrollbar styles */}
-      <style>{`
-        .scrollbar-hide::-webkit-scrollbar {
-          width: 0;
-          display: none;
-        }
-        .scrollbar-hide {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-      `}</style>
     </div>
   );
 };

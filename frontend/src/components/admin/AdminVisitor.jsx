@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { 
   Users, Eye, Clock, TrendingUp, MapPin, Globe, 
   Monitor, Smartphone, Tablet, Search, Filter,
-  ChevronDown, ChevronUp, RefreshCw, Loader2,
+  ChevronDown, ChevronUp, RefreshCw,
   Calendar, Activity, BarChart3, Sparkles, Download,
   X, ChevronRight, ExternalLink, User, Mail,
   CalendarDays, Award, Star
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import api from '../../services/api';
+import OmLoader from '../../components/common/OmLoader';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line,
@@ -71,7 +72,7 @@ const AdminVisitor = ({ t }) => {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
-          <Loader2 size={40} className="animate-spin text-[#7A0000] mx-auto mb-4" />
+          <OmLoader size="lg" color="maroon" className="mx-auto mb-4" />
           <p className="text-ink-soft">Loading visitor analytics...</p>
         </div>
       </div>

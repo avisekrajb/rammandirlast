@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import OmLoader from '../components/common/OmLoader';
 import PageHero from '../components/common/PageHero';
 import DonationReceipt from '../components/common/DonationReceipt';
 import { 
@@ -287,7 +288,7 @@ const DonatePage = () => {
       <div className="min-h-screen flex items-center justify-center px-4" style={{ background: "linear-gradient(180deg, #faf8f5 0%, #ffffff 50%, #faf8f5 100%)" }}>
         <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 text-center">
           <div className="w-20 h-20 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-4">
-            <Loader2 size={40} className="animate-spin text-green-500" />
+            <OmLoader size="lg" color="green" />
           </div>
           <h2 className="text-2xl font-serif font-bold text-ink mb-2">Redirecting to eSewa...</h2>
           <p className="text-ink-soft">Please wait while we redirect you to the payment gateway.</p>

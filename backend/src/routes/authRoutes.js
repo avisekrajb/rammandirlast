@@ -89,7 +89,7 @@ router.post('/reset-password-otp', resetPasswordOtp);
  * @desc    Redirect to Google OAuth
  * @access  Public
  */
-router.get('/google', googleAuth);
+router.get('/google', googleAuth); // ← Make sure googleAuth is a function
 
 /**
  * @route   GET /api/auth/google/callback

@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const Subscriber = require('../models/Subscriber');
 const { sendEmail } = require('../services/emailService');
 
 // @desc    Subscribe to updates
@@ -14,6 +15,17 @@ router.post('/', async (req, res) => {
         success: false,
         message: 'Please provide a valid email address' 
       });
+    }
+
+    // Store the subscriber so they receive future event/blog update emails
+    try {
+      await Subscriber.findOneAndUpdate(
+        { email: email.toLowerCase().trim() },
+        { email: email.toLowerCase().trim() },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+    } catch (subError) {
+      console.error('Subscriber save error:', subError.message);
     }
 
     // Send confirmation email

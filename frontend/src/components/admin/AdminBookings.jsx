@@ -33,6 +33,7 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
   const [bookingBgPhoto, setBookingBgPhoto] = useState('/4.jpg');
   const [uploadingBg, setUploadingBg] = useState(false);
   const fileInputRef = useRef(null);
+  const [previewImages, setPreviewImages] = useState([]);
 
   const statusColors = {
     pending: '#F59E0B',
@@ -72,6 +73,10 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
         if (settings?.bookingBgPhoto) {
           setBookingBgPhoto(settings.bookingBgPhoto);
         }
+        // Initialize preview images with the current photo
+        if (settings?.bookingBgPhoto && settings.bookingBgPhoto !== '/4.jpg') {
+          setPreviewImages([settings.bookingBgPhoto]);
+        }
       } catch (error) {
         console.error('Error fetching settings:', error);
         setPujaTypes(['Ram Puja', 'Satyanarayan Puja', 'Griha Pravesh Puja', 'Birthday Puja', 'General Darshan Booking']);
@@ -106,7 +111,9 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
       });
       setBookingBgPhoto(response.data.url);
       await api.put('/admin/settings', { bookingBgPhoto: response.data.url });
-      showToast('Background photo updated successfully', 'success');
+      // Add to preview images
+      setPreviewImages(prev => [...prev, response.data.url]);
+      showToast('Background photo uploaded successfully', 'success');
     } catch (error) {
       console.error('Upload error:', error);
       showToast(error.response?.data?.message || 'Upload failed', 'error');
@@ -117,16 +124,36 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
   };
 
   // Remove Background Photo
-  const handleRemoveBgPhoto = async () => {
-    if (!window.confirm('Remove the background photo?')) return;
+  const handleRemoveBgPhoto = async (imageToRemove) => {
+    if (!window.confirm('Remove this background photo?')) return;
     setUploadingBg(true);
     try {
-      setBookingBgPhoto('/4.jpg');
-      await api.put('/admin/settings', { bookingBgPhoto: '/4.jpg' });
-      showToast('Background photo removed', 'success');
+      // If removing the current active photo
+      if (imageToRemove === bookingBgPhoto) {
+        setBookingBgPhoto('/4.jpg');
+        await api.put('/admin/settings', { bookingBgPhoto: '/4.jpg' });
+      }
+      // Remove from preview list
+      setPreviewImages(prev => prev.filter(img => img !== imageToRemove));
+      showToast('Photo removed', 'success');
     } catch (error) {
       console.error('Error removing photo:', error);
       showToast('Failed to remove photo', 'error');
+    } finally {
+      setUploadingBg(false);
+    }
+  };
+
+  // Set as active background
+  const handleSetAsActive = async (imageUrl) => {
+    setUploadingBg(true);
+    try {
+      setBookingBgPhoto(imageUrl);
+      await api.put('/admin/settings', { bookingBgPhoto: imageUrl });
+      showToast('Background photo updated', 'success');
+    } catch (error) {
+      console.error('Error setting active photo:', error);
+      showToast('Failed to update background', 'error');
     } finally {
       setUploadingBg(false);
     }
@@ -306,12 +333,12 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
 
   return (
     <div className="space-y-6">
-      {/* Background Photo Management */}
+      {/* Background Photo Management - Mini Square Grid */}
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
         <div className="px-6 py-4 bg-gradient-to-r from-[#7A0000]/10 to-[#A00000]/5 border-b border-gray-100 flex items-center justify-between">
           <h4 className="text-gray-700 font-semibold flex items-center gap-2">
             <Image size={18} className="text-[#7A0000]" />
-            Booking Page Background Photo
+            Booking Page Background Photos
           </h4>
           <div className="flex items-center gap-2">
             <button
@@ -320,18 +347,8 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
               className="px-3 py-1.5 bg-[#7A0000] text-white rounded-lg text-xs font-semibold hover:bg-[#5A0000] transition-all disabled:opacity-50 flex items-center gap-1"
             >
               <Upload size={14} />
-              Change Photo
+              Upload
             </button>
-            {bookingBgPhoto && bookingBgPhoto !== '/4.jpg' && (
-              <button
-                onClick={handleRemoveBgPhoto}
-                disabled={uploadingBg}
-                className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-xs font-semibold hover:bg-red-600 transition-all disabled:opacity-50 flex items-center gap-1"
-              >
-                <Trash size={14} />
-                Remove
-              </button>
-            )}
             <input
               ref={fileInputRef}
               type="file"
@@ -341,26 +358,93 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
             />
           </div>
         </div>
+        
+        {/* Mini Square Grid */}
         <div className="p-4">
-          <div className="relative rounded-xl overflow-hidden h-40 bg-gray-100">
-            <img
-              src={bookingBgPhoto || '/4.jpg'}
-              alt="Booking Background"
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                e.target.src = '/4.jpg';
-              }}
-            />
-            {uploadingBg && (
-              <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {/* Default Image */}
+            <div className="relative group">
+              <div className={`aspect-square rounded-xl overflow-hidden border-2 ${bookingBgPhoto === '/4.jpg' ? 'border-[#7A0000] ring-2 ring-[#7A0000]/20' : 'border-gray-200'}`}>
+                <img
+                  src="/4.jpg"
+                  alt="Default Background"
+                  className="w-full h-full object-cover"
+                />
+                {bookingBgPhoto === '/4.jpg' && (
+                  <div className="absolute top-1 right-1 bg-[#7A0000] text-white text-[8px] font-bold px-1.5 py-0.5 rounded">
+                    Active
+                  </div>
+                )}
               </div>
-            )}
-            <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded">
-              {bookingBgPhoto === '/4.jpg' ? 'Default' : 'Custom'}
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                {bookingBgPhoto !== '/4.jpg' && (
+                  <button
+                    onClick={() => handleSetAsActive('/4.jpg')}
+                    className="p-1 bg-white/90 rounded text-[#7A0000] hover:bg-white transition-all text-[10px] font-semibold"
+                  >
+                    Set
+                  </button>
+                )}
+              </div>
+              <p className="text-[9px] text-gray-400 text-center mt-0.5 truncate">Default</p>
             </div>
+
+            {/* Uploaded Images */}
+            {previewImages.map((img, index) => (
+              <div key={index} className="relative group">
+                <div className={`aspect-square rounded-xl overflow-hidden border-2 ${bookingBgPhoto === img ? 'border-[#7A0000] ring-2 ring-[#7A0000]/20' : 'border-gray-200'}`}>
+                  <img
+                    src={img}
+                    alt={`Background ${index + 1}`}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.src = '/4.jpg';
+                    }}
+                  />
+                  {bookingBgPhoto === img && (
+                    <div className="absolute top-1 right-1 bg-[#7A0000] text-white text-[8px] font-bold px-1.5 py-0.5 rounded">
+                      Active
+                    </div>
+                  )}
+                  {uploadingBg && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                      <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  )}
+                </div>
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                  {bookingBgPhoto !== img && (
+                    <button
+                      onClick={() => handleSetAsActive(img)}
+                      className="p-1 bg-white/90 rounded text-[#7A0000] hover:bg-white transition-all text-[10px] font-semibold"
+                    >
+                      Set
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleRemoveBgPhoto(img)}
+                    className="p-1 bg-red-500/90 rounded text-white hover:bg-red-600 transition-all"
+                  >
+                    <Trash size={12} />
+                  </button>
+                </div>
+                <p className="text-[9px] text-gray-400 text-center mt-0.5 truncate">
+                  Photo {index + 1}
+                </p>
+              </div>
+            ))}
           </div>
-          <p className="text-xs text-gray-400 mt-2">This photo appears on the left side of the booking page (50% width). Recommended size: 800x600px or larger.</p>
+          
+          {previewImages.length === 0 && (
+            <div className="text-center py-4 text-gray-400 text-sm">
+              No custom photos uploaded. Upload images to use as booking page background.
+            </div>
+          )}
+          
+          <p className="text-xs text-gray-400 mt-3">
+            <span className="font-medium">Active:</span> {bookingBgPhoto === '/4.jpg' ? 'Default background' : 'Custom photo'} • 
+            <span className="ml-1">Uploaded: {previewImages.length} photos</span>
+          </p>
         </div>
       </div>
 
@@ -563,7 +647,7 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
         </div>
       </div>
 
-      {/* Bookings List */}
+      {/* Bookings List - Same as before */}
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
         {/* Header */}
         <div className="px-6 py-4 bg-gradient-to-r from-[#7A0000]/10 to-[#A00000]/5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-4">

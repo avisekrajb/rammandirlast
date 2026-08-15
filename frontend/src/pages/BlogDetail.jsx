@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
 import api from '../services/api';
+import OmLoader from '../components/common/OmLoader';
 import { 
   Calendar, 
   User, 
@@ -82,7 +83,7 @@ const BlogDetail = () => {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(180deg, #faf8f5 0%, #ffffff 50%, #faf8f5 100%)' }}>
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-vermilion border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <OmLoader size="lg" color="vermilion" className="mx-auto mb-4" />
           <p className="text-ink-soft text-sm">Loading blog...</p>
         </div>
       </div>
@@ -166,7 +167,7 @@ const BlogDetail = () => {
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition-all text-sm font-medium"
                 >
                   <Share2 size={16} />
-                  Share
+                  {t.share || 'Share'}
                 </button>
               </div>
             </div>

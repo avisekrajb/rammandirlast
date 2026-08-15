@@ -7,6 +7,7 @@ import {
   Eye, EyeOff, Calendar, User, Clock, Heart
 } from 'lucide-react';
 import LanguageSwitcher from '../common/LanguageSwitcher';
+import OmLoader from '../../components/common/OmLoader';
 
 const AdminBlogs = () => {
   const { t, lang } = useLanguage();
@@ -275,7 +276,7 @@ const AdminBlogs = () => {
             )}
             {uploading && (
               <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                <div className="w-8 h-8 border-3 border-white border-t-transparent rounded-full animate-spin" />
+                <OmLoader size="md" color="white" />
               </div>
             )}
             {editing.image && !uploading && (
@@ -433,7 +434,7 @@ const AdminBlogs = () => {
 
       {loading ? (
         <div className="flex items-center justify-center py-12">
-          <div className="w-8 h-8 border-3 border-vermilion border-t-transparent rounded-full animate-spin" />
+          <OmLoader size="md" color="vermilion" />
         </div>
       ) : blogs.length === 0 ? (
         <div className="text-center py-12">

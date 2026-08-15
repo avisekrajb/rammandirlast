@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import api from '../services/api';
+import OmLoader from '../components/common/OmLoader';
 import { 
   Calendar, 
   User, 
@@ -158,7 +159,7 @@ const BlogsPage = () => {
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <div className="text-center">
-              <div className="w-12 h-12 border-4 border-vermilion border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+              <OmLoader size="lg" color="vermilion" className="mx-auto mb-4" />
               <p className="text-ink-soft text-sm">{t.loading || 'Loading blogs...'}</p>
             </div>
           </div>
@@ -228,7 +229,7 @@ const BlogsPage = () => {
                       <button
                         onClick={(e) => handleShare(post, e)}
                         className="p-2 rounded-lg hover:bg-gray-100 transition-all text-ink-soft hover:text-vermilion"
-                        title="Share"
+                        title={t.share || 'Share'}
                       >
                         <Share2 size={16} />
                       </button>

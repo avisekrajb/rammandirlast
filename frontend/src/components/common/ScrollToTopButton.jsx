@@ -6,6 +6,17 @@ import { useScroll } from '../../context/ScrollContext';
 const ScrollToTopButton = () => {
   const { isVisible, isAtBottom, scrollProgress, scrollToTop } = useScroll();
   const [isHovered, setIsHovered] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Check if mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 640);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Don't show if not visible or at bottom (footer area)
   if (!isVisible || isAtBottom) {
@@ -18,9 +29,9 @@ const ScrollToTopButton = () => {
   return (
     <AnimatePresence>
       <motion.button
-        initial={{ opacity: 0, scale: 0.8, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.8, y: 20 }}
+        initial={{ opacity: 0, scale: 0.8, x: -20 }}
+        animate={{ opacity: 1, scale: 1, x: 0 }}
+        exit={{ opacity: 0, scale: 0.8, x: -20 }}
         transition={{ 
           duration: 0.3, 
           ease: [0.16, 1, 0.3, 1],
@@ -31,7 +42,12 @@ const ScrollToTopButton = () => {
         onClick={scrollToTop}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className="fixed bottom-8 right-6 z-50 group"
+        className="fixed z-50 group"
+        style={{
+          bottom: isMobile ? '100px' : '32px',
+          left: isMobile ? '12px' : '24px',
+          right: 'auto',
+        }}
       >
         {/* Outer Glow Ring */}
         <motion.div
@@ -115,18 +131,18 @@ const ScrollToTopButton = () => {
           />
         </motion.div>
 
-        {/* Tooltip */}
+        {/* Tooltip - positioned to the right on left side */}
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, x: -10 }}
           animate={{ 
             opacity: isHovered ? 1 : 0,
-            y: isHovered ? -8 : 10
+            x: isHovered ? 8 : -10
           }}
           transition={{ duration: 0.2 }}
-          className="absolute -top-10 left-1/2 -translate-x-1/2 whitespace-nowrap bg-black/80 text-white text-xs font-medium px-3 py-1.5 rounded-lg backdrop-blur-sm pointer-events-none"
+          className="absolute top-1/2 -translate-y-1/2 left-full ml-3 whitespace-nowrap bg-black/80 text-white text-xs font-medium px-3 py-1.5 rounded-lg backdrop-blur-sm pointer-events-none"
         >
           Scroll to Top
-          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-black/80 rotate-45" />
+          <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-2 bg-black/80 rotate-45" />
         </motion.div>
       </motion.button>
     </AnimatePresence>

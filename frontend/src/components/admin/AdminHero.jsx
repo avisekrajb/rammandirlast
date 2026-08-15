@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Video, Upload, X, Play, Pause, RefreshCw } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import api from '../../services/api';
+import OmLoader from '../../components/common/OmLoader';
 
 const AdminHero = ({ settings, updateSettings, t }) => {
   const { showToast } = useToast();
@@ -137,7 +138,7 @@ const AdminHero = ({ settings, updateSettings, t }) => {
           />
           {loading ? (
             <div className="flex flex-col items-center gap-2">
-              <div className="w-8 h-8 border-3 border-vermilion border-t-transparent rounded-full animate-spin" />
+              <OmLoader size="md" color="vermilion" />
               <span className="text-xs text-ink-soft font-medium">Uploading...</span>
             </div>
           ) : (

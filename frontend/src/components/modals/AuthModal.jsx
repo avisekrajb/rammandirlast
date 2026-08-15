@@ -1,3 +1,4 @@
+// frontend/src/components/modals/AuthModal.jsx
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -108,7 +109,7 @@ const GoogleSignIn = ({ onSuccess, onError }) => {
       type="button"
       onClick={handleGoogleSignIn}
       disabled={loading}
-      className="w-full py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 font-semibold text-sm hover:bg-gray-50 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+      className="w-full py-2.5 sm:py-3 rounded-lg border border-gray-300 bg-white text-gray-700 font-semibold text-sm hover:bg-gray-50 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
     >
       <svg className="w-5 h-5" viewBox="0 0 48 48">
         <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z" />
@@ -121,7 +122,7 @@ const GoogleSignIn = ({ onSuccess, onError }) => {
   );
 };
 
-// OTP Modal Component
+// OTP Modal Component (for password reset inside auth modal)
 const OtpModal = ({ email, onBack, onVerify, onResetPassword, isOpen }) => {
   const { t } = useLanguage();
   const [otp, setOtp] = useState(['', '', '', '']);
@@ -142,6 +143,13 @@ const OtpModal = ({ email, onBack, onVerify, onResetPassword, isOpen }) => {
     if (value && index < 3) {
       const nextInput = document.getElementById(`otp-${index + 1}`);
       if (nextInput) nextInput.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !otp[index] && index > 0) {
+      const prevInput = document.getElementById(`otp-${index - 1}`);
+      if (prevInput) prevInput.focus();
     }
   };
 
@@ -202,7 +210,7 @@ const OtpModal = ({ email, onBack, onVerify, onResetPassword, isOpen }) => {
             Enter the 4-digit OTP sent to <strong>{email}</strong>
           </p>
 
-          <div className="flex justify-center gap-3 my-4">
+          <div className="flex justify-center gap-2 sm:gap-3 my-4">
             {[0, 1, 2, 3].map((index) => (
               <input
                 key={index}
@@ -211,7 +219,8 @@ const OtpModal = ({ email, onBack, onVerify, onResetPassword, isOpen }) => {
                 maxLength={1}
                 value={otp[index]}
                 onChange={(e) => handleOtpChange(index, e.target.value)}
-                className="w-14 h-14 text-center text-2xl font-bold border-2 border-gray-200 rounded-xl focus:border-vermilion focus:outline-none transition-colors bg-gray-50"
+                onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                className="w-12 h-12 sm:w-14 sm:h-14 text-center text-xl sm:text-2xl font-bold border-2 border-gray-200 rounded-xl focus:border-vermilion focus:outline-none transition-colors bg-gray-50"
                 autoFocus={index === 0}
               />
             ))}
@@ -254,7 +263,7 @@ const OtpModal = ({ email, onBack, onVerify, onResetPassword, isOpen }) => {
                 type={showPassword ? 'text' : 'password'}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder="•••••••• (min 6 characters)"
                 className="w-full py-2.5 bg-transparent border-0 focus:outline-none text-sm"
                 required
                 minLength="6"
@@ -435,17 +444,17 @@ const AuthModal = ({ open, onClose, onSuccess, setForgotModal }) => {
     showToast(errorMsg, 'error');
   };
 
+  // Handle Forgot Password - Open the forgot password modal
   const handleForgotPassword = () => {
-    if (!loginData.email && !signupData.email) {
-      setError('Please enter your email first');
-      return;
+    // Close auth modal and open forgot password modal
+    onClose();
+    if (setForgotModal) {
+      setForgotModal(true);
     }
-    setOtpEmail(loginData.email || signupData.email);
-    setShowOtpModal(true);
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[500] flex items-end md:items-center justify-center p-4 rt-modal-backdrop">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[500] flex items-end md:items-center justify-center p-0 md:p-4 rt-modal-backdrop">
       <div className="bg-white rounded-t-2xl md:rounded-2xl max-w-md w-full max-h-[92vh] overflow-y-auto shadow-2xl rt-modal-sheet md:max-w-[440px]">
         {/* Header with Logo */}
         <div className="flex items-center justify-between p-4 border-b border-line sticky top-0 bg-white z-10 rounded-t-2xl">
@@ -467,7 +476,7 @@ const AuthModal = ({ open, onClose, onSuccess, setForgotModal }) => {
           </button>
         </div>
 
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {showOtpModal ? (
             <OtpModal
               email={otpEmail}
@@ -565,7 +574,7 @@ const AuthModal = ({ open, onClose, onSuccess, setForgotModal }) => {
                     onClick={handleForgotPassword}
                     className="text-xs font-bold text-vermilion text-right hover:underline bg-transparent border-0"
                   >
-                    {t.forgotPw}
+                    {t.forgotPw || 'Forgot Password?'}
                   </button>
 
                   <button
@@ -636,7 +645,7 @@ const AuthModal = ({ open, onClose, onSuccess, setForgotModal }) => {
                         type={showPassword ? 'text' : 'password'}
                         value={signupData.password}
                         onChange={(e) => setSignupData({ ...signupData, password: e.target.value })}
-                        placeholder="••••••••"
+                        placeholder="•••••••• (min 6 characters)"
                         className="w-full py-2.5 bg-transparent border-0 focus:outline-none text-sm"
                         required
                         minLength="6"

@@ -171,7 +171,7 @@ export const AuthProvider = ({ children }) => {
 
   // Check if user is admin
   const isAdmin = useCallback(() => {
-    return user?.role === 'admin';
+    return user?.role === 'admin' || user?.role === 'superadmin';
   }, [user]);
 
   // Check if user is authenticated

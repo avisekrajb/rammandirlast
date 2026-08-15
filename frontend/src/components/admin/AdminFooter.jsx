@@ -10,6 +10,7 @@ import {
 import { useToast } from '../../context/ToastContext';
 import LanguageSwitcher from '../common/LanguageSwitcher';
 import api from '../../services/api';
+import OmLoader from '../../components/common/OmLoader';
 
 const AdminFooter = ({ settings, updateSettings, t }) => {
   const { showToast } = useToast();
@@ -411,7 +412,7 @@ const AdminFooter = ({ settings, updateSettings, t }) => {
               {uploading && (
                 <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                   <div className="text-white text-center">
-                    <div className="w-10 h-10 border-3 border-white border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                    <OmLoader size="lg" color="white" className="mx-auto mb-2" />
                     <span className="text-sm">Uploading...</span>
                   </div>
                 </div>

@@ -12,6 +12,7 @@ import {
 const Header = ({ onLogout, setAuthModal }) => {
   const { t, lang, setLang } = useLanguage();
   const { user } = useAuth();
+  const isAdminUser = user?.role === 'admin' || user?.role === 'superadmin';
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -35,13 +36,13 @@ const Header = ({ onLogout, setAuthModal }) => {
     fetchSettings();
   }, []);
 
-  // Navigation items with proper translations - dynamic based on language
-  // Using useMemo to ensure it updates when t changes
+  // Navigation items - BLOGS HIDDEN from header
   const navItems = useMemo(() => [
     { key: '/', label: t.navHome || 'Home', icon: Home, protected: false },
     { key: '/about', label: t.navAbout || 'About Us', icon: Info, protected: false },
     { key: '/history', label: t.navHistory || 'History', icon: ScrollText, protected: false },
-    { key: '/blogs', label: t.navBlogs || 'Blogs', icon: BookOpen, protected: false },
+    // BLOGS REMOVED FROM HEADER - hidden
+    // { key: '/blogs', label: t.navBlogs || 'Blogs', icon: BookOpen, protected: false },
     { key: '/events', label: t.navEvents || 'Events', icon: CalendarDays, protected: false },
     { key: '/gallery', label: t.navGallery || 'Gallery', icon: ImageIcon, protected: false },
     { key: '/booking', label: t.navBooking || 'Book Puja', icon: Hand, protected: true },
@@ -113,44 +114,83 @@ const Header = ({ onLogout, setAuthModal }) => {
   
   // Get logo settings from admin with fallbacks
   const logoPhoto = settings?.logo?.photo || null;
-  const logoText = settings?.logo?.text?.[lang] || t.templeName || 'Shree Ramchandra';
+  const logoText = settings?.logo?.text?.[lang] || t.templeName || 'Shree Ramchandra Temple';
   const logoSettings = settings?.logo || {};
   
-  // Logo styling from admin settings with fallbacks
-  const logoSize = logoSettings.size || 'w-14 h-14';
+  // Logo styling from admin settings with MODERN CONSTRAINTS
+  const logoSize = logoSettings.size || 'w-12 h-12';
   const logoShape = logoSettings.shape || 'rounded-xl';
   const logoBgColor = logoSettings.bgColor || 'from-vermilion to-maroon-deep';
   const showText = logoSettings.showText !== false;
   const textColor = logoSettings.textColor || 'text-maroon';
-  const textSize = logoSettings.textSize || 'text-base md:text-xl';
+  // INCREASED TEXT SIZE - Responsive with bigger mobile size
+  const textSize = logoSettings.textSize || 'text-[11px] sm:text-xs md:text-sm lg:text-base';
   const fontWeight = logoSettings.fontWeight || 'font-bold';
   const showLocation = logoSettings.showLocation !== false;
-  const logoWidth = logoSettings.width || 'w-auto';
+
+  // Get max width based on logo size to prevent stretching
+  const getLogoMaxWidth = (size) => {
+    const maxWidths = {
+      'w-8 h-8': 'max-w-[32px]',
+      'w-10 h-10': 'max-w-[40px]',
+      'w-12 h-12': 'max-w-[48px]',
+      'w-14 h-14': 'max-w-[56px]',
+      'w-16 h-16': 'max-w-[64px]',
+      'w-20 h-20': 'max-w-[80px]',
+    };
+    return maxWidths[size] || 'max-w-[48px]';
+  };
+
+  const logoMaxWidth = getLogoMaxWidth(logoSize);
+
+  // Split logo text into parts for wrapping
+  const splitLogoText = (text) => {
+    if (!text) return { first: '', second: '' };
+    const words = text.split(' ');
+    if (words.length <= 2) {
+      return { first: words[0] || '', second: words.slice(1).join(' ') || '' };
+    }
+    // If more than 2 words, split at the middle
+    const mid = Math.ceil(words.length / 2);
+    return {
+      first: words.slice(0, mid).join(' '),
+      second: words.slice(mid).join(' ')
+    };
+  };
+
+  const { first: logoFirstPart, second: logoSecondPart } = splitLogoText(logoText);
 
   return (
     <>
       <header className="rt-header" ref={headerRef}>
         <div className="w-full max-w-7xl mx-auto flex items-center justify-between px-3 sm:px-4 md:px-6 h-16 sm:h-[72px] md:h-[76px]">
-          {/* Logo - Using settings from admin */}
+          {/* Logo - Using settings from admin with text wrapping and size constraints */}
           <button 
             onClick={() => handleNavClick('/', false)} 
             className="flex items-center gap-2 sm:gap-3 bg-transparent border-0 p-0 text-left group flex-shrink-0 min-w-0"
           >
-            <div className={`${logoSize} ${logoShape} bg-gradient-to-br ${logoBgColor} text-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-lg shadow-vermilion/20 group-hover:shadow-xl group-hover:shadow-vermilion/30 transition-all duration-300 group-hover:scale-105`}>
+            <div className={`${logoSize} ${logoShape} bg-gradient-to-br ${logoBgColor} text-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-lg shadow-vermilion/20 group-hover:shadow-xl group-hover:shadow-vermilion/30 transition-all duration-300 group-hover:scale-105 ${logoMaxWidth}`}>
               {logoPhoto ? (
                 <img src={logoPhoto} alt="Logo" className="w-full h-full object-cover" />
               ) : (
-                <Sun size={24} strokeWidth={2.2} className="text-white/90" />
+                <Sun size={20} strokeWidth={2.2} className="text-white/90" />
               )}
             </div>
             {showText && (
-              <div className="flex flex-col leading-tight min-w-0">
-                <span className={`font-serif ${textSize} ${fontWeight} ${textColor} group-hover:text-[#8a2430] transition-colors duration-300 truncate max-w-[120px] sm:max-w-[180px] md:max-w-[220px]`}>
-                  {logoText}
+              <div className="flex flex-col leading-tight min-w-0 max-w-[140px] sm:max-w-[180px] md:max-w-[220px] lg:max-w-[260px]">
+                {/* Temple Name with BR tag for wrapping - INCREASED SIZE */}
+                <span className={`font-serif ${textSize} ${fontWeight} ${textColor} group-hover:text-[#8a2430] transition-colors duration-300 leading-tight`}>
+                  {logoFirstPart}
+                  {logoSecondPart && (
+                    <>
+                      <br />
+                      {logoSecondPart}
+                    </>
+                  )}
                 </span>
                 {showLocation && (
-                  <span className="text-[9px] sm:text-[10px] md:text-xs text-ink-soft flex items-center gap-1 truncate">
-                    <MapPin size={10} className="text-vermilion flex-shrink-0" /> 
+                  <span className="text-[8px] sm:text-[9px] md:text-[10px] text-ink-soft flex items-center gap-1 truncate mt-0.5">
+                    <MapPin size={9} className="text-vermilion flex-shrink-0" /> 
                     <span className="truncate">{t.templeSub || 'Gaushala, Kathmandu'}</span>
                   </span>
                 )}
@@ -280,19 +320,19 @@ const Header = ({ onLogout, setAuthModal }) => {
                           <div className="font-semibold text-sm text-ink truncate">{user.name}</div>
                           <div className="text-xs text-ink-soft truncate">{user.email}</div>
                           <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full mt-0.5 ${
-                            user.role === 'admin' ? 'bg-marigold/20 text-marigold' : 'bg-panel text-maroon'
+                            isAdminUser ? 'bg-marigold/20 text-marigold' : 'bg-panel text-maroon'
                           }`}>
-                            {user.role === 'admin' ? (
+                            {isAdminUser ? (
                               <BadgeCheck size={10} />
                             ) : (
                               <CircleDot size={10} />
                             )}
-                            {user.role === 'admin' ? t.adminDashboard : t.profile}
+                            {isAdminUser ? t.adminDashboard : t.profile}
                           </span>
                         </div>
                       </div>
                       <div className="py-1">
-                        {user.role === 'admin' ? (
+                        {isAdminUser ? (
                           <button
                             onClick={() => { navigate('/admin'); setProfileMenuOpen(false); }}
                             className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium hover:bg-panel transition-colors duration-200"

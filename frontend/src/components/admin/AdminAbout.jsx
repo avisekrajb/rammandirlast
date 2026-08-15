@@ -1,30 +1,51 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useToast } from '../../context/ToastContext';
 import api from '../../services/api';
-import { Save, Image, Upload, Plus, Trash2, Eye, EyeOff, MoveUp, MoveDown } from 'lucide-react';
+import { 
+  Save, Image, Upload, Plus, Trash2, Eye, EyeOff, 
+  MoveUp, MoveDown, Edit2, X, ChevronDown, ChevronRight 
+} from 'lucide-react';
 import LanguageSwitcher from '../common/LanguageSwitcher';
+import OmLoader from '../../components/common/OmLoader';
 
-const AdminAbout = ({ settings, updateSettings, t }) => {
+const AdminAbout = () => {
   const { showToast } = useToast();
-  const [activeLang, setActiveLang] = useState('en');
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const aboutInputRef = useRef(null);
+  const [activeLang, setActiveLang] = useState('en');
+  const [aboutData, setAboutData] = useState(null);
+  const [expandedSection, setExpandedSection] = useState(null);
+  const [expandedActivity, setExpandedActivity] = useState(null);
+  
+  const heroImageInputRef = useRef(null);
 
-  // About Section
-  const [aboutTitle, setAboutTitle] = useState(settings?.about?.title?.[activeLang] || '');
-  const [aboutText, setAboutText] = useState(settings?.about?.text?.[activeLang] || '');
-  const [aboutPhoto, setAboutPhoto] = useState(settings?.about?.photo || null);
-  const [aboutImages, setAboutImages] = useState(settings?.about?.images || []);
+  // Language options
+  const langLabels = {
+    en: 'English',
+    ne: 'नेपाली',
+    hi: 'हिन्दी',
+    zh: '中文',
+    ta: 'தமிழ்'
+  };
 
-  // Timings
-  const [timings, setTimings] = useState(settings?.timings || {
-    open: '05:00 AM',
-    close: '08:00 PM',
-    openLabel: { en: 'Opening Time', ne: 'खुल्ने समय', hi: 'खुलने का समय', zh: '开放时间', ta: 'திறக்கும் நேரம்' },
-    closeLabel: { en: 'Closing Time', ne: 'बन्द हुने समय', hi: 'बन्द होने का समय', zh: '关闭时间', ta: 'மூடும் நேரம்' },
-    dailyAarti: { en: 'Daily Aarti', ne: 'दैनिक आरती', hi: 'दैनिक आरती', zh: '每日祈祷', ta: 'தினசரி ஆரத்தி' },
-  });
+  // Fetch about data
+  useEffect(() => {
+    fetchAboutData();
+  }, []);
+
+  const fetchAboutData = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/about');
+      console.log('Fetched data:', response.data.data);
+      setAboutData(response.data.data);
+    } catch (error) {
+      console.error('Error fetching about data:', error);
+      showToast('Failed to load about data', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getLocalized = (obj) => {
     if (!obj) return '';
@@ -32,8 +53,33 @@ const AdminAbout = ({ settings, updateSettings, t }) => {
     return obj[activeLang] || obj.en || '';
   };
 
-  // Handle About Photo Upload
-  const handleAboutPhotoUpload = async (e) => {
+  const setLocalized = (obj, value) => {
+    if (!obj) return { [activeLang]: value };
+    return { ...obj, [activeLang]: value };
+  };
+
+  // ----- HERO SECTION -----
+  const updateHeroField = (field, value) => {
+    setAboutData({
+      ...aboutData,
+      hero: {
+        ...aboutData.hero,
+        [field]: value
+      }
+    });
+  };
+
+  const updateHeroLocalized = (field, value) => {
+    setAboutData({
+      ...aboutData,
+      hero: {
+        ...aboutData.hero,
+        [field]: setLocalized(aboutData.hero[field], value)
+      }
+    });
+  };
+
+  const handleHeroImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -42,8 +88,8 @@ const AdminAbout = ({ settings, updateSettings, t }) => {
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      showToast('Image must be less than 5MB', 'error');
+    if (file.size > 10 * 1024 * 1024) {
+      showToast('Image must be less than 10MB', 'error');
       return;
     }
 
@@ -52,11 +98,11 @@ const AdminAbout = ({ settings, updateSettings, t }) => {
     formData.append('image', file);
 
     try {
-      const response = await api.post('/admin/upload/about', formData, {
+      const response = await api.post('/admin/upload/about/hero', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      setAboutPhoto(response.data.url);
-      showToast('About photo uploaded successfully', 'success');
+      updateHeroField('image', response.data.url);
+      showToast('Hero image uploaded successfully', 'success');
     } catch (error) {
       console.error('Upload error:', error);
       showToast(error.response?.data?.message || 'Upload failed', 'error');
@@ -66,8 +112,79 @@ const AdminAbout = ({ settings, updateSettings, t }) => {
     e.target.value = '';
   };
 
-  // Handle About Images (gallery within about)
-  const handleAboutImageUpload = async (e) => {
+  // ----- INTRO TEXT (Below Hero) -----
+  const updateIntroTextLocalized = (value) => {
+    setAboutData({
+      ...aboutData,
+      introText: setLocalized(aboutData.introText, value)
+    });
+  };
+
+  // ----- SECTIONS -----
+  const addSection = () => {
+    const newSection = {
+      key: `section_${Date.now()}`,
+      title: { en: 'New Section', ne: 'नयाँ खण्ड', hi: 'नया खंड', zh: '新部分', ta: 'புதிய பகுதி' },
+      body: { en: 'Section description...', ne: 'खण्ड विवरण...', hi: 'खंड विवरण...', zh: '部分描述...', ta: 'பகுதி விளக்கம்...' },
+      image: '',
+      order: aboutData?.sections?.length || 0,
+      enabled: true
+    };
+    setAboutData({
+      ...aboutData,
+      sections: [...(aboutData?.sections || []), newSection]
+    });
+    setExpandedSection(newSection.key);
+  };
+
+  const removeSection = (key) => {
+    if (window.confirm('Are you sure you want to remove this section?')) {
+      setAboutData({
+        ...aboutData,
+        sections: aboutData.sections.filter(s => s.key !== key)
+      });
+      showToast('Section removed', 'success');
+    }
+  };
+
+  const updateSection = (key, field, value) => {
+    setAboutData({
+      ...aboutData,
+      sections: aboutData.sections.map(s => 
+        s.key === key ? { ...s, [field]: value } : s
+      )
+    });
+  };
+
+  const updateSectionLocalized = (key, field, value) => {
+    setAboutData({
+      ...aboutData,
+      sections: aboutData.sections.map(s => 
+        s.key === key ? { ...s, [field]: setLocalized(s[field], value) } : s
+      )
+    });
+  };
+
+  const toggleSectionEnabled = (key) => {
+    setAboutData({
+      ...aboutData,
+      sections: aboutData.sections.map(s => 
+        s.key === key ? { ...s, enabled: !s.enabled } : s
+      )
+    });
+  };
+
+  const moveSection = (key, direction) => {
+    const sections = [...aboutData.sections];
+    const index = sections.findIndex(s => s.key === key);
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= sections.length) return;
+    [sections[index], sections[newIndex]] = [sections[newIndex], sections[index]];
+    sections.forEach((s, i) => s.order = i);
+    setAboutData({ ...aboutData, sections });
+  };
+
+  const handleSectionImageUpload = async (e, key) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -76,8 +193,8 @@ const AdminAbout = ({ settings, updateSettings, t }) => {
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      showToast('Image must be less than 5MB', 'error');
+    if (file.size > 10 * 1024 * 1024) {
+      showToast('Image must be less than 10MB', 'error');
       return;
     }
 
@@ -86,18 +203,11 @@ const AdminAbout = ({ settings, updateSettings, t }) => {
     formData.append('image', file);
 
     try {
-      const response = await api.post('/admin/upload/about', formData, {
+      const response = await api.post('/admin/upload/about/section', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      const newImage = {
-        id: Date.now().toString(),
-        src: response.data.url,
-        alt: { en: 'About Image', ne: 'बारेमा छवि', hi: 'बारे में छवि', zh: '关于图片', ta: 'பற்றிய படம்' },
-        order: aboutImages.length,
-        enabled: true,
-      };
-      setAboutImages([...aboutImages, newImage]);
-      showToast('About image added', 'success');
+      updateSection(key, 'image', response.data.url);
+      showToast('Section image uploaded successfully', 'success');
     } catch (error) {
       console.error('Upload error:', error);
       showToast(error.response?.data?.message || 'Upload failed', 'error');
@@ -107,89 +217,157 @@ const AdminAbout = ({ settings, updateSettings, t }) => {
     e.target.value = '';
   };
 
-  const handleAboutImageRemove = (id) => {
-    setAboutImages(aboutImages.filter(img => img.id !== id));
-    showToast('Image removed', 'success');
+  // ----- ACTIVITIES -----
+  const addActivity = () => {
+    const newActivity = {
+      key: `activity_${Date.now()}`,
+      title: { en: 'New Activity', ne: 'नयाँ गतिविधि', hi: 'नई गतिविधि', zh: '新活动', ta: 'புதிய செயல்பாடு' },
+      desc: { en: '', ne: '', hi: '', zh: '', ta: '' },
+      paragraphs: {
+        p1: { en: '', ne: '', hi: '', zh: '', ta: '' },
+        p2: { en: '', ne: '', hi: '', zh: '', ta: '' },
+        p3: { en: '', ne: '', hi: '', zh: '', ta: '' },
+        p4: { en: '', ne: '', hi: '', zh: '', ta: '' }
+      },
+      order: aboutData?.activities?.length || 0,
+      enabled: true
+    };
+    setAboutData({
+      ...aboutData,
+      activities: [...(aboutData?.activities || []), newActivity]
+    });
+    setExpandedActivity(newActivity.key);
   };
 
-  const handleAboutImageToggle = (id) => {
-    setAboutImages(aboutImages.map(img => 
-      img.id === id ? { ...img, enabled: !img.enabled } : img
-    ));
+  const removeActivity = (key) => {
+    if (window.confirm('Are you sure you want to remove this activity?')) {
+      setAboutData({
+        ...aboutData,
+        activities: aboutData.activities.filter(a => a.key !== key)
+      });
+      showToast('Activity removed', 'success');
+    }
   };
 
-  // Save all about settings
+  const updateActivity = (key, field, value) => {
+    setAboutData({
+      ...aboutData,
+      activities: aboutData.activities.map(a => 
+        a.key === key ? { ...a, [field]: value } : a
+      )
+    });
+  };
+
+  const updateActivityLocalized = (key, field, value) => {
+    setAboutData({
+      ...aboutData,
+      activities: aboutData.activities.map(a => 
+        a.key === key ? { ...a, [field]: setLocalized(a[field], value) } : a
+      )
+    });
+  };
+
+  const updateActivityParagraph = (key, paraKey, value) => {
+    setAboutData({
+      ...aboutData,
+      activities: aboutData.activities.map(a => 
+        a.key === key ? { 
+          ...a, 
+          paragraphs: { 
+            ...a.paragraphs, 
+            [paraKey]: setLocalized(a.paragraphs[paraKey], value) 
+          } 
+        } : a
+      )
+    });
+  };
+
+  const toggleActivityEnabled = (key) => {
+    setAboutData({
+      ...aboutData,
+      activities: aboutData.activities.map(a => 
+        a.key === key ? { ...a, enabled: !a.enabled } : a
+      )
+    });
+  };
+
+  const moveActivity = (key, direction) => {
+    const activities = [...aboutData.activities];
+    const index = activities.findIndex(a => a.key === key);
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= activities.length) return;
+    [activities[index], activities[newIndex]] = [activities[newIndex], activities[index]];
+    activities.forEach((a, i) => a.order = i);
+    setAboutData({ ...aboutData, activities });
+  };
+
+  // ----- SAVE -----
   const handleSave = async () => {
     setLoading(true);
     try {
-      const data = {
-        about: {
-          photo: aboutPhoto,
-          title: { ...settings?.about?.title, [activeLang]: aboutTitle },
-          text: { ...settings?.about?.text, [activeLang]: aboutText },
-          images: aboutImages,
-        },
-        timings: timings,
+      // Make sure we have all the data properly structured
+      const dataToSave = {
+        hero: aboutData.hero || { title: {}, image: '' },
+        introText: aboutData.introText || {},
+        sections: aboutData.sections || [],
+        activities: aboutData.activities || []
       };
-      await updateSettings(data);
-      showToast('About settings saved successfully', 'success');
+      
+      console.log('Saving data:', dataToSave);
+      
+      const response = await api.put('/about', dataToSave);
+      console.log('Save response:', response.data);
+      
+      showToast('About page saved successfully', 'success');
+      
+      // Refetch to get updated data
+      await fetchAboutData();
     } catch (error) {
       console.error('Save error:', error);
-      showToast(error.response?.data?.message || 'Failed to save settings', 'error');
+      console.error('Error response:', error.response);
+      showToast(error.response?.data?.message || 'Failed to save', 'error');
     } finally {
       setLoading(false);
     }
   };
 
+  if (!aboutData) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <OmLoader size="md" color="maroon" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      {/* About Title & Text */}
+      {/* ==================== HERO SECTION ==================== */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h4 className="text-base font-serif font-semibold text-ink mb-4">About Section</h4>
-        
-        <LanguageSwitcher active={activeLang} onChange={setActiveLang} t={t} />
-
-        <div className="mb-4">
-          <label className="text-xs font-bold text-ink block mb-1.5">Title</label>
-          <input
-            type="text"
-            value={aboutTitle}
-            onChange={(e) => setAboutTitle(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
-            placeholder="About Title"
-          />
+        <div className="flex items-center justify-between mb-4">
+          <h4 className="text-base font-serif font-semibold text-ink">Hero Banner</h4>
+          <LanguageSwitcher active={activeLang} onChange={setActiveLang} />
         </div>
 
+        {/* Hero Image */}
         <div className="mb-4">
-          <label className="text-xs font-bold text-ink block mb-1.5">Description</label>
-          <textarea
-            rows={4}
-            value={aboutText}
-            onChange={(e) => setAboutText(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm resize-none"
-            placeholder="About description..."
-          />
-        </div>
-
-        <div>
-          <label className="text-xs font-bold text-ink block mb-1.5">Main Photo</label>
+          <label className="text-xs font-bold text-ink block mb-1.5">Hero Background Image</label>
           <div
-            className="relative border-2 border-dashed border-gray-300 rounded-xl overflow-hidden h-32 flex items-center justify-center cursor-pointer bg-gray-50 hover:border-vermilion transition-colors"
-            onClick={() => aboutInputRef.current?.click()}
+            className="relative border-2 border-dashed border-gray-300 rounded-xl overflow-hidden h-48 flex items-center justify-center cursor-pointer bg-gray-50 hover:border-vermilion transition-colors"
+            onClick={() => heroImageInputRef.current?.click()}
           >
             <input
-              ref={aboutInputRef}
+              ref={heroImageInputRef}
               type="file"
               accept="image/*"
-              onChange={handleAboutPhotoUpload}
+              onChange={handleHeroImageUpload}
               className="hidden"
             />
-            {aboutPhoto ? (
-              <img src={aboutPhoto} alt="About" className="w-full h-full object-cover" />
+            {aboutData.hero?.image ? (
+              <img src={aboutData.hero.image} alt="Hero" className="w-full h-full object-cover" />
             ) : (
               <div className="flex flex-col items-center gap-1.5 text-ink-soft">
-                <Image size={28} />
-                <span className="text-xs font-semibold">Click to upload photo</span>
+                <Image size={32} />
+                <span className="text-xs font-semibold">Click to upload hero image</span>
               </div>
             )}
             {uploading && (
@@ -198,55 +376,187 @@ const AdminAbout = ({ settings, updateSettings, t }) => {
               </div>
             )}
           </div>
+          <p className="text-xs text-ink-soft mt-1">This image appears as the hero background</p>
+        </div>
+
+        {/* Hero Title - Only title shows on the image */}
+        <div>
+          <label className="text-xs font-bold text-ink block mb-1.5">
+            Title (Shown on Hero Image) ({langLabels[activeLang]})
+          </label>
+          <input
+            type="text"
+            value={getLocalized(aboutData.hero?.title)}
+            onChange={(e) => updateHeroLocalized('title', e.target.value)}
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
+            placeholder="Hero title..."
+          />
+          <p className="text-xs text-ink-soft mt-1">This title appears on the hero banner image</p>
         </div>
       </div>
 
-      {/* About Gallery Images */}
+      {/* ==================== INTRO TEXT - BELOW HERO ==================== */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h4 className="text-base font-serif font-semibold text-ink">About Gallery Images</h4>
-            <p className="text-xs text-ink-soft">Additional images for the about section</p>
+            <h4 className="text-base font-serif font-semibold text-ink">Intro Text (Below Hero Banner)</h4>
+            <p className="text-xs text-ink-soft">This text appears below the hero banner, not on the image</p>
           </div>
-          <button
-            onClick={() => document.getElementById('about-gallery-upload').click()}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-vermilion text-white text-xs font-semibold hover:bg-[#a83a0c] transition-all"
-          >
-            <Plus size={14} /> Add Image
-          </button>
-          <input
-            id="about-gallery-upload"
-            type="file"
-            accept="image/*"
-            onChange={handleAboutImageUpload}
-            className="hidden"
-          />
+          <LanguageSwitcher active={activeLang} onChange={setActiveLang} />
         </div>
 
-        {aboutImages.length === 0 ? (
-          <div className="text-center py-8 text-ink-soft text-sm">No additional images added</div>
+        <div>
+          <label className="text-xs font-bold text-ink block mb-1.5">
+            Intro Text ({langLabels[activeLang]})
+          </label>
+          <textarea
+            rows={4}
+            value={getLocalized(aboutData.introText)}
+            onChange={(e) => updateIntroTextLocalized(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm resize-none"
+            placeholder="Enter introduction text that appears below the hero banner..."
+          />
+          <p className="text-xs text-ink-soft mt-1">
+            This text is displayed on a white background below the hero banner
+          </p>
+        </div>
+      </div>
+
+      {/* ==================== SECTIONS ==================== */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h4 className="text-base font-serif font-semibold text-ink">About Sections</h4>
+            <p className="text-xs text-ink-soft">Sections shown below the intro text</p>
+          </div>
+          <button
+            onClick={addSection}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-vermilion text-white text-xs font-semibold hover:bg-[#a83a0c] transition-all"
+          >
+            <Plus size={14} /> Add Section
+          </button>
+        </div>
+
+        <LanguageSwitcher active={activeLang} onChange={setActiveLang} className="mb-4" />
+
+        {aboutData.sections?.length === 0 ? (
+          <div className="text-center py-8 text-ink-soft text-sm">No sections added</div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {aboutImages.map((img, index) => (
-              <div key={img.id} className="relative group border rounded-lg overflow-hidden">
-                <img src={img.src} alt={img.alt?.en} className="w-full aspect-square object-cover" />
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                  <button
-                    onClick={() => handleAboutImageToggle(img.id)}
-                    className="p-1.5 rounded-lg bg-white/20 text-white hover:bg-white/30 transition-all"
-                  >
-                    {img.enabled ? <Eye size={14} /> : <EyeOff size={14} />}
-                  </button>
-                  <button
-                    onClick={() => handleAboutImageRemove(img.id)}
-                    className="p-1.5 rounded-lg bg-red-500/70 text-white hover:bg-red-500 transition-all"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+          <div className="space-y-3">
+            {aboutData.sections.map((section, index) => (
+              <div key={section.key} className="border border-gray-200 rounded-lg overflow-hidden">
+                <div 
+                  className="flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 cursor-pointer"
+                  onClick={() => setExpandedSection(expandedSection === section.key ? null : section.key)}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-xs text-ink-soft font-mono w-12">{index + 1}</span>
+                    <span className="text-sm font-medium text-ink truncate">
+                      {getLocalized(section.title) || 'Untitled'}
+                    </span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${section.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'}`}>
+                      {section.enabled ? 'Visible' : 'Hidden'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => moveSection(section.key, 'up')}
+                      disabled={index === 0}
+                      className="p-1 rounded hover:bg-gray-200 disabled:opacity-30"
+                    >
+                      <MoveUp size={14} />
+                    </button>
+                    <button
+                      onClick={() => moveSection(section.key, 'down')}
+                      disabled={index === aboutData.sections.length - 1}
+                      className="p-1 rounded hover:bg-gray-200 disabled:opacity-30"
+                    >
+                      <MoveDown size={14} />
+                    </button>
+                    <button
+                      onClick={() => toggleSectionEnabled(section.key)}
+                      className="p-1 rounded hover:bg-gray-200"
+                    >
+                      {section.enabled ? <Eye size={14} /> : <EyeOff size={14} />}
+                    </button>
+                    <button
+                      onClick={() => removeSection(section.key)}
+                      className="p-1 rounded hover:bg-red-100 text-red-500"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                    <button className="p-1 rounded hover:bg-gray-200">
+                      {expandedSection === section.key ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                    </button>
+                  </div>
                 </div>
-                {!img.enabled && (
-                  <div className="absolute top-1 left-1 bg-gray-800/80 text-white text-xs px-2 py-0.5 rounded">
-                    Hidden
+
+                {expandedSection === section.key && (
+                  <div className="p-4 space-y-3 border-t border-gray-100">
+                    {/* Section Image */}
+                    <div>
+                      <label className="text-xs font-bold text-ink block mb-1.5">Image</label>
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="relative w-32 h-24 border-2 border-dashed border-gray-300 rounded-lg overflow-hidden cursor-pointer bg-gray-50 hover:border-vermilion transition-colors flex-shrink-0"
+                          onClick={() => {
+                            const input = document.getElementById(`section-img-${section.key}`);
+                            if (input) input.click();
+                          }}
+                        >
+                          <input
+                            id={`section-img-${section.key}`}
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handleSectionImageUpload(e, section.key)}
+                            className="hidden"
+                          />
+                          {section.image ? (
+                            <img src={section.image} alt="Section" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-ink-soft">
+                              <Image size={20} />
+                            </div>
+                          )}
+                        </div>
+                        {section.image && (
+                          <button
+                            onClick={() => updateSection(section.key, 'image', '')}
+                            className="text-xs text-red-500 hover:text-red-700"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Section Title */}
+                    <div>
+                      <label className="text-xs font-bold text-ink block mb-1.5">
+                        Title ({langLabels[activeLang]})
+                      </label>
+                      <input
+                        type="text"
+                        value={getLocalized(section.title)}
+                        onChange={(e) => updateSectionLocalized(section.key, 'title', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
+                        placeholder="Section title..."
+                      />
+                    </div>
+
+                    {/* Section Body */}
+                    <div>
+                      <label className="text-xs font-bold text-ink block mb-1.5">
+                        Description ({langLabels[activeLang]})
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={getLocalized(section.body)}
+                        onChange={(e) => updateSectionLocalized(section.key, 'body', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm resize-none"
+                        placeholder="Section description..."
+                      />
+                    </div>
                   </div>
                 )}
               </div>
@@ -255,77 +565,132 @@ const AdminAbout = ({ settings, updateSettings, t }) => {
         )}
       </div>
 
-      {/* Temple Timings */}
+      {/* ==================== ACTIVITIES ==================== */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h4 className="text-base font-serif font-semibold text-ink mb-4">Temple Timings</h4>
-
-        <LanguageSwitcher active={activeLang} onChange={setActiveLang} t={t} />
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <div className="flex items-center justify-between mb-4">
           <div>
-            <label className="text-xs font-bold text-ink block mb-1.5">Opening Time Label</label>
-            <input
-              type="text"
-              value={getLocalized(timings.openLabel)}
-              onChange={(e) => setTimings({
-                ...timings,
-                openLabel: { ...timings.openLabel, [activeLang]: e.target.value }
-              })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
-            />
+            <h4 className="text-base font-serif font-semibold text-ink">Activities & Programs</h4>
+            <p className="text-xs text-ink-soft">Activities shown at the bottom of the about page</p>
           </div>
-          <div>
-            <label className="text-xs font-bold text-ink block mb-1.5">Opening Time</label>
-            <input
-              type="text"
-              value={timings.open}
-              onChange={(e) => setTimings({ ...timings, open: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
-              placeholder="05:00 AM"
-            />
-          </div>
+          <button
+            onClick={addActivity}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-vermilion text-white text-xs font-semibold hover:bg-[#a83a0c] transition-all"
+          >
+            <Plus size={14} /> Add Activity
+          </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="text-xs font-bold text-ink block mb-1.5">Closing Time Label</label>
-            <input
-              type="text"
-              value={getLocalized(timings.closeLabel)}
-              onChange={(e) => setTimings({
-                ...timings,
-                closeLabel: { ...timings.closeLabel, [activeLang]: e.target.value }
-              })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-bold text-ink block mb-1.5">Closing Time</label>
-            <input
-              type="text"
-              value={timings.close}
-              onChange={(e) => setTimings({ ...timings, close: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
-              placeholder="08:00 PM"
-            />
-          </div>
-        </div>
+        <LanguageSwitcher active={activeLang} onChange={setActiveLang} className="mb-4" />
 
-        <div>
-          <label className="text-xs font-bold text-ink block mb-1.5">Daily Aarti Label</label>
-          <input
-            type="text"
-            value={getLocalized(timings.dailyAarti)}
-            onChange={(e) => setTimings({
-              ...timings,
-              dailyAarti: { ...timings.dailyAarti, [activeLang]: e.target.value }
-            })}
-            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
-          />
-        </div>
+        {aboutData.activities?.length === 0 ? (
+          <div className="text-center py-8 text-ink-soft text-sm">No activities added</div>
+        ) : (
+          <div className="space-y-3">
+            {aboutData.activities.map((activity, index) => (
+              <div key={activity.key} className="border border-gray-200 rounded-lg overflow-hidden">
+                <div 
+                  className="flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 cursor-pointer"
+                  onClick={() => setExpandedActivity(expandedActivity === activity.key ? null : activity.key)}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-xs text-ink-soft font-mono w-12">{index + 1}</span>
+                    <span className="text-sm font-medium text-ink truncate">
+                      {getLocalized(activity.title) || 'Untitled'}
+                    </span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${activity.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'}`}>
+                      {activity.enabled ? 'Visible' : 'Hidden'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => moveActivity(activity.key, 'up')}
+                      disabled={index === 0}
+                      className="p-1 rounded hover:bg-gray-200 disabled:opacity-30"
+                    >
+                      <MoveUp size={14} />
+                    </button>
+                    <button
+                      onClick={() => moveActivity(activity.key, 'down')}
+                      disabled={index === aboutData.activities.length - 1}
+                      className="p-1 rounded hover:bg-gray-200 disabled:opacity-30"
+                    >
+                      <MoveDown size={14} />
+                    </button>
+                    <button
+                      onClick={() => toggleActivityEnabled(activity.key)}
+                      className="p-1 rounded hover:bg-gray-200"
+                    >
+                      {activity.enabled ? <Eye size={14} /> : <EyeOff size={14} />}
+                    </button>
+                    <button
+                      onClick={() => removeActivity(activity.key)}
+                      className="p-1 rounded hover:bg-red-100 text-red-500"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                    <button className="p-1 rounded hover:bg-gray-200">
+                      {expandedActivity === activity.key ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                {expandedActivity === activity.key && (
+                  <div className="p-4 space-y-3 border-t border-gray-100">
+                    {/* Activity Title */}
+                    <div>
+                      <label className="text-xs font-bold text-ink block mb-1.5">
+                        Title ({langLabels[activeLang]})
+                      </label>
+                      <input
+                        type="text"
+                        value={getLocalized(activity.title)}
+                        onChange={(e) => updateActivityLocalized(activity.key, 'title', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
+                        placeholder="Activity title..."
+                      />
+                    </div>
+
+                    {/* Activity Description (optional) */}
+                    <div>
+                      <label className="text-xs font-bold text-ink block mb-1.5">
+                        Short Description (optional) ({langLabels[activeLang]})
+                      </label>
+                      <input
+                        type="text"
+                        value={getLocalized(activity.desc)}
+                        onChange={(e) => updateActivityLocalized(activity.key, 'desc', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
+                        placeholder="Short description..."
+                      />
+                    </div>
+
+                    {/* Activity Paragraphs */}
+                    <div className="space-y-3">
+                      <label className="text-xs font-bold text-ink block">Paragraphs</label>
+                      {['p1', 'p2', 'p3', 'p4'].map((pKey) => (
+                        <div key={pKey}>
+                          <label className="text-xs text-ink-soft block mb-0.5">
+                            {pKey.toUpperCase()} ({langLabels[activeLang]})
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={getLocalized(activity.paragraphs?.[pKey])}
+                            onChange={(e) => updateActivityParagraph(activity.key, pKey, e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm resize-none"
+                            placeholder={`Paragraph ${pKey} text...`}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Save Button */}
+      {/* ==================== SAVE ==================== */}
       <div className="flex justify-end">
         <button
           onClick={handleSave}
@@ -340,7 +705,7 @@ const AdminAbout = ({ settings, updateSettings, t }) => {
           ) : (
             <>
               <Save size={16} />
-              Save About Settings
+              Save About Page
             </>
           )}
         </button>

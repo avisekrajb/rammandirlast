@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
+import OmLoader from '../../components/common/OmLoader';
 import {
   Users, CalendarDays, Gift, ClipboardList, Check, X, BadgeCheck,
   Eye, Activity, ArrowUp, ArrowDown, DollarSign, UserPlus,
@@ -196,7 +197,7 @@ const AdminOverview = ({ settings, users, events, donations, bookings, t, lang }
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-[#7A0000] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <OmLoader size="lg" color="maroon" className="mx-auto mb-4" />
           <p className="text-ink-soft">Loading dashboard data...</p>
         </div>
       </div>

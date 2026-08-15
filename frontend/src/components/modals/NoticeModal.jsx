@@ -209,33 +209,41 @@ const NoticeModal = () => {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3 }}
-          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4"
+          className="fixed inset-0 z-[100] flex items-end md:items-center justify-center p-0 md:p-4"
           onClick={handleClose}
         >
           {/* Backdrop */}
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
-          {/* Modal */}
+          {/* Modal - Bottom sheet on mobile, centered on desktop */}
           <motion.div
             initial={{ scale: 0.9, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 10 }}
             transition={{ duration: 0.35, ease: 'easeOut' }}
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl"
-            style={{ background: 'linear-gradient(180deg, #fdf8e8 0%, #fcf4d6 100%)' }}
+            className="relative w-full max-w-2xl max-h-[92vh] md:max-h-[90vh] overflow-y-auto rounded-t-2xl md:rounded-2xl shadow-2xl md:mx-4"
+            style={{ 
+              background: 'linear-gradient(180deg, #fdf8e8 0%, #fcf4d6 100%)',
+              marginTop: 'auto',
+            }}
           >
-            {/* Close button */}
+            {/* Drag handle - mobile only */}
+            <div className="md:hidden flex justify-center pt-2 pb-1 sticky top-0 bg-transparent z-10">
+              <div className="w-12 h-1 rounded-full bg-gray-400/60" />
+            </div>
+
+            {/* Close button - hidden on mobile (use drag or backdrop to close) */}
             <button
               onClick={handleClose}
-              className="absolute top-3 right-3 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-black/10 hover:bg-black/20 transition-colors"
+              className="absolute top-3 right-3 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-black/10 hover:bg-black/20 transition-colors hidden md:flex"
               aria-label="Close"
             >
               <X className="w-4 h-4 text-gray-700" />
             </button>
 
             {/* Language Dropdown - Top Right */}
-            <div className="absolute top-3 right-12 z-10">
+            <div className="absolute top-3 right-12 z-10 hidden md:block">
               <div className="relative">
                 <button
                   onClick={(e) => {
@@ -267,13 +275,43 @@ const NoticeModal = () => {
               </div>
             </div>
 
+            {/* Mobile Language Dropdown - Bottom */}
+            <div className="md:hidden absolute top-3 right-3 z-10">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLangMenuOpen(!langMenuOpen);
+                }}
+                className="flex items-center gap-1 bg-white/90 backdrop-blur-sm border border-gray-200 rounded-full px-2.5 py-1.5 text-[10px] font-medium shadow-sm"
+              >
+                <Globe size={12} className="text-ink-soft" />
+                <span className="font-bold text-ink">{displayLang.toUpperCase()}</span>
+              </button>
+              {langMenuOpen && (
+                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[140px] p-1.5 z-50 animate-fadeIn">
+                  {languages.map((l) => (
+                    <button
+                      key={l.code}
+                      onClick={() => handleLangSelect(l.code)}
+                      className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-[11px] font-medium hover:bg-panel transition-colors duration-200 ${
+                        displayLang === l.code ? 'text-vermilion font-bold bg-vermilion/5' : 'text-ink'
+                      }`}
+                    >
+                      {l.label}
+                      {displayLang === l.code && <span className="text-vermilion text-[9px]">✓</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Top decorative border */}
             <div className="h-1.5 w-full bg-gradient-to-r from-red-800 via-amber-600 to-red-800 rounded-t-2xl" />
 
-            <div className="px-5 sm:px-8 py-6 sm:py-8">
-              {/* Language indicator */}
-              <div className="flex justify-end mb-2">
-                <span className="text-[10px] text-ink-soft/60 bg-white/50 px-2 py-0.5 rounded-full">
+            <div className="px-4 sm:px-8 py-4 sm:py-8">
+              {/* Language indicator - mobile */}
+              <div className="md:hidden flex justify-end mb-2">
+                <span className="text-[9px] text-ink-soft/60 bg-white/50 px-2 py-0.5 rounded-full">
                   {displayLang === 'ne' ? 'नेपाली' : 
                    displayLang === 'hi' ? 'हिन्दी' :
                    displayLang === 'zh' ? '中文' :
@@ -282,27 +320,27 @@ const NoticeModal = () => {
                 </span>
               </div>
 
-              {/* Title */}
+              {/* Title - smaller on mobile */}
               <h2
                 style={bodyFont}
-                className="text-center text-2xl sm:text-3xl font-bold text-red-900 mb-4"
+                className="text-center text-xl sm:text-3xl font-bold text-red-900 mb-3 sm:mb-4"
               >
                 {getText(notice.title) || 'Heartfelt Request'}
               </h2>
 
-              {/* Banner */}
-              <div className="bg-red-800 rounded-xl px-4 py-3 mb-5 shadow-md">
+              {/* Banner - smaller on mobile */}
+              <div className="bg-red-800 rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 mb-4 sm:mb-5 shadow-md">
                 <p
                   style={bodyFont}
-                  className="text-center text-white text-lg sm:text-xl font-bold leading-relaxed"
+                  className="text-center text-white text-base sm:text-xl font-bold leading-relaxed"
                 >
                   {getText(notice.banner) || "Let's participate in installing the 'Lift'."}
                 </p>
               </div>
 
-              {/* Content with lift icons */}
-              <div className="flex gap-4 sm:gap-6">
-                {/* Left lift illustration */}
+              {/* Content - hide lift illustrations on mobile */}
+              <div className="flex gap-3 sm:gap-6">
+                {/* Left lift illustration - hidden on mobile */}
                 <div className="hidden sm:flex flex-col items-center justify-center shrink-0">
                   <div className="w-16 h-28 border-2 border-gray-400 rounded-md bg-white flex items-center justify-center shadow-inner">
                     <div className="w-12 h-20 border border-gray-300 rounded-sm bg-gray-50 flex items-center justify-center">
@@ -318,20 +356,20 @@ const NoticeModal = () => {
                   <span className="text-xs text-gray-500 mt-1 font-medium">Lift</span>
                 </div>
 
-                {/* Body text */}
+                {/* Body text - smaller on mobile */}
                 <div className="flex-1">
                   <p
                     style={bodyFont}
-                    className="text-gray-800 text-sm sm:text-base leading-relaxed mb-4"
+                    className="text-gray-800 text-xs sm:text-base leading-relaxed mb-3 sm:mb-4"
                   >
                     {getText(notice.body) || 'To make it easier for the elderly and differently-abled to visit and move around at the Shree Ramchandra Temple, we are installing a lift on the eastern side of the temple that can accommodate up to 8 people. The work is expected to be completed within 6 months.'}
                   </p>
 
-                  {/* Cost highlight */}
-                  <div className="bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 mb-4">
+                  {/* Cost highlight - smaller on mobile */}
+                  <div className="bg-amber-50 border border-amber-300 rounded-lg px-3 sm:px-4 py-2 sm:py-3 mb-3 sm:mb-4">
                     <p
                       style={bodyFont}
-                      className="text-gray-800 text-sm sm:text-base font-semibold"
+                      className="text-gray-800 text-xs sm:text-base font-semibold"
                     >
                       {getText(notice.cost) || 'The estimated cost for the lift structure is approximately Rs. 55,00,000/- (Fifty-five lakh).'}
                     </p>
@@ -339,13 +377,13 @@ const NoticeModal = () => {
 
                   <p
                     style={bodyFont}
-                    className="text-gray-800 text-sm sm:text-base leading-relaxed"
+                    className="text-gray-800 text-xs sm:text-base leading-relaxed"
                   >
                     {getText(notice.donors) || 'The names of generous donors contributing Rs. 15,000/- (Fifteen thousand) and above will be prominently engraved on a stone plaque on the left side of the lift entrance.'}
                   </p>
                 </div>
 
-                {/* Right lift illustration */}
+                {/* Right lift illustration - hidden on mobile */}
                 <div className="hidden sm:flex flex-col items-center justify-center shrink-0">
                   <div className="w-16 h-28 border-2 border-gray-400 rounded-md bg-white flex items-center justify-center shadow-inner">
                     <div className="w-12 h-20 border border-gray-300 rounded-sm bg-gray-50 flex items-center justify-center">
@@ -363,73 +401,73 @@ const NoticeModal = () => {
               </div>
 
               {/* Divider */}
-              <div className="my-5 h-px bg-gradient-to-r from-transparent via-red-300 to-transparent" />
+              <div className="my-4 sm:my-5 h-px bg-gradient-to-r from-transparent via-red-300 to-transparent" />
 
-              {/* QR + Contact Section */}
+              {/* QR + Contact Section - stacked on mobile */}
               <div
                 className="rounded-xl overflow-hidden border border-green-800"
                 style={{ background: 'linear-gradient(135deg, #1a5e3a 0%, #0d4228 100%)' }}
               >
                 <div className="flex flex-col sm:flex-row">
-                  {/* QR Code section */}
-                  <div className="flex items-center justify-center p-4 sm:p-5 sm:border-r border-b sm:border-b-0 border-white/20">
+                  {/* QR Code section - smaller on mobile */}
+                  <div className="flex items-center justify-center p-3 sm:p-5 sm:border-r border-b sm:border-b-0 border-white/20">
                     <div className="text-center">
-                      <div className="w-24 h-24 sm:w-28 sm:h-28 bg-white rounded-lg flex items-center justify-center mx-auto shadow-md overflow-hidden">
+                      <div className="w-20 h-20 sm:w-28 sm:h-28 bg-white rounded-lg flex items-center justify-center mx-auto shadow-md overflow-hidden">
                         <div className="text-center px-2 w-full h-full flex items-center justify-center">
                           {qrPhoto ? (
                             <img src={qrPhoto} alt="QR" className="w-full h-full object-cover" />
                           ) : (
                             <div className="flex flex-col items-center">
-                              <div className="text-[9px] text-red-700 font-bold mb-1">SCAN & PAY</div>
-                              <QrCode size={32} className="text-gray-600" />
+                              <div className="text-[8px] sm:text-[9px] text-red-700 font-bold mb-1">SCAN & PAY</div>
+                              <QrCode size={24} className="text-gray-600" />
                             </div>
                           )}
                         </div>
                       </div>
-                      <p className="text-white/80 text-xs mt-2 font-medium">
+                      <p className="text-white/80 text-[10px] sm:text-xs mt-1.5 sm:mt-2 font-medium">
                         {getText(notice.qrLabel) || 'QR Code'}
                       </p>
                     </div>
                   </div>
 
-                  {/* Contact info */}
-                  <div className="flex-1 p-4 sm:p-5 flex flex-col justify-center">
-                    <p className="text-amber-300 text-sm font-bold mb-2" style={bodyFont}>
+                  {/* Contact info - smaller on mobile */}
+                  <div className="flex-1 p-3 sm:p-5 flex flex-col justify-center">
+                    <p className="text-amber-300 text-[11px] sm:text-sm font-bold mb-1.5 sm:mb-2" style={bodyFont}>
                       {getText(notice.applicant) || 'Applicant'}
                     </p>
-                    <p className="text-white text-sm sm:text-base font-bold leading-snug mb-1" style={bodyFont}>
+                    <p className="text-white text-xs sm:text-sm font-bold leading-snug mb-1" style={bodyFont}>
                       {getText(notice.committee) || 'Shree Ramchandra Temple Renovation & Development Committee'}
                     </p>
-                    <p className="text-white/80 text-sm mb-3 flex items-center gap-1.5" style={bodyFont}>
-                      <MapPin size={14} className="text-amber-300" />
+                    <p className="text-white/80 text-[11px] sm:text-sm mb-2 sm:mb-3 flex items-center gap-1.5" style={bodyFont}>
+                      <MapPin size={12} className="text-amber-300" />
                       {getText(notice.location) || 'Battisputali, Kathmandu, Nepal'}
                     </p>
-                    <p className="text-white/90 text-sm flex items-center gap-1.5" style={bodyFont}>
-                      <Phone size={14} className="text-amber-300" />
+                    <p className="text-white/90 text-[11px] sm:text-sm flex items-center gap-1.5" style={bodyFont}>
+                      <Phone size={12} className="text-amber-300" />
                       {getText(notice.contactNo) || 'Contact No.'}: {getText(notice.contactDetails) || '01-4598526, 9851154432'}
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Donate Button */}
-              <div className="mt-5 text-center">
+              {/* Donate Button - smaller on mobile */}
+              <div className="mt-4 sm:mt-5 text-center">
                 <button
                   onClick={handleDonateClick}
-                  className="inline-flex items-center gap-3 px-8 py-3.5 rounded-xl text-white font-bold text-sm sm:text-base shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]"
+                  className="inline-flex items-center gap-2 sm:gap-3 px-5 sm:px-8 py-2.5 sm:py-3.5 rounded-xl text-white font-bold text-xs sm:text-sm shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]"
                   style={{
                     background: 'linear-gradient(135deg, #991b1b 0%, #7f1d1d 100%)',
                     ...bodyFont,
                   }}
                 >
-                  <Heart size={18} />
+                  <Heart size={14} className="sm:w-[18px] sm:h-[18px]" />
                   {getText(notice.donateBtn) || 'Donate Now'}
-                  <ArrowRight size={18} />
+                  <ArrowRight size={14} className="sm:w-[18px] sm:h-[18px]" />
                 </button>
               </div>
 
-              {/* Language hint - Show current language */}
-              <p className="text-center text-[10px] text-ink-soft/50 mt-3">
+              {/* Language hint - smaller on mobile */}
+              <p className="text-center text-[8px] sm:text-[10px] text-ink-soft/50 mt-2 sm:mt-3">
                 {displayLang === 'ne' ? 'नेपालीमा देखाइएको' :
                  displayLang === 'hi' ? 'हिन्दी में दिखाया गया' :
                  displayLang === 'zh' ? '以中文显示' :

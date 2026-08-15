@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import OmLoader from '../components/common/OmLoader';
 
 const AuthCallback = () => {
   const navigate = useNavigate();
@@ -65,7 +66,7 @@ const AuthCallback = () => {
   return (
     <div className="min-h-[60vh] flex items-center justify-center">
       <div className="text-center">
-        <div className="w-12 h-12 border-4 border-vermilion border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <OmLoader size="lg" color="vermilion" className="mx-auto mb-4" />
         <p className="text-ink-soft">Authenticating with Google...</p>
       </div>
     </div>

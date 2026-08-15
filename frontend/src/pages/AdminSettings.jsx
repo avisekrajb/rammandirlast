@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
@@ -8,13 +8,13 @@ import {
   User, Mail, Lock, Phone, Key, Shield, Save, Eye, EyeOff,
   AlertCircle, Check, LogOut, UserPlus, Users, Clock,
   FileText, Activity, History as HistoryIcon, Calendar,
-  Settings, Trash2, RefreshCw, Search, Filter,
+  Settings, Trash2, RefreshCw, Search, Filter, Camera,
   ChevronDown, ChevronUp, BadgeCheck, Crown
 } from 'lucide-react';
 
 const AdminSettings = () => {
   const { t, lang } = useLanguage();
-  const { user, logout } = useAuth();
+  const { user, logout, setUser } = useAuth();
   const { showToast } = useToast();
   const { logs, loading: logsLoading, stats, fetchLogs, clearLogs } = useAdminLogs();
   
@@ -33,6 +33,11 @@ const AdminSettings = () => {
     email: user?.email || '',
     phone: user?.phone || '',
   });
+
+  // Profile Photo
+  const [profilePhoto, setProfilePhoto] = useState(user?.profilePhoto || '');
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoInputRef = useRef(null);
 
   // Password Change Form
   const [passwordForm, setPasswordForm] = useState({
@@ -88,6 +93,48 @@ const AdminSettings = () => {
       showToast(error.response?.data?.message || 'Failed to update profile', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Upload Profile Photo
+  const handlePhotoChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('photo', file);
+    setUploadingPhoto(true);
+    try {
+      const response = await api.post('/admin/profile/photo', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const url = response.data?.data?.profilePhoto;
+      if (url) {
+        setProfilePhoto(url);
+        setUser({ ...user, profilePhoto: url });
+        showToast('Profile photo updated successfully', 'success');
+      }
+    } catch (error) {
+      console.error('Photo upload error:', error);
+      showToast(error.response?.data?.message || 'Failed to upload photo', 'error');
+    } finally {
+      setUploadingPhoto(false);
+      if (photoInputRef.current) photoInputRef.current.value = '';
+    }
+  };
+
+  // Remove Profile Photo
+  const handlePhotoRemove = async () => {
+    setUploadingPhoto(true);
+    try {
+      await api.delete('/admin/profile/photo');
+      setProfilePhoto('');
+      setUser({ ...user, profilePhoto: null });
+      showToast('Profile photo removed', 'success');
+    } catch (error) {
+      console.error('Photo remove error:', error);
+      showToast(error.response?.data?.message || 'Failed to remove photo', 'error');
+    } finally {
+      setUploadingPhoto(false);
     }
   };
 
@@ -206,11 +253,29 @@ const AdminSettings = () => {
   };
 
   const filteredLogs = Array.isArray(logs) ? logs.filter(log => {
-    const matchesSearch = log.displayMessage?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          log.action?.toLowerCase().includes(searchTerm.toLowerCase());
+    const term = searchTerm.toLowerCase();
+    const detailsText = JSON.stringify(log.details || {}).toLowerCase();
+    const matchesSearch = (log.displayMessage?.toLowerCase() || '').includes(term) ||
+                          (log.action?.toLowerCase() || '').includes(term) ||
+                          detailsText.includes(term);
     const matchesFilter = filterType === 'all' || log.action?.includes(filterType);
     return matchesSearch && matchesFilter;
   }) : [];
+
+  // Build a short human-readable summary of what changed in a log entry
+  const formatLogDetails = (details) => {
+    if (!details || typeof details !== 'object') return '';
+    const entries = Object.entries(details);
+    if (entries.length === 0) return '';
+    return entries
+      .filter(([k, v]) => v !== undefined && v !== null && v !== '')
+      .map(([k, v]) => {
+        let val = v;
+        if (typeof val === 'object') val = JSON.stringify(val);
+        return `${k}: ${String(val).slice(0, 120)}`;
+      })
+      .join(' · ');
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
@@ -232,6 +297,44 @@ const AdminSettings = () => {
               <User size={20} className="text-vermilion" />
               Profile Settings
             </h2>
+            <div className="flex items-center gap-4 mb-5">
+              <div className="w-20 h-20 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0">
+                {profilePhoto ? (
+                  <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <User size={32} className="text-gray-300" />
+                )}
+              </div>
+              <div className="space-y-2">
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoChange}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => photoInputRef.current?.click()}
+                  disabled={uploadingPhoto}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium text-ink hover:border-vermilion hover:text-vermilion transition-all disabled:opacity-50"
+                >
+                  <Camera size={14} />
+                  {uploadingPhoto ? 'Uploading...' : 'Upload Photo'}
+                </button>
+                {profilePhoto && (
+                  <button
+                    type="button"
+                    onClick={handlePhotoRemove}
+                    disabled={uploadingPhoto}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-red-500 hover:bg-red-50 transition-all disabled:opacity-50"
+                  >
+                    <Trash2 size={14} />
+                    Remove
+                  </button>
+                )}
+              </div>
+            </div>
             <form onSubmit={handleUpdateProfile} className="space-y-4">
               <div>
                 <label className="text-xs font-bold text-ink block mb-1.5">Full Name</label>
@@ -562,6 +665,9 @@ const AdminSettings = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-ink font-medium">{log.displayMessage || log.action || 'Admin action'}</p>
+                      {formatLogDetails(log.details) && (
+                        <p className="text-xs text-ink-soft/80 mt-0.5 truncate">{formatLogDetails(log.details)}</p>
+                      )}
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-xs text-ink-soft/60 flex items-center gap-1">
                           <Clock size={12} />

@@ -7,6 +7,9 @@ import { AuthProvider } from './context/AuthContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { ToastProvider } from './context/ToastContext';
 
+// Block right-click (context menu) across the website
+document.addEventListener('contextmenu', (e) => e.preventDefault());
+
 // Error boundary for the entire app
 class ErrorBoundary extends React.Component {
   constructor(props) {

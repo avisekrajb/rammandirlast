@@ -2,11 +2,14 @@ import React, { useState, useRef } from 'react';
 import { useToast } from '../../context/ToastContext';
 import api from '../../services/api';
 import { 
-  Save, Video, Trash2, Plus, MoveUp, MoveDown, Eye, EyeOff, X
+  Save, Video, Trash2, Plus, MoveUp, MoveDown, Eye, EyeOff, X, Image, Type, Settings as SettingsIcon
 } from 'lucide-react';
+import LanguageSwitcher from '../common/LanguageSwitcher';
+import OmLoader from '../../components/common/OmLoader';
 
 const AdminHome = ({ settings, updateSettings, t }) => {
   const { showToast } = useToast();
+  const [activeLang, setActiveLang] = useState('en');
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
@@ -20,18 +23,46 @@ const AdminHome = ({ settings, updateSettings, t }) => {
   // Gallery Images
   const [galleryImages, setGalleryImages] = useState(settings?.galleryImages || []);
   
-  // About Images
-  const [aboutImages, setAboutImages] = useState(settings?.aboutImages || []);
+  // ===== ABOUT PREVIEW (Homepage only) =====
+  const [aboutPreviewImages, setAboutPreviewImages] = useState(settings?.aboutPreview?.images || []);
+  const [aboutPreviewTitle, setAboutPreviewTitle] = useState(settings?.aboutPreview?.title || {
+    en: 'About the Temple',
+    ne: 'मन्दिरको बारेमा',
+    hi: 'मंदिर के बारे में',
+    zh: '关于神庙',
+    ta: 'கோயிலைப் பற்றி'
+  });
+  const [aboutPreviewText, setAboutPreviewText] = useState(settings?.aboutPreview?.text || {
+    en: 'Nestled in the heart of Gaushala, Shree Ramchandra Temple has stood as a beacon of devotion for generations, welcoming devotees of Lord Ram with open doors and open hearts.',
+    ne: 'गौशालाको हृदयमा अवस्थित श्री रामचन्द्र मन्दिर पुस्तौंदेखि भक्तिको प्रतीकको रूपमा उभिएको छ, भगवान रामका भक्तहरूलाई खुला मन र खुला ढोकाले स्वागत गर्दै।',
+    hi: 'गौशाला के हृदय में स्थित श्री रामचन्द्र मंदिर पीढ़ियों से भक्ति का प्रतीक बना हुआ है, भगवान राम के भक्तों का खुले दिल और खुले द्वार से स्वागत करते हुए।',
+    zh: '室利罗摩钱德拉神庙坐落于高沙拉的中心，世代以来一直是信仰的象征，以开放的大门和心怀敬意的态度欢迎罗摩神的信众。',
+    ta: 'கௌஷாலாவின் இதயத்தில் அமைந்துள்ள ஸ்ரீ ராமச்சந்திர கோயில், தலைமுறை தலைமுறையாக பக்தியின் ஒளிவிளக்காக நின்று, ராமர் பக்தர்களை திறந்த மனதுடன் வரவேற்கிறது.'
+  });
+  const [aboutPreviewEnabled, setAboutPreviewEnabled] = useState(settings?.aboutPreview?.enabled !== false);
 
   // Live Video
   const [liveVideo, setLiveVideo] = useState(settings?.liveVideo || {
     enabled: true,
     url: 'https://www.youtube.com/embed/videoseries?list=PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf&autoplay=1&mute=1',
     title: { en: 'Live Darshan', ne: 'लाइभ दर्शन', hi: 'लाइव दर्शन', zh: '现场朝拜', ta: 'நேரடி தரிசனம்' },
-    description: { en: 'Experience the divine presence of Lord Ram from anywhere in the world', ne: 'संसारको कुनै पनि स्थानबाट भगवान रामको दिव्य उपस्थिति अनुभव गर्नुहोस्', hi: 'दुनिया में कहीं से भी भगवान राम की दिव्य उपस्थिति का अनुभव करें', zh: '从世界任何地方体验罗摩神的神圣存在', ta: 'உலகில் எங்கிருந்தும் ராமரின் தெய்வீக இருப்பை அனுபவியுங்கள்' },
+    description: { 
+      en: 'Experience the divine presence of Lord Ram from anywhere in the world',
+      ne: 'संसारको कुनै पनि स्थानबाट भगवान रामको दिव्य उपस्थिति अनुभव गर्नुहोस्',
+      hi: 'दुनिया में कहीं से भी भगवान राम की दिव्य उपस्थिति का अनुभव करें',
+      zh: '从世界任何地方体验罗摩神的神圣存在',
+      ta: 'உலகில் எங்கிருந்தும் ராமரின் தெய்வீக இருப்பை அனுபவியுங்கள்'
+    },
   });
 
-  // Hero Video Upload
+  // Helper
+  const getLocalizedValue = (obj, lang) => {
+    if (!obj) return '';
+    if (typeof obj === 'string') return obj;
+    return obj[lang] || obj.en || '';
+  };
+
+  // ===== HERO VIDEO =====
   const handleHeroVideoUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -70,7 +101,7 @@ const AdminHome = ({ settings, updateSettings, t }) => {
     showToast('Hero video removed', 'success');
   };
 
-  // Gallery Image Upload
+  // ===== GALLERY IMAGES =====
   const handleGalleryUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -141,8 +172,8 @@ const AdminHome = ({ settings, updateSettings, t }) => {
     }
   };
 
-  // About Images
-  const handleAboutImageUpload = async (e) => {
+  // ===== ABOUT PREVIEW IMAGES =====
+  const handleAboutPreviewUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -151,8 +182,8 @@ const AdminHome = ({ settings, updateSettings, t }) => {
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      showToast('Image must be less than 5MB', 'error');
+    if (file.size > 10 * 1024 * 1024) {
+      showToast('Image must be less than 10MB', 'error');
       return;
     }
 
@@ -168,11 +199,11 @@ const AdminHome = ({ settings, updateSettings, t }) => {
         id: Date.now().toString(),
         src: response.data.url,
         alt: { en: 'About Image', ne: 'बारेमा छवि', hi: 'बारे में छवि', zh: '关于图片', ta: 'பற்றிய படம்' },
-        order: aboutImages.length,
+        order: aboutPreviewImages.length,
         enabled: true,
       };
-      setAboutImages([...aboutImages, newImage]);
-      showToast('About image added', 'success');
+      setAboutPreviewImages([...aboutPreviewImages, newImage]);
+      showToast('About preview image added', 'success');
     } catch (error) {
       console.error('Upload error:', error);
       showToast(error.response?.data?.message || 'Upload failed', 'error');
@@ -182,18 +213,31 @@ const AdminHome = ({ settings, updateSettings, t }) => {
     e.target.value = '';
   };
 
-  const handleAboutImageRemove = (id) => {
-    setAboutImages(aboutImages.filter(img => img.id !== id));
-    showToast('About image removed', 'success');
+  const handleAboutPreviewRemove = (id) => {
+    setAboutPreviewImages(aboutPreviewImages.filter(img => img.id !== id));
+    showToast('About preview image removed', 'success');
   };
 
-  const handleAboutImageToggle = (id) => {
-    setAboutImages(aboutImages.map(img => 
+  const handleAboutPreviewToggle = (id) => {
+    setAboutPreviewImages(aboutPreviewImages.map(img => 
       img.id === id ? { ...img, enabled: !img.enabled } : img
     ));
   };
 
-  // Save all settings
+  const handleAboutPreviewMove = (id, direction) => {
+    const index = aboutPreviewImages.findIndex(img => img.id === id);
+    if (direction === 'up' && index > 0) {
+      const newImages = [...aboutPreviewImages];
+      [newImages[index], newImages[index - 1]] = [newImages[index - 1], newImages[index]];
+      setAboutPreviewImages(newImages);
+    } else if (direction === 'down' && index < aboutPreviewImages.length - 1) {
+      const newImages = [...aboutPreviewImages];
+      [newImages[index], newImages[index + 1]] = [newImages[index + 1], newImages[index]];
+      setAboutPreviewImages(newImages);
+    }
+  };
+
+  // ===== SAVE =====
   const handleSave = async () => {
     setLoading(true);
     try {
@@ -201,7 +245,12 @@ const AdminHome = ({ settings, updateSettings, t }) => {
         heroVideo,
         heroEnabled,
         galleryImages,
-        aboutImages,
+        aboutPreview: {
+          images: aboutPreviewImages,
+          title: aboutPreviewTitle,
+          text: aboutPreviewText,
+          enabled: aboutPreviewEnabled,
+        },
         liveVideo,
       };
       await updateSettings(data);
@@ -212,6 +261,15 @@ const AdminHome = ({ settings, updateSettings, t }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // ===== ABOUT PREVIEW TEXT HELPERS =====
+  const updateAboutTitle = (value) => {
+    setAboutPreviewTitle({ ...aboutPreviewTitle, [activeLang]: value });
+  };
+
+  const updateAboutText = (value) => {
+    setAboutPreviewText({ ...aboutPreviewText, [activeLang]: value });
   };
 
   return (
@@ -269,7 +327,7 @@ const AdminHome = ({ settings, updateSettings, t }) => {
           {uploading && (
             <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
               <div className="text-white text-center">
-                <div className="w-10 h-10 border-3 border-white border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                <OmLoader size="lg" color="white" className="mx-auto mb-2" />
                 <span className="text-sm">Uploading...</span>
               </div>
             </div>
@@ -359,61 +417,123 @@ const AdminHome = ({ settings, updateSettings, t }) => {
         )}
       </div>
 
-      {/* About Preview Images */}
+      {/* ===== ABOUT PREVIEW (Homepage Only) ===== */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h4 className="text-base font-serif font-semibold text-ink">About Preview Images</h4>
-            <p className="text-xs text-ink-soft">Manage images shown in the About section preview</p>
+            <h4 className="text-base font-serif font-semibold text-ink">About Preview (Homepage)</h4>
+            <p className="text-xs text-ink-soft">Manage the About section shown on the homepage</p>
           </div>
-          <button
-            onClick={() => aboutInputRef.current?.click()}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-vermilion text-white text-xs font-semibold hover:bg-[#a83a0c] transition-all"
-          >
-            <Plus size={14} /> Add Image
-          </button>
+          <label className="flex items-center gap-2 text-sm font-medium text-ink-soft">
+            <input
+              type="checkbox"
+              checked={aboutPreviewEnabled}
+              onChange={(e) => setAboutPreviewEnabled(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 text-vermilion focus:ring-vermilion"
+            />
+            Show on Homepage
+          </label>
+        </div>
+
+        <LanguageSwitcher active={activeLang} onChange={setActiveLang} />
+
+        {/* About Title */}
+        <div className="mt-4">
+          <label className="text-xs font-bold text-ink block mb-1.5">
+            Title ({activeLang.toUpperCase()})
+          </label>
           <input
-            ref={aboutInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleAboutImageUpload}
-            className="hidden"
+            type="text"
+            value={getLocalizedValue(aboutPreviewTitle, activeLang)}
+            onChange={(e) => updateAboutTitle(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
+            placeholder={`Enter title in ${activeLang}`}
           />
         </div>
 
-        {aboutImages.length === 0 ? (
-          <div className="text-center py-8 text-ink-soft text-sm">
-            No about preview images added yet
+        {/* About Text */}
+        <div className="mt-3">
+          <label className="text-xs font-bold text-ink block mb-1.5">
+            Description ({activeLang.toUpperCase()})
+          </label>
+          <textarea
+            rows={4}
+            value={getLocalizedValue(aboutPreviewText, activeLang)}
+            onChange={(e) => updateAboutText(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm resize-none"
+            placeholder={`Enter description in ${activeLang}`}
+          />
+        </div>
+
+        {/* About Preview Images */}
+        <div className="mt-4">
+          <div className="flex items-center justify-between mb-3">
+            <label className="text-xs font-bold text-ink block">Preview Images</label>
+            <button
+              onClick={() => aboutInputRef.current?.click()}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-vermilion text-white text-xs font-semibold hover:bg-[#a83a0c] transition-all"
+            >
+              <Plus size={14} /> Add Image
+            </button>
+            <input
+              ref={aboutInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleAboutPreviewUpload}
+              className="hidden"
+            />
           </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {aboutImages.map((img) => (
-              <div key={img.id} className="relative group border rounded-lg overflow-hidden">
-                <img src={img.src} alt={img.alt?.en} className="w-full aspect-square object-cover" />
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                  <button
-                    onClick={() => handleAboutImageToggle(img.id)}
-                    className="p-1.5 rounded-lg bg-white/20 text-white hover:bg-white/30 transition-all"
-                    title={img.enabled ? 'Hide' : 'Show'}
-                  >
-                    {img.enabled ? <Eye size={14} /> : <EyeOff size={14} />}
-                  </button>
-                  <button
-                    onClick={() => handleAboutImageRemove(img.id)}
-                    className="p-1.5 rounded-lg bg-red-500/70 text-white hover:bg-red-500 transition-all"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-                {!img.enabled && (
-                  <div className="absolute top-1 left-1 bg-gray-800/80 text-white text-xs px-2 py-0.5 rounded">
-                    Hidden
+
+          {aboutPreviewImages.length === 0 ? (
+            <div className="text-center py-6 text-ink-soft text-sm border-2 border-dashed border-gray-200 rounded-lg">
+              <Image size={24} className="mx-auto text-ink-soft/30 mb-2" />
+              No preview images added yet
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {aboutPreviewImages.map((img, index) => (
+                <div key={img.id} className="relative group border rounded-lg overflow-hidden">
+                  <img src={img.src} alt={img.alt?.en} className="w-full aspect-square object-cover" />
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                    <button
+                      onClick={() => handleAboutPreviewToggle(img.id)}
+                      className="p-1.5 rounded-lg bg-white/20 text-white hover:bg-white/30 transition-all"
+                      title={img.enabled ? 'Hide' : 'Show'}
+                    >
+                      {img.enabled ? <Eye size={14} /> : <EyeOff size={14} />}
+                    </button>
+                    <button
+                      onClick={() => handleAboutPreviewMove(img.id, 'up')}
+                      className="p-1.5 rounded-lg bg-white/20 text-white hover:bg-white/30 transition-all disabled:opacity-30"
+                      disabled={index === 0}
+                    >
+                      <MoveUp size={14} />
+                    </button>
+                    <button
+                      onClick={() => handleAboutPreviewMove(img.id, 'down')}
+                      className="p-1.5 rounded-lg bg-white/20 text-white hover:bg-white/30 transition-all disabled:opacity-30"
+                      disabled={index === aboutPreviewImages.length - 1}
+                    >
+                      <MoveDown size={14} />
+                    </button>
+                    <button
+                      onClick={() => handleAboutPreviewRemove(img.id)}
+                      className="p-1.5 rounded-lg bg-red-500/70 text-white hover:bg-red-500 transition-all"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+                  {!img.enabled && (
+                    <div className="absolute top-1 left-1 bg-gray-800/80 text-white text-xs px-2 py-0.5 rounded">
+                      Hidden
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="text-xs text-ink-soft mt-2">These images appear in the About section on the homepage only</p>
+        </div>
       </div>
 
       {/* Live Video Settings */}

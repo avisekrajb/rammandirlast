@@ -8,6 +8,7 @@ import {
 import { useToast } from '../../context/ToastContext';
 import LanguageSwitcher from '../common/LanguageSwitcher';
 import api from '../../services/api';
+import OmLoader from '../../components/common/OmLoader';
 
 const AdminEvents = ({ events, setEvents, t }) => {
   const { showToast } = useToast();
@@ -232,7 +233,7 @@ const AdminEvents = ({ events, setEvents, t }) => {
               )}
               {uploading && (
                 <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                  <div className="w-10 h-10 border-3 border-white border-t-transparent rounded-full animate-spin" />
+                  <OmLoader size="lg" color="white" />
                 </div>
               )}
             </div>
@@ -584,7 +585,7 @@ const AdminEvents = ({ events, setEvents, t }) => {
             <div className="p-6 overflow-y-auto max-h-[60vh]">
               {loadingInterested ? (
                 <div className="flex items-center justify-center py-12">
-                  <Loader2 size={32} className="animate-spin text-vermilion" />
+                  <OmLoader size="md" color="vermilion" />
                 </div>
               ) : interestedUsers.length === 0 ? (
                 <div className="text-center py-12">

@@ -43,7 +43,8 @@ import {
   BarChart3,
   PieChart,
   TrendingUp,
-  Database
+  Database,
+  Share2 // <-- Added Share2 icon
 } from 'lucide-react';
 
 const AdminSidebar = ({ isOpen, onClose }) => {
@@ -72,6 +73,8 @@ const AdminSidebar = ({ isOpen, onClose }) => {
 
   const currentTab = location.pathname.split('/admin/')[1] || 'overview';
 
+  const isSuperAdmin = user?.role === 'superadmin';
+
   const toggleSection = (section) => {
     setExpandedSections(prev => ({
       ...prev,
@@ -86,7 +89,7 @@ const AdminSidebar = ({ isOpen, onClose }) => {
   const menuSections = [
     {
       id: 'content',
-      label: 'Content',
+      label: t.content || 'Content',
       icon: LayoutDashboard,
       items: [
         { key: 'overview', label: t.overview || 'Overview', icon: LayoutDashboard },
@@ -102,7 +105,7 @@ const AdminSidebar = ({ isOpen, onClose }) => {
     },
     {
       id: 'management',
-      label: 'Management',
+      label: t.management || 'Management',
       icon: Settings,
       items: [
         { key: 'users', label: t.manageUsers || 'Users', icon: Users },
@@ -117,7 +120,7 @@ const AdminSidebar = ({ isOpen, onClose }) => {
     },
     {
       id: 'settings',
-      label: 'Settings',
+      label: t.settings || 'Settings',
       icon: Settings,
       items: [
         { key: 'hero', label: t.heroBanner || 'Hero Banner', icon: Video },
@@ -125,6 +128,7 @@ const AdminSidebar = ({ isOpen, onClose }) => {
         { key: 'timings', label: t.templeTimings || 'Timings', icon: Clock },
         { key: 'logo', label: t.logoQr || 'Logo', icon: Image },
         { key: 'footer', label: 'Footer Settings', icon: Settings },
+        { key: 'social', label: 'Social Links', icon: Share2 }, // <-- Added Social Links
       ]
     }
   ];
@@ -133,6 +137,30 @@ const AdminSidebar = ({ isOpen, onClose }) => {
     navigate(`/admin/${key}`);
     if (onClose) onClose();
   };
+
+  // Superadmins only see: Overview, Visitor Analytics, and Settings
+  // (Settings contains Activity Logs and Create New Admin). User panel is hidden.
+  const visibleMenuSections = isSuperAdmin
+    ? [
+        {
+          id: 'content',
+          label: t.overview || 'Overview',
+          icon: LayoutDashboard,
+          items: [
+            { key: 'overview', label: t.overview || 'Overview', icon: LayoutDashboard },
+            { key: 'visitors', label: 'Visitor Analytics', icon: Activity },
+          ],
+        },
+        {
+          id: 'settings',
+          label: t.settings || 'Settings',
+          icon: Settings,
+          items: [
+            { key: 'settings', label: 'Activity Logs & Create Admin', icon: Settings },
+          ],
+        },
+      ]
+    : menuSections;
 
   const handleLogout = () => {
     logout();
@@ -161,14 +189,14 @@ const AdminSidebar = ({ isOpen, onClose }) => {
             <span className="font-bold text-sm text-ink block">{t.adminDashboard || 'Admin Panel'}</span>
             <span className="text-[10px] text-ink-soft font-medium flex items-center gap-1">
               <Shield size={10} className="text-vermilion" />
-              {user?.name || 'Administrator'}
+              {user?.role === 'superadmin' ? 'Super Admin' : (user?.name || 'Administrator')}
             </span>
           </div>
         </div>
 
         {/* Scrollable navigation - independent scrolling with hidden scrollbar */}
         <nav className="flex-1 overflow-y-auto p-3 space-y-3 sidebar-scroll">
-          {menuSections.map((section) => {
+          {visibleMenuSections.map((section) => {
             const SectionIcon = section.icon;
             const isExpanded = expandedSections[section.id];
             

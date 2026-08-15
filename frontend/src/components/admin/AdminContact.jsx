@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import api from '../../services/api';
+import OmLoader from '../../components/common/OmLoader';
 
 const AdminContact = ({ t }) => {
   const { showToast } = useToast();
@@ -286,7 +287,7 @@ const AdminContact = ({ t }) => {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 size={32} className="animate-spin text-[#7A0000]" />
+            <OmLoader size="md" color="maroon" />
           </div>
         ) : filteredMessages.length === 0 ? (
           <div className="text-center py-12">

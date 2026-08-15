@@ -99,16 +99,36 @@ exports.getAdminLogStats = async (req, res) => {
 
 // Helper function to log admin activity
 const logAdminActivity = (adminId, action, details = {}) => {
-  adminActivityLogs.push({
+  const log = {
     adminId,
     action,
     details,
     timestamp: new Date().toISOString(),
-    user: { name: 'Admin' },
-  });
+    user: { id: adminId, name: 'Admin', email: '' },
+  };
+  adminActivityLogs.push(log);
   if (adminActivityLogs.length > 100) {
     adminActivityLogs = adminActivityLogs.slice(-100);
   }
+  // Enrich with the real admin name/email (fire-and-forget)
+  User.findById(adminId).select('name email').lean()
+    .then((u) => {
+      if (u) {
+        log.user = { id: adminId, name: u.name, email: u.email };
+      }
+    })
+    .catch(() => {});
+};
+
+// ============ HELPER FUNCTIONS ============
+
+// Helper: Get date key in YYYY-MM-DD format
+const getDateKey = (date) => {
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 // ============ SETTINGS ============
@@ -133,6 +153,128 @@ exports.updateSettings = async (req, res) => {
   } catch (error) {
     console.error('Update settings error:', error);
     res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// ============ SOCIAL LINKS MANAGEMENT ============
+
+// @desc    Get social links (public)
+// @route   GET /api/admin/social
+// @access  Public
+exports.getSocialLinks = async (req, res) => {
+  try {
+    const settings = await AdminSettings.getSettings();
+    const socialLinks = settings.socialLinks || [];
+    res.json({ 
+      success: true, 
+      data: socialLinks 
+    });
+  } catch (error) {
+    console.error('Get social links error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error fetching social links',
+      error: error.message 
+    });
+  }
+};
+
+// @desc    Update social links (admin only)
+// @route   PUT /api/admin/social
+// @access  Private/Admin
+exports.updateSocialLinks = async (req, res) => {
+  try {
+    const { socialLinks } = req.body;
+    
+    // Validate socialLinks is an array
+    if (!Array.isArray(socialLinks)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'socialLinks must be an array' 
+      });
+    }
+    
+    // Validate each link
+    for (const link of socialLinks) {
+      if (!link.platform || !link.url) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Each social link must have platform and url' 
+        });
+      }
+      
+      // Validate platform
+      const validPlatforms = ['facebook', 'instagram', 'youtube', 'twitter', 'linkedin', 'whatsapp', 'email', 'phone', 'tiktok', 'pinterest', 'snapchat', 'telegram', 'discord', 'reddit', 'tumblr'];
+      if (!validPlatforms.includes(link.platform.toLowerCase())) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid platform: ${link.platform}. Must be one of: ${validPlatforms.join(', ')}`
+        });
+      }
+    }
+    
+    // Find and update settings
+    const settings = await AdminSettings.getSettings();
+    settings.socialLinks = socialLinks;
+    settings.updatedAt = Date.now();
+    await settings.save();
+    
+    logAdminActivity(req.user.id, 'Social Links Updated', { 
+      count: socialLinks.length,
+      platforms: socialLinks.map(l => l.platform)
+    });
+    
+    res.json({ 
+      success: true, 
+      message: 'Social links updated successfully',
+      data: settings.socialLinks 
+    });
+  } catch (error) {
+    console.error('Error updating social links:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error updating social links',
+      error: error.message 
+    });
+  }
+};
+
+// ============ HISTORY BANNER UPLOAD ============
+exports.uploadHistoryBanner = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'No image uploaded' 
+      });
+    }
+    
+    const settings = await AdminSettings.getSettings();
+    
+    if (settings.historyBanner) {
+      try {
+        const publicId = settings.historyBanner.split('/').pop().split('.')[0];
+        await cloudinary.uploader.destroy(`temple/history/banner/${publicId}`);
+      } catch (error) {
+        console.log('Old banner deletion skipped:', error.message);
+      }
+    }
+    
+    settings.historyBanner = req.file.path;
+    await settings.save();
+    logAdminActivity(req.user.id, 'History Banner Uploaded', { url: req.file.path });
+    
+    res.json({ 
+      success: true, 
+      url: req.file.path,
+      message: 'History banner uploaded successfully'
+    });
+  } catch (error) {
+    console.error('Upload history banner error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || 'Server error' 
+    });
   }
 };
 
@@ -686,6 +828,47 @@ exports.getTeam = async (req, res) => {
   }
 };
 
+// @desc    Get team roles
+// @route   GET /api/admin/team/roles
+// @access  Public
+exports.getTeamRoles = async (req, res) => {
+  try {
+    const labels = Team.getRoleLabels();
+    const hierarchy = Team.getRoleHierarchy();
+    res.json({ 
+      success: true, 
+      labels, 
+      hierarchy 
+    });
+  } catch (error) {
+    console.error('Get team roles error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Get single team member by ID
+// @route   GET /api/admin/team/:id
+// @access  Public
+exports.getTeamById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid team member ID' });
+    }
+    
+    const member = await Team.findById(id);
+    if (!member) {
+      return res.status(404).json({ message: 'Team member not found' });
+    }
+    
+    res.json(member);
+  } catch (error) {
+    console.error('Get team member by ID error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 exports.addTeam = async (req, res) => {
   try {
     const teamMember = await Team.create(req.body);
@@ -742,6 +925,15 @@ exports.deleteTeam = async (req, res) => {
       return res.status(404).json({ message: 'Team member not found' });
     }
     
+    if (teamMember.photo) {
+      try {
+        const publicId = teamMember.photo.split('/').pop().split('.')[0];
+        await cloudinary.uploader.destroy(`temple/team/${publicId}`);
+      } catch (error) {
+        console.log('Cloudinary deletion skipped:', error.message);
+      }
+    }
+    
     logAdminActivity(req.user.id, 'Team Member Deleted', { 
       memberId: id,
       name: teamMember.name 
@@ -750,6 +942,124 @@ exports.deleteTeam = async (req, res) => {
     res.json({ success: true, message: 'Team member deleted' });
   } catch (error) {
     console.error('Delete team error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// ============ TEAM - FOLLOW / UNFOLLOW / VIEWS ============
+
+// @desc    Follow a team member
+// @route   POST /api/admin/team/:id/follow
+// @access  Private
+exports.followTeamMember = async (req, res) => {
+  try {
+    const member = await Team.findById(req.params.id);
+    if (!member) {
+      return res.status(404).json({ message: 'Team member not found' });
+    }
+    
+    if (!member.followersBy) member.followersBy = [];
+    
+    if (member.followersBy.some(id => id.toString() === req.user.id)) {
+      return res.status(400).json({ message: 'Already following this member' });
+    }
+    
+    member.followersBy.push(req.user.id);
+    member.followers = (member.followers || 0) + 1;
+    await member.save();
+    
+    logAdminActivity(req.user.id, 'Followed Team Member', { 
+      memberId: member._id,
+      memberName: member.name?.en || 'Unknown'
+    });
+    
+    res.json({ 
+      success: true, 
+      followers: member.followers,
+      message: 'Followed successfully' 
+    });
+  } catch (error) {
+    console.error('Follow error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Unfollow a team member
+// @route   POST /api/admin/team/:id/unfollow
+// @access  Private
+exports.unfollowTeamMember = async (req, res) => {
+  try {
+    const member = await Team.findById(req.params.id);
+    if (!member) {
+      return res.status(404).json({ message: 'Team member not found' });
+    }
+    
+    if (!member.followersBy) {
+      member.followersBy = [];
+    }
+    
+    member.followersBy = member.followersBy.filter(id => id.toString() !== req.user.id);
+    member.followers = Math.max(0, (member.followers || 0) - 1);
+    await member.save();
+    
+    logAdminActivity(req.user.id, 'Unfollowed Team Member', { 
+      memberId: member._id,
+      memberName: member.name?.en || 'Unknown'
+    });
+    
+    res.json({ 
+      success: true, 
+      followers: member.followers,
+      message: 'Unfollowed successfully' 
+    });
+  } catch (error) {
+    console.error('Unfollow error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Get team member followers
+// @route   GET /api/admin/team/:id/followers
+// @access  Public
+exports.getTeamFollowers = async (req, res) => {
+  try {
+    const member = await Team.findById(req.params.id)
+      .populate('followersBy', 'name email profilePhoto');
+    
+    if (!member) {
+      return res.status(404).json({ message: 'Team member not found' });
+    }
+    
+    res.json({
+      success: true,
+      count: member.followers || 0,
+      followers: member.followersBy || [],
+    });
+  } catch (error) {
+    console.error('Get followers error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Increment team member views
+// @route   POST /api/admin/team/:id/view
+// @access  Public
+exports.incrementTeamViews = async (req, res) => {
+  try {
+    const member = await Team.findById(req.params.id);
+    if (!member) {
+      return res.status(404).json({ message: 'Team member not found' });
+    }
+    
+    member.views = (member.views || 0) + 1;
+    await member.save();
+    
+    res.json({ 
+      success: true, 
+      views: member.views 
+    });
+  } catch (error) {
+    console.error('Increment views error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -851,6 +1161,60 @@ exports.getGalleryVideos = async (req, res) => {
   }
 };
 
+exports.addGalleryVideo = async (req, res) => {
+  try {
+    let videoData = {};
+    
+    if (req.file) {
+      videoData.url = req.file.path;
+      videoData.type = 'video';
+      videoData.photo = req.file.path;
+    } else if (req.body.url) {
+      videoData.url = req.body.url;
+      videoData.type = 'video';
+    } else {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Video file or URL is required' 
+      });
+    }
+    
+    let cap = { en: 'Temple Video' };
+    if (req.body.cap) {
+      try {
+        cap = typeof req.body.cap === 'string' ? JSON.parse(req.body.cap) : req.body.cap;
+      } catch (e) {
+        cap = { en: req.body.cap };
+      }
+    }
+    
+    const video = await Gallery.create({
+      ...videoData,
+      cap,
+      type: 'video',
+      hue: req.body.hue || '#1a1a2e',
+      category: req.body.category || 'videos',
+    });
+
+    logAdminActivity(req.user.id, 'Gallery Video Added', { 
+      videoId: video._id,
+      category: req.body.category || 'videos' 
+    });
+    
+    res.status(201).json({
+      success: true,
+      data: video,
+      message: 'Video added successfully',
+    });
+  } catch (error) {
+    console.error('Add gallery video error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || 'Server error' 
+    });
+  }
+};
+
 exports.deleteGalleryVideo = async (req, res) => {
   try {
     const { id } = req.params;
@@ -858,6 +1222,16 @@ exports.deleteGalleryVideo = async (req, res) => {
     if (!video) {
       return res.status(404).json({ message: 'Video not found' });
     }
+    
+    if (video.photo) {
+      try {
+        const publicId = video.photo.split('/').pop().split('.')[0];
+        await cloudinary.uploader.destroy(`temple/gallery/${publicId}`);
+      } catch (error) {
+        console.log('Cloudinary deletion skipped:', error.message);
+      }
+    }
+    
     logAdminActivity(req.user.id, 'Gallery Video Deleted', { videoId: id });
     res.json({ success: true, message: 'Video deleted' });
   } catch (error) {
@@ -921,60 +1295,6 @@ exports.getGalleryItem = async (req, res) => {
     });
   } catch (error) {
     console.error('Get gallery item error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: error.message || 'Server error' 
-    });
-  }
-};
-
-exports.addGalleryVideo = async (req, res) => {
-  try {
-    let videoData = {};
-    
-    if (req.file) {
-      videoData.url = req.file.path;
-      videoData.type = 'video';
-      videoData.photo = req.file.path;
-    } else if (req.body.url) {
-      videoData.url = req.body.url;
-      videoData.type = 'video';
-    } else {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Video file or URL is required' 
-      });
-    }
-    
-    let cap = { en: 'Temple Video' };
-    if (req.body.cap) {
-      try {
-        cap = typeof req.body.cap === 'string' ? JSON.parse(req.body.cap) : req.body.cap;
-      } catch (e) {
-        cap = { en: req.body.cap };
-      }
-    }
-    
-    const video = await Gallery.create({
-      ...videoData,
-      cap,
-      type: 'video',
-      hue: req.body.hue || '#1a1a2e',
-      category: req.body.category || 'videos',
-    });
-
-    logAdminActivity(req.user.id, 'Gallery Video Added', { 
-      videoId: video._id,
-      category: req.body.category || 'videos' 
-    });
-    
-    res.status(201).json({
-      success: true,
-      data: video,
-      message: 'Video added successfully',
-    });
-  } catch (error) {
-    console.error('Add gallery video error:', error);
     res.status(500).json({ 
       success: false, 
       message: error.message || 'Server error' 
@@ -1119,6 +1439,351 @@ exports.bulkDeleteGalleryItems = async (req, res) => {
       success: false, 
       message: error.message || 'Server error' 
     });
+  }
+};
+
+// ============ DAILY QUOTES CONTROLLERS ============
+
+// @desc    Get all daily quotes
+// @route   GET /api/admin/quotes
+// @access  Private/Admin
+exports.getDailyQuotes = async (req, res) => {
+  try {
+    const settings = await AdminSettings.getSettings();
+    const dailyQuotes = settings.dailyQuotes || new Map();
+    
+    // Convert Map to plain object for response
+    const quotesObj = {};
+    dailyQuotes.forEach((value, key) => {
+      quotesObj[key] = value;
+    });
+    
+    res.json({
+      success: true,
+      data: quotesObj,
+      total: Object.keys(quotesObj).length,
+    });
+  } catch (error) {
+    console.error('Get daily quotes error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Update daily quotes (bulk)
+// @route   PUT /api/admin/quotes
+// @access  Private/Admin
+exports.updateDailyQuotes = async (req, res) => {
+  try {
+    const { dailyQuotes } = req.body;
+    
+    if (!dailyQuotes || typeof dailyQuotes !== 'object') {
+      return res.status(400).json({ message: 'Invalid quotes data' });
+    }
+    
+    const settings = await AdminSettings.getSettings();
+    
+    // Create new Map from object
+    const quotesMap = new Map();
+    Object.keys(dailyQuotes).forEach(key => {
+      quotesMap.set(key, dailyQuotes[key]);
+    });
+    
+    settings.dailyQuotes = quotesMap;
+    await settings.save();
+    
+    logAdminActivity(req.user.id, 'Daily Quotes Updated', { 
+      count: Object.keys(dailyQuotes).length 
+    });
+    
+    res.json({
+      success: true,
+      data: dailyQuotes,
+      message: 'Quotes updated successfully',
+    });
+  } catch (error) {
+    console.error('Update daily quotes error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Get quote for specific date
+// @route   GET /api/admin/quotes/:date
+// @access  Private/Admin
+exports.getQuoteByDate = async (req, res) => {
+  try {
+    const { date } = req.params;
+    
+    // Validate date format
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid date format. Use YYYY-MM-DD' 
+      });
+    }
+    
+    const settings = await AdminSettings.getSettings();
+    const dailyQuotes = settings.dailyQuotes || new Map();
+    
+    const quote = dailyQuotes.get(date);
+    
+    if (!quote) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'No quote found for this date' 
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        date,
+        quote,
+      },
+    });
+  } catch (error) {
+    console.error('Get quote by date error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Update quote for specific date
+// @route   PUT /api/admin/quotes/:date
+// @access  Private/Admin
+exports.updateQuoteByDate = async (req, res) => {
+  try {
+    const { date } = req.params;
+    const { quote } = req.body;
+    
+    // Validate date format
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid date format. Use YYYY-MM-DD' 
+      });
+    }
+    
+    if (!quote || typeof quote !== 'object') {
+      return res.status(400).json({ message: 'Invalid quote data' });
+    }
+    
+    // Validate language fields
+    const languages = ['en', 'ne', 'hi', 'zh', 'ta'];
+    for (const lang of languages) {
+      if (quote[lang] && typeof quote[lang] !== 'string') {
+        return res.status(400).json({ message: `Invalid value for language: ${lang}` });
+      }
+    }
+    
+    const settings = await AdminSettings.getSettings();
+    const dailyQuotes = settings.dailyQuotes || new Map();
+    
+    dailyQuotes.set(date, quote);
+    settings.dailyQuotes = dailyQuotes;
+    await settings.save();
+    
+    logAdminActivity(req.user.id, 'Quote Updated for Date', { 
+      date,
+      languages: Object.keys(quote).filter(k => quote[k]),
+    });
+    
+    res.json({
+      success: true,
+      data: { date, quote },
+      message: 'Quote saved successfully',
+    });
+  } catch (error) {
+    console.error('Update quote by date error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Delete quote for specific date
+// @route   DELETE /api/admin/quotes/:date
+// @access  Private/Admin
+exports.deleteQuoteByDate = async (req, res) => {
+  try {
+    const { date } = req.params;
+    
+    // Validate date format
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid date format. Use YYYY-MM-DD' 
+      });
+    }
+    
+    const settings = await AdminSettings.getSettings();
+    const dailyQuotes = settings.dailyQuotes || new Map();
+    
+    if (!dailyQuotes.has(date)) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'No quote found for this date' 
+      });
+    }
+    
+    const deletedQuote = dailyQuotes.get(date);
+    dailyQuotes.delete(date);
+    settings.dailyQuotes = dailyQuotes;
+    await settings.save();
+    
+    logAdminActivity(req.user.id, 'Quote Deleted for Date', { date });
+    
+    res.json({
+      success: true,
+      data: { date, quote: deletedQuote },
+      message: 'Quote deleted successfully',
+    });
+  } catch (error) {
+    console.error('Delete quote by date error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Generate quotes for next 365 days
+// @route   POST /api/admin/quotes/generate
+// @access  Private/Admin
+exports.generateDailyQuotes = async (req, res) => {
+  try {
+    const { baseQuote } = req.body;
+    
+    const settings = await AdminSettings.getSettings();
+    const dailyQuotes = settings.dailyQuotes || new Map();
+    
+    const startDate = new Date();
+    let generated = 0;
+    let skipped = 0;
+    
+    // Default quote in multiple languages
+    const defaultQuote = {
+      en: baseQuote?.en || 'Where there is righteousness in the heart, there is beauty in the character.',
+      ne: baseQuote?.ne || 'जहाँ हृदयमा धार्मिकता हुन्छ, त्यहाँ चरित्रमा सुन्दरता हुन्छ।',
+      hi: baseQuote?.hi || 'जहाँ हृदय में धार्मिकता है, वहाँ चरित्र में सुंदरता है।',
+      zh: baseQuote?.zh || '心中有正义，性格便有美。',
+      ta: baseQuote?.ta || 'இதயத்தில் நேர்மை இருந்தால், குணத்தில் அழகு இருக்கும்।',
+    };
+    
+    for (let i = 0; i < 365; i++) {
+      const date = new Date(startDate);
+      date.setDate(date.getDate() + i);
+      const dateKey = getDateKey(date);
+      
+      if (!dailyQuotes.has(dateKey)) {
+        // Add day number to quote
+        const dayQuote = {};
+        for (const [lang, text] of Object.entries(defaultQuote)) {
+          dayQuote[lang] = `Day ${i + 1}: ${text}`;
+        }
+        dailyQuotes.set(dateKey, dayQuote);
+        generated++;
+      } else {
+        skipped++;
+      }
+    }
+    
+    settings.dailyQuotes = dailyQuotes;
+    await settings.save();
+    
+    logAdminActivity(req.user.id, 'Daily Quotes Generated', { 
+      generated, 
+      skipped,
+      total: dailyQuotes.size,
+    });
+    
+    res.json({
+      success: true,
+      data: {
+        generated,
+        skipped,
+        total: dailyQuotes.size,
+      },
+      message: `Generated ${generated} new quotes, skipped ${skipped} existing`,
+    });
+  } catch (error) {
+    console.error('Generate daily quotes error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Get today's quote (public)
+// @route   GET /api/admin/quotes/today
+// @access  Public
+exports.getTodayQuote = async (req, res) => {
+  try {
+    const todayKey = getDateKey(new Date());
+    const settings = await AdminSettings.getSettings();
+    const dailyQuotes = settings.dailyQuotes || new Map();
+    
+    const quote = dailyQuotes.get(todayKey);
+    
+    // If no quote for today, return default
+    if (!quote) {
+      return res.json({
+        success: true,
+        data: {
+          date: todayKey,
+          quote: {
+            en: 'Where there is righteousness in the heart, there is beauty in the character.',
+            ne: 'जहाँ हृदयमा धार्मिकता हुन्छ, त्यहाँ चरित्रमा सुन्दरता हुन्छ।',
+            hi: 'जहाँ हृदय में धार्मिकता है, वहाँ चरित्र में सुंदरता है।',
+            zh: '心中有正义，性格便有美。',
+            ta: 'இதயத்தில் நேர்மை இருந்தால், குணத்தில் அழகு இருக்கும்।',
+          },
+          isDefault: true,
+        },
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        date: todayKey,
+        quote,
+        isDefault: false,
+      },
+    });
+  } catch (error) {
+    console.error('Get today quote error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Get quote for any date (public)
+// @route   GET /api/admin/quotes/public/:date
+// @access  Public
+exports.getPublicQuoteByDate = async (req, res) => {
+  try {
+    const { date } = req.params;
+    
+    // Validate date format
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid date format. Use YYYY-MM-DD' 
+      });
+    }
+    
+    const settings = await AdminSettings.getSettings();
+    const dailyQuotes = settings.dailyQuotes || new Map();
+    const quote = dailyQuotes.get(date);
+    
+    if (!quote) {
+      return res.status(404).json({
+        success: false,
+        message: 'No quote found for this date',
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        date,
+        quote,
+      },
+    });
+  } catch (error) {
+    console.error('Get public quote by date error:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 };
 

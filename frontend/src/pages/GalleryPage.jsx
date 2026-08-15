@@ -4,6 +4,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useToast } from '../context/ToastContext';
 import { X, Download, Image as ImageIcon, Youtube } from 'lucide-react';
 import api from '../services/api';
+import OmLoader from '../components/common/OmLoader';
 
 // Fallback images for when API fails
 const fallbackImages = [
@@ -26,8 +27,282 @@ const getLocalizedText = (obj, lang) => {
   return obj[lang] || obj.en || '';
 };
 
+// ─── Facebook Embedded Videos (same set used on the Home page) ─────────────
+// Admin-editable via settings?.facebookVideos (array of { url, enabled }) if
+// wired up later; falls back to this hardcoded list otherwise.
+const DEFAULT_FACEBOOK_VIDEOS = [
+  'https://www.facebook.com/shreeramchandramandir/videos/2472164706588918/',
+  'https://www.facebook.com/shreeramchandramandir/videos/1075819584931828/',
+  'https://www.facebook.com/shreeramchandramandir/videos/2273607406769837/',
+  'https://www.facebook.com/shreeramchandramandir/videos/1614691790082453/',
+  'https://www.facebook.com/shreeramchandramandir/videos/2106938773498642/',
+  'https://www.facebook.com/shreeramchandramandir/videos/1041350001985138/',
+];
+
+const FACEBOOK_VIDEOS_PAGE_SIZE = 6;
+
+function FacebookVideoCard({ url }) {
+  const embedSrc = `https://www.facebook.com/plugins/video.php?height=314&href=${encodeURIComponent(
+    url
+  )}&show_text=false&width=560&t=0`;
+
+  return (
+    <div className="rounded-xl overflow-hidden shadow-lg border border-line bg-black">
+      <div className="relative w-full" style={{ paddingBottom: '56.13%' /* 314/560 aspect ratio */ }}>
+        <iframe
+          src={embedSrc}
+          className="absolute inset-0 w-full h-full"
+          style={{ border: 'none', overflow: 'hidden' }}
+          scrolling="no"
+          frameBorder="0"
+          allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+          allowFullScreen
+          title="Facebook Video"
+        />
+      </div>
+    </div>
+  );
+}
+
+function FacebookVideosSection({ settings, t }) {
+  const [showAll, setShowAll] = useState(false);
+
+  const fbEnabled = settings?.facebookVideo?.enabled !== false;
+  if (!fbEnabled) return null;
+
+  const configuredVideos = settings?.facebookVideos
+    ?.filter(v => v.enabled !== false)
+    ?.map(v => v.url)
+    ?.filter(Boolean);
+
+  const videos = configuredVideos && configuredVideos.length > 0
+    ? configuredVideos
+    : DEFAULT_FACEBOOK_VIDEOS;
+
+  if (videos.length === 0) return null;
+
+  const visibleVideos = showAll ? videos : videos.slice(0, FACEBOOK_VIDEOS_PAGE_SIZE);
+  const hasMore = videos.length > FACEBOOK_VIDEOS_PAGE_SIZE;
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-16">
+      <div className="text-center mb-8">
+        <h2 className="font-serif text-2xl sm:text-3xl" style={{ color: "#7A0000" }}>
+          {t.facebookVideoTitle || 'Watch on Facebook'}
+        </h2>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {visibleVideos.map((url, idx) => (
+          <FacebookVideoCard key={`${url}-${idx}`} url={url} />
+        ))}
+      </div>
+
+      {hasMore && (
+        <div className="text-center mt-10">
+          <button
+            onClick={() => setShowAll(prev => !prev)}
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-full font-semibold text-sm text-white hover:-translate-y-0.5 transition-all shadow-lg shadow-vermilion/30"
+            style={{ backgroundColor: "#7A0000" }}
+          >
+            {showAll ? (t.viewLess || 'View Less') : (t.viewMore || 'View More')}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Watermark Utility Functions ──────────────────────────────────────────
+const WATERMARK_TEXT = 'श्री राम मंदिर';
+
+// Function to add centered text watermark to image
+const addWatermarkToImage = (imageSrc) => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set canvas size to match image
+        canvas.width = img.width;
+        canvas.height = img.height;
+        
+        // Draw original image
+        ctx.drawImage(img, 0, 0);
+        
+        // ─── Centered Text Watermark ──────────────────────────────────────
+        // Smaller font size - responsive
+        const fontSize = Math.max(14, Math.min(24, Math.min(img.width, img.height) / 30));
+        const textX = canvas.width / 2;
+        const textY = canvas.height / 2;
+        
+        ctx.save();
+        
+        // Subtle shadow for readability
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+        ctx.shadowBlur = 8;
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 1;
+        
+        // Text settings - centered
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+        
+        // Semi-transparent white text with subtle gradient
+        const gradient = ctx.createRadialGradient(
+          textX - fontSize * 1.5, 
+          textY - fontSize * 0.5, 
+          fontSize * 0.5,
+          textX, 
+          textY, 
+          fontSize * 4
+        );
+        gradient.addColorStop(0, 'rgba(255, 255, 255, 0.5)');
+        gradient.addColorStop(0.4, 'rgba(255, 255, 255, 0.4)');
+        gradient.addColorStop(0.7, 'rgba(255, 255, 255, 0.3)');
+        gradient.addColorStop(1, 'rgba(255, 255, 255, 0.15)');
+        
+        ctx.fillStyle = gradient;
+        ctx.fillText(WATERMARK_TEXT, textX, textY);
+        
+        // Very subtle outline
+        ctx.shadowColor = 'transparent';
+        ctx.strokeStyle = 'rgba(255, 215, 0, 0.05)';
+        ctx.lineWidth = 0.5;
+        ctx.strokeText(WATERMARK_TEXT, textX, textY);
+        
+        ctx.restore();
+        
+        // Convert to blob
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error('Failed to create image blob'));
+          }
+        }, 'image/jpeg', 0.95);
+      } catch (error) {
+        reject(error);
+      }
+    };
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = imageSrc;
+  });
+};
+
+// Function to add centered text watermark to video
+const addWatermarkToVideo = (videoSrc) => {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    video.crossOrigin = 'anonymous';
+    video.onloadedmetadata = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set canvas size
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        // Create a media stream from canvas
+        const stream = canvas.captureStream(30);
+        const mediaRecorder = new MediaRecorder(stream, {
+          mimeType: 'video/webm;codecs=vp9',
+          videoBitsPerSecond: 5000000
+        });
+        
+        const chunks = [];
+        mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(chunks, { type: 'video/webm' });
+          resolve(blob);
+        };
+        
+        // Start recording
+        mediaRecorder.start();
+        
+        // Play video and draw frames with watermark
+        video.play();
+        const drawFrame = () => {
+          if (video.paused || video.ended) {
+            if (mediaRecorder.state === 'recording') {
+              mediaRecorder.stop();
+            }
+            return;
+          }
+          
+          // Draw video frame
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          
+          // ─── Centered Text Watermark ──────────────────────────────────
+          const fontSize = Math.max(14, Math.min(24, Math.min(canvas.width, canvas.height) / 30));
+          const textX = canvas.width / 2;
+          const textY = canvas.height / 2;
+          
+          ctx.save();
+          
+          // Subtle shadow for readability
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+          ctx.shadowBlur = 8;
+          ctx.shadowOffsetX = 1;
+          ctx.shadowOffsetY = 1;
+          
+          // Text settings - centered
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+          
+          // Semi-transparent white text with subtle gradient
+          const gradient = ctx.createRadialGradient(
+            textX - fontSize * 1.5, 
+            textY - fontSize * 0.5, 
+            fontSize * 0.5,
+            textX, 
+            textY, 
+            fontSize * 4
+          );
+          gradient.addColorStop(0, 'rgba(255, 255, 255, 0.5)');
+          gradient.addColorStop(0.4, 'rgba(255, 255, 255, 0.4)');
+          gradient.addColorStop(0.7, 'rgba(255, 255, 255, 0.3)');
+          gradient.addColorStop(1, 'rgba(255, 255, 255, 0.15)');
+          
+          ctx.fillStyle = gradient;
+          ctx.fillText(WATERMARK_TEXT, textX, textY);
+          
+          // Very subtle outline
+          ctx.shadowColor = 'transparent';
+          ctx.strokeStyle = 'rgba(255, 215, 0, 0.05)';
+          ctx.lineWidth = 0.5;
+          ctx.strokeText(WATERMARK_TEXT, textX, textY);
+          
+          ctx.restore();
+          
+          requestAnimationFrame(drawFrame);
+        };
+        
+        video.addEventListener('ended', () => {
+          if (mediaRecorder.state === 'recording') {
+            mediaRecorder.stop();
+          }
+        });
+        
+        drawFrame();
+      } catch (error) {
+        reject(error);
+      }
+    };
+    video.onerror = () => reject(new Error('Failed to load video'));
+    video.src = videoSrc;
+  });
+};
+
 // ─── Lightbox Modal ──────────────────────────────────────────────────────────
 function LightboxModal({ items, index, t, lang, onClose, onPrev, onNext }) {
+  const [isDownloading, setIsDownloading] = useState(false);
   const item = items[index];
   if (!item) return null;
 
@@ -35,18 +310,35 @@ function LightboxModal({ items, index, t, lang, onClose, onPrev, onNext }) {
   const caption = getLocalizedText(item.cap, lang);
 
   const handleDownload = async () => {
+    setIsDownloading(true);
     try {
-      const res = await fetch(item.photo);
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      const ext = isVideo ? 'mp4' : 'jpg';
-      a.download = `${caption.replace(/\s+/g, '-').toLowerCase() || 'download'}.${ext}`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
+      if (isVideo) {
+        // Download video with watermark
+        const videoBlob = await addWatermarkToVideo(item.photo);
+        const url = URL.createObjectURL(videoBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        const fileName = `${caption.replace(/\s+/g, '-').toLowerCase() || 'video'}-watermarked.webm`;
+        a.download = fileName;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        // Download image with watermark
+        const imageBlob = await addWatermarkToImage(item.photo);
+        const url = URL.createObjectURL(imageBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        const fileName = `${caption.replace(/\s+/g, '-').toLowerCase() || 'image'}-watermarked.jpg`;
+        a.download = fileName;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      console.error('Download with watermark failed:', error);
+      // Fallback: open in new tab
       window.open(item.photo, '_blank');
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -63,9 +355,13 @@ function LightboxModal({ items, index, t, lang, onClose, onPrev, onNext }) {
       <div className="absolute top-4 right-4 flex gap-3 z-10" onClick={(e) => e.stopPropagation()}>
         <button
           onClick={handleDownload}
-          className="flex items-center text-white/60 hover:text-white text-xs px-3 py-2 border border-white/15 hover:border-white/40 transition-all rounded-lg"
+          disabled={isDownloading}
+          className={`flex items-center text-white/60 hover:text-white text-xs px-3 py-2 border border-white/15 hover:border-white/40 transition-all rounded-lg ${
+            isDownloading ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
         >
-          <Download className="w-4 h-4" />
+          <Download className="w-4 h-4 mr-1" />
+          {isDownloading ? 'Processing...' : 'Download'}
         </button>
         <button
           onClick={onClose}
@@ -112,7 +408,7 @@ function LightboxModal({ items, index, t, lang, onClose, onPrev, onNext }) {
           />
         )}
         <div className="mt-3 text-center">
-          <p className="text-white/80 text-sm">{caption}</p>
+          {caption && <p className="text-white/80 text-sm">{caption}</p>}
           <p className="text-white/35 text-xs mt-1">{index + 1} / {items.length}</p>
         </div>
       </motion.div>
@@ -128,6 +424,7 @@ const GalleryPage = () => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lbState, setLbState] = useState(null);
+  const [settings, setSettings] = useState(null);
   const fetched = useRef(false);
 
   // Fetch gallery items from API
@@ -153,6 +450,19 @@ const GalleryPage = () => {
     };
     fetchGallery();
   }, [showToast]);
+
+  // Fetch admin settings (used for the Facebook videos section)
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await api.get('/admin/settings');
+        setSettings(response.data);
+      } catch (error) {
+        console.error('Error fetching settings:', error);
+      }
+    };
+    fetchSettings();
+  }, []);
 
   // Filter items based on active tab
   const filteredItems = useMemo(() => {
@@ -195,7 +505,7 @@ const GalleryPage = () => {
     return (
       <div className="min-h-[60vh] flex items-center justify-center" style={{ background: '#faf8f5' }}>
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-vermilion border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <OmLoader size="lg" color="vermilion" className="mx-auto mb-4" />
           <p className="text-ink-soft text-sm">Loading gallery...</p>
         </div>
       </div>
@@ -217,13 +527,10 @@ const GalleryPage = () => {
           >
             {t.galleryTitle || 'Photo Gallery'}
           </h1>
-          <p className="mt-3 text-base sm:text-lg text-mute max-w-xl mx-auto leading-relaxed">
-            {t.gallerySubtitle || 'Capturing moments of devotion and celebration at Shree Ramchandra Temple'}
-          </p>
         </motion.div>
       </div>
 
-      {/* Tab Navigation - Clean, no extra box */}
+      {/* Tab Navigation */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-center gap-2 py-4">
           <button
@@ -251,22 +558,23 @@ const GalleryPage = () => {
         </div>
       </div>
 
-      {/* Gallery Grid - Same size images, 5 per row on desktop, 2 on mobile */}
+      {/* Gallery Grid */}
       {filteredItems.length > 0 && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-12">
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-3">
             {filteredItems.map((item, index) => {
               const isVideo = item.type === 'video';
+              const caption = getLocalizedText(item.cap, lang);
               
               return (
-                <motion.button
+                <motion.div
                   key={item._id || index}
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: (index % 10) * 0.03, duration: 0.4 }}
-                  onClick={() => openLb(index)}
                   className="relative overflow-hidden rounded-lg group cursor-zoom-in aspect-square w-full"
                   style={{ background: '#1a1a1a' }}
+                  onClick={() => openLb(index)}
                 >
                   {isVideo ? (
                     <video
@@ -277,20 +585,37 @@ const GalleryPage = () => {
                   ) : (
                     <img
                       src={item.photo}
-                      alt={getLocalizedText(item.cap, lang)}
+                      alt={caption}
                       loading="lazy"
                       className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-500 ease-out"
                       onError={(e) => { e.target.src = '/1.jpg'; }}
                     />
                   )}
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors duration-400" />
                   
+                  {/* Hover Overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  
+                  {/* Hover Text - Bottom Center */}
+                  <div className="absolute bottom-0 left-0 right-0 p-3 transform translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out">
+                    <div className="text-center">
+                      <p className="text-white/90 text-xs sm:text-sm font-medium tracking-wider font-serif">
+                        श्री राम मंदिर
+                      </p>
+                      {caption && (
+                        <p className="text-white/60 text-[10px] sm:text-xs mt-0.5 truncate">
+                          {caption}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Video Badge */}
                   {isVideo && (
-                    <div className="absolute top-2 right-2 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                    <div className="absolute top-2 right-2 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded flex items-center gap-0.5 z-10">
                       <Youtube size={10} />
                     </div>
                   )}
-                </motion.button>
+                </motion.div>
               );
             })}
           </div>
@@ -303,6 +628,11 @@ const GalleryPage = () => {
           <ImageIcon size={64} className="mx-auto text-ink-soft/20 mb-4" />
           <p className="text-ink-soft">No {activeTab} available</p>
         </div>
+      )}
+
+      {/* Facebook Embedded Videos - Videos tab only */}
+      {activeTab === 'videos' && (
+        <FacebookVideosSection settings={settings} t={t} />
       )}
 
       <AnimatePresence>

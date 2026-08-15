@@ -1,4 +1,5 @@
 const Blog = require('../models/Blog');
+const { notifySubscribers } = require('../services/emailService');
 
 // @desc    Get all blogs
 // @route   GET /api/blogs
@@ -46,6 +47,19 @@ exports.getBlogById = async (req, res) => {
 exports.createBlog = async (req, res) => {
   try {
     const blog = await Blog.create(req.body);
+
+    // Notify email subscribers about the new blog
+    try {
+      await notifySubscribers({
+        type: 'blog',
+        title: blog.title?.en || 'New Temple Blog',
+        summary: blog.excerpt?.en || '',
+        url: `${process.env.FRONTEND_URL || 'http://localhost:4000'}/blogs`,
+      });
+    } catch (notifyError) {
+      console.error('Blog subscriber notification error:', notifyError.message);
+    }
+
     res.status(201).json({
       success: true,
       data: blog,
@@ -113,6 +127,21 @@ exports.toggleBlogPublish = async (req, res) => {
     }
     blog.published = !blog.published;
     await blog.save();
+
+    // Notify subscribers when a blog is newly published
+    if (blog.published) {
+      try {
+        await notifySubscribers({
+          type: 'blog',
+          title: blog.title?.en || 'New Temple Blog',
+          summary: blog.excerpt?.en || '',
+          url: `${process.env.FRONTEND_URL || 'http://localhost:4000'}/blogs`,
+        });
+      } catch (notifyError) {
+        console.error('Blog publish notification error:', notifyError.message);
+      }
+    }
+
     res.json({
       success: true,
       data: blog,

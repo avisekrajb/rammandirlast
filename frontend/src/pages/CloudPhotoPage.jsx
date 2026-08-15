@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { useToast } from '../context/ToastContext';
 import api from '../services/api';
+import OmLoader from '../components/common/OmLoader';
 import {
   Image, Video, Search, X, Download, Trash2, 
   FolderOpen, Calendar, File, HardDrive, 
@@ -27,8 +28,46 @@ const CloudPhotoPage = () => {
   const [selectedResource, setSelectedResource] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [error, setError] = useState(null);
+  const [deletingIds, setDeletingIds] = useState([]);
+  const [forceRefresh, setForceRefresh] = useState(0);
 
   const fetched = useRef(false);
+
+  // Helper function to extract public ID from resource
+  const extractPublicId = (id) => {
+    if (!id) return null;
+    // Remove 'temple/' prefix if present
+    if (id.startsWith('temple/')) {
+      return id.substring(7);
+    }
+    return id;
+  };
+
+  // Helper to get the correct resource type from Cloudinary URL or ID
+  const getResourceType = (resource) => {
+    if (!resource) return 'image';
+    
+    // Check if it's a video based on type property
+    if (resource.type === 'video') return 'video';
+    
+    // Check based on format
+    if (resource.format) {
+      const videoFormats = ['mp4', 'mov', 'avi', 'webm', 'mkv'];
+      if (videoFormats.includes(resource.format.toLowerCase())) {
+        return 'video';
+      }
+    }
+    
+    // Check based on URL
+    if (resource.url) {
+      const url = resource.url.toLowerCase();
+      if (url.includes('/video/') || url.includes('.mp4') || url.includes('.mov')) {
+        return 'video';
+      }
+    }
+    
+    return 'image';
+  };
 
   const fetchResources = useCallback(async (cursor = null, search = '', type = 'all') => {
     setLoading(true);
@@ -52,6 +91,7 @@ const CloudPhotoPage = () => {
       } else {
         setError(response.data.message || 'Failed to fetch resources');
         showToast(response.data.message || 'Failed to fetch resources', 'error');
+        setResources([]);
       }
     } catch (error) {
       console.error('Fetch resources error:', error);
@@ -68,13 +108,9 @@ const CloudPhotoPage = () => {
       const response = await api.get('/admin/cloud/stats');
       if (response.data.success) {
         setStats(response.data.stats);
-        if (response.data.message) {
-          console.log('Stats message:', response.data.message);
-        }
       }
     } catch (error) {
       console.error('Fetch stats error:', error);
-      // Set default stats on error
       setStats({
         totalResources: 0,
         totalImages: 0,
@@ -91,6 +127,14 @@ const CloudPhotoPage = () => {
     fetchResources();
     fetchStats();
   }, [fetchResources, fetchStats]);
+
+  // Refresh when forceRefresh changes
+  useEffect(() => {
+    if (forceRefresh > 0) {
+      fetchResources();
+      fetchStats();
+    }
+  }, [forceRefresh, fetchResources, fetchStats]);
 
   const handleSearch = () => {
     if (searchQuery.trim()) {
@@ -146,6 +190,68 @@ const CloudPhotoPage = () => {
     }
   };
 
+  const handleDeleteSingle = async (id) => {
+    // Check if already deleting
+    if (deletingIds.includes(id)) return;
+
+    if (!window.confirm('Delete this resource? This action cannot be undone.')) {
+      return;
+    }
+
+    setDeletingIds(prev => [...prev, id]);
+    try {
+      const resource = resources.find(r => r.id === id);
+      
+      // IMPORTANT FIX: Use the ID directly from the resource
+      // The backend expects the full public_id including any folders
+      const publicId = resource.id; // Use the full ID from the resource
+      const type = getResourceType(resource);
+      
+      console.log(`🗑️ Attempting to delete: ${publicId} (${type})`);
+      console.log(`🔗 DELETE /admin/cloud/resource/${encodeURIComponent(publicId)}?resourceType=${type}`);
+      
+      // CORRECT: Use the ID in the URL path
+      const response = await api.delete(`/admin/cloud/resource/${encodeURIComponent(publicId)}`, {
+        params: { resourceType: type }
+      });
+      
+      if (response.data.success) {
+        showToast('✅ Resource deleted successfully from Cloudinary', 'success');
+        // Remove from local state immediately
+        setResources(prev => prev.filter(r => r.id !== id));
+        setSelectedIds(prev => prev.filter(i => i !== id));
+        // Force refresh to update the list
+        setTimeout(() => {
+          setForceRefresh(prev => prev + 1);
+        }, 500);
+        fetchStats();
+      } else {
+        showToast(response.data.message || 'Failed to delete resource', 'error');
+      }
+    } catch (deleteError) {
+      console.error('Delete error:', deleteError);
+      console.error('Error response:', deleteError.response);
+      
+      // Check if resource was not found (404)
+      if (deleteError.response?.status === 404) {
+        showToast('⚠️ Resource not found in Cloudinary - removing from list', 'warning');
+        // Remove from local state anyway
+        setResources(prev => prev.filter(r => r.id !== id));
+        setSelectedIds(prev => prev.filter(i => i !== id));
+        // Force refresh
+        setTimeout(() => {
+          setForceRefresh(prev => prev + 1);
+        }, 500);
+        fetchStats();
+      } else {
+        const errorMsg = deleteError.response?.data?.message || 'Failed to delete resource';
+        showToast(`❌ ${errorMsg}`, 'error');
+      }
+    } finally {
+      setDeletingIds(prev => prev.filter(i => i !== id));
+    }
+  };
+
   const handleDeleteSelected = async () => {
     if (selectedIds.length === 0) {
       showToast('Please select resources to delete', 'warning');
@@ -158,50 +264,51 @@ const CloudPhotoPage = () => {
 
     setDeleteLoading(true);
     try {
+      // IMPORTANT FIX: Use the full IDs from the resources
+      const resourcesToDelete = resources.filter(r => selectedIds.includes(r.id));
+      const publicIds = resourcesToDelete.map(r => r.id).filter(Boolean);
+      
+      console.log(`🗑️ Bulk deleting: ${publicIds.length} resources`);
+      console.log('Public IDs:', publicIds);
+      
       const response = await api.post('/admin/cloud/resources/delete', {
-        publicIds: selectedIds,
+        publicIds: publicIds,
         resourceType: 'all',
       });
       
       if (response.data.success) {
-        showToast(`Deleted ${response.data.successCount} resources successfully`, 'success');
-        setResources(resources.filter(r => !selectedIds.includes(r.id)));
+        const successCount = response.data.successCount || 0;
+        const notFoundCount = response.data.notFoundCount || 0;
+        const failedCount = response.data.failedCount || 0;
+        
+        let message = `✅ Deleted ${successCount} resources successfully`;
+        if (notFoundCount > 0) {
+          message += `, ${notFoundCount} not found (removed from list)`;
+        }
+        if (failedCount > 0) {
+          message += `, ${failedCount} failed`;
+        }
+        showToast(message, successCount > 0 ? 'success' : 'warning');
+        
+        // Remove deleted resources from state
+        const deletedIds = response.data.results
+          .filter(r => r.success || r.notFound)
+          .map(r => r.publicId);
+        
+        setResources(prev => prev.filter(r => !deletedIds.includes(r.id)));
         setSelectedIds([]);
+        // Force refresh
+        setTimeout(() => {
+          setForceRefresh(prev => prev + 1);
+        }, 500);
         fetchStats();
       } else {
         showToast(response.data.message || 'Failed to delete resources', 'error');
       }
     } catch (error) {
       console.error('Delete selected error:', error);
-      showToast(error.response?.data?.message || 'Failed to delete resources', 'error');
-    } finally {
-      setDeleteLoading(false);
-    }
-  };
-
-  const handleDeleteSingle = async (id) => {
-    if (!window.confirm('Delete this resource? This action cannot be undone.')) {
-      return;
-    }
-
-    setDeleteLoading(true);
-    try {
-      const resource = resources.find(r => r.id === id);
-      const type = resource?.type || 'image';
-      
-      const response = await api.delete(`/admin/cloud/resource/${id}?resourceType=${type}`);
-      
-      if (response.data.success) {
-        showToast('Resource deleted successfully', 'success');
-        setResources(resources.filter(r => r.id !== id));
-        setSelectedIds(selectedIds.filter(i => i !== id));
-        fetchStats();
-      } else {
-        showToast(response.data.message || 'Failed to delete resource', 'error');
-      }
-    } catch (error) {
-      console.error('Delete error:', error);
-      showToast(error.response?.data?.message || 'Failed to delete resource', 'error');
+      const errorMsg = error.response?.data?.message || 'Failed to delete resources';
+      showToast(`❌ ${errorMsg}`, 'error');
     } finally {
       setDeleteLoading(false);
     }
@@ -278,10 +385,13 @@ const CloudPhotoPage = () => {
           <p className="text-sm text-ink-soft">Manage all photos and videos stored in Cloudinary</p>
         </div>
         <button
-          onClick={() => { fetchResources(); fetchStats(); }}
+          onClick={() => { 
+            setForceRefresh(prev => prev + 1);
+            showToast('🔄 Refreshing...', 'info');
+          }}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-vermilion text-white font-semibold text-sm hover:bg-[#a83a0c] transition-all"
         >
-          <RefreshCw size={16} />
+          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           Refresh
         </button>
       </div>
@@ -446,7 +556,7 @@ const CloudPhotoPage = () => {
       {/* Resources Grid */}
       {loading && resources.length === 0 ? (
         <div className="flex items-center justify-center py-20">
-          <Loader2 size={40} className="animate-spin text-vermilion" />
+          <OmLoader size="lg" color="vermilion" />
         </div>
       ) : resources.length === 0 ? (
         <div className="text-center py-20">
@@ -459,13 +569,14 @@ const CloudPhotoPage = () => {
           {resources.map((resource) => {
             const isSelected = selectedIds.includes(resource.id);
             const isVideo = resource.type === 'video';
+            const isDeleting = deletingIds.includes(resource.id);
             
             return (
               <div
                 key={resource.id || Math.random()}
                 className={`group relative bg-white rounded-xl overflow-hidden shadow-sm border-2 transition-all ${
                   isSelected ? 'border-vermilion shadow-md' : 'border-gray-100 hover:border-gray-200'
-                }`}
+                } ${isDeleting ? 'opacity-50' : ''}`}
               >
                 {/* Thumbnail */}
                 <div 
@@ -500,12 +611,18 @@ const CloudPhotoPage = () => {
                       <Video size={12} /> Video
                     </div>
                   )}
+                  {isDeleting && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                      <Loader2 size={24} className="animate-spin text-white" />
+                    </div>
+                  )}
                 </div>
 
                 {/* Selection checkbox */}
                 <button
                   onClick={() => handleSelect(resource.id)}
                   className="absolute top-2 left-2 p-1 rounded-lg bg-white/90 hover:bg-white transition-all shadow-sm"
+                  disabled={isDeleting}
                 >
                   {isSelected ? (
                     <CheckSquare size={18} className="text-vermilion" />
@@ -519,20 +636,23 @@ const CloudPhotoPage = () => {
                   <button
                     onClick={() => handleViewDetail(resource)}
                     className="p-2 rounded-lg bg-white/20 text-white hover:bg-white/30 transition-all"
+                    disabled={isDeleting}
                   >
                     <Eye size={18} />
                   </button>
                   <button
                     onClick={() => handleDownload(resource.url, resource.filename)}
                     className="p-2 rounded-lg bg-white/20 text-white hover:bg-white/30 transition-all"
+                    disabled={isDeleting}
                   >
                     <Download size={18} />
                   </button>
                   <button
                     onClick={() => handleDeleteSingle(resource.id)}
                     className="p-2 rounded-lg bg-red-500/70 text-white hover:bg-red-500 transition-all"
+                    disabled={isDeleting}
                   >
-                    <Trash2 size={18} />
+                    {isDeleting ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
                   </button>
                 </div>
 
@@ -577,11 +697,12 @@ const CloudPhotoPage = () => {
               {resources.map((resource) => {
                 const isSelected = selectedIds.includes(resource.id);
                 const isVideo = resource.type === 'video';
+                const isDeleting = deletingIds.includes(resource.id);
                 
                 return (
-                  <tr key={resource.id || Math.random()} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                  <tr key={resource.id || Math.random()} className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${isDeleting ? 'opacity-50' : ''}`}>
                     <td className="px-4 py-3">
-                      <button onClick={() => handleSelect(resource.id)}>
+                      <button onClick={() => handleSelect(resource.id)} disabled={isDeleting}>
                         {isSelected ? (
                           <CheckSquare size={18} className="text-vermilion" />
                         ) : (
@@ -621,20 +742,23 @@ const CloudPhotoPage = () => {
                         <button
                           onClick={() => handleViewDetail(resource)}
                           className="p-1.5 rounded-lg hover:bg-gray-200 transition-colors"
+                          disabled={isDeleting}
                         >
                           <Eye size={16} className="text-ink-soft" />
                         </button>
                         <button
                           onClick={() => handleDownload(resource.url, resource.filename)}
                           className="p-1.5 rounded-lg hover:bg-gray-200 transition-colors"
+                          disabled={isDeleting}
                         >
                           <Download size={16} className="text-ink-soft" />
                         </button>
                         <button
                           onClick={() => handleDeleteSingle(resource.id)}
                           className="p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                          disabled={isDeleting}
                         >
-                          <Trash2 size={16} className="text-red-400 hover:text-red-600" />
+                          {isDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} className="text-red-400 hover:text-red-600" />}
                         </button>
                       </div>
                     </td>
@@ -764,5 +888,4 @@ const CloudPhotoPage = () => {
   );
 };
 
-// Make sure to export default
 export default CloudPhotoPage;

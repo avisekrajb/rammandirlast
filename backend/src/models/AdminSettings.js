@@ -1,7 +1,9 @@
 const mongoose = require('mongoose');
 
 const adminSettingsSchema = new mongoose.Schema({
-  // Hero Section
+  // ============================================
+  // HERO SECTION
+  // ============================================
   heroVideo: {
     type: String,
     default: null,
@@ -15,16 +17,44 @@ const adminSettingsSchema = new mongoose.Schema({
     default: true,
   },
   
-  // Daily Quotes (Multi-language)
+  // ============================================
+  // HISTORY BANNER
+  // ============================================
+  historyBanner: {
+    type: String,
+    default: '/aboutusherosection.jpeg',
+  },
+  
+  // ============================================
+  // DAILY QUOTES (Multi-language per date)
+  // ============================================
+  dailyQuotes: {
+    type: Map,
+    of: {
+      en: { type: String, default: '' },
+      ne: { type: String, default: '' },
+      hi: { type: String, default: '' },
+      zh: { type: String, default: '' },
+      ta: { type: String, default: '' },
+    },
+    default: {},
+    description: 'Daily quotes stored with date as key (YYYY-MM-DD) and 5 language translations',
+  },
+  
+  // ============================================
+  // LEGACY QUOTES (Kept for backward compatibility)
+  // ============================================
   quotes: {
-    en: { type: String, default: 'Where there is righteousness in the heart, there is beauty in the character.' },
+    en: { type: String, default: '' },
     ne: { type: String, default: 'जहाँ हृदयमा धार्मिकता हुन्छ, त्यहाँ चरित्रमा सुन्दरता हुन्छ।' },
     hi: { type: String, default: 'जहाँ हृदय में धार्मिकता है, वहाँ चरित्र में सुंदरता है।' },
     zh: { type: String, default: '心中有正义，性格便有美。' },
     ta: { type: String, default: 'இதயத்தில் நேர்மை இருந்தால், குணத்தில் அழகு இருக்கும்.' },
   },
   
-  // Temple Timings (Multi-language)
+  // ============================================
+  // TEMPLE TIMINGS (Multi-language)
+  // ============================================
   timings: {
     open: { type: String, default: '05:00 AM' },
     close: { type: String, default: '08:00 PM' },
@@ -51,7 +81,9 @@ const adminSettingsSchema = new mongoose.Schema({
     },
   },
   
-  // About Section (Multi-language)
+  // ============================================
+  // ABOUT SECTION (Multi-language)
+  // ============================================
   about: {
     photo: { type: String, default: null },
     title: {
@@ -68,7 +100,6 @@ const adminSettingsSchema = new mongoose.Schema({
       zh: { type: String, default: '室利罗摩钱德拉神庙坐落于高沙拉的中心，世代以来一直是信仰的象征，以开放的大门和心怀敬意的态度欢迎罗摩神的信众。' },
       ta: { type: String, default: 'கௌஷாலாவின் இதயத்தில் அமைந்துள்ள ஸ்ரீ ராமச்சந்திர கோயில், தலைமுறை தலைமுறையாக பக்தியின் ஒளிவிளக்காக நின்று, ராமர் பக்தர்களை திறந்த மனதுடன் வரவேற்கிறது.' },
     },
-    // About Preview Images
     images: {
       type: [{
         id: { type: String },
@@ -88,7 +119,178 @@ const adminSettingsSchema = new mongoose.Schema({
   },
   
   // ============================================
-  // LOGO SETTINGS (Multi-language with full customization)
+  // ABOUT PREVIEW (Homepage Only)
+  // ============================================
+  aboutPreview: {
+    enabled: { type: Boolean, default: true },
+    title: {
+      en: { type: String, default: 'About the Temple' },
+      ne: { type: String, default: 'मन्दिरको बारेमा' },
+      hi: { type: String, default: 'मंदिर के बारे में' },
+      zh: { type: String, default: '关于神庙' },
+      ta: { type: String, default: 'கோயிலைப் பற்றி' },
+    },
+    text: {
+      en: { type: String, default: 'Nestled in the heart of Gaushala, Shree Ramchandra Temple has stood as a beacon of devotion for generations, welcoming devotees of Lord Ram with open doors and open hearts.' },
+      ne: { type: String, default: 'गौशालाको हृदयमा अवस्थित श्री रामचन्द्र मन्दिर पुस्तौंदेखि भक्तिको प्रतीकको रूपमा उभिएको छ, भगवान रामका भक्तहरूलाई खुला मन र खुला ढोकाले स्वागत गर्दै।' },
+      hi: { type: String, default: 'गौशाला के हृदय में स्थित श्री रामचन्द्र मंदिर पीढ़ियों से भक्ति का प्रतीक बना हुआ है, भगवान राम के भक्तों का खुले दिल और खुले द्वार से स्वागत करते हुए।' },
+      zh: { type: String, default: '室利罗摩钱德拉神庙坐落于高沙拉的中心，世代以来一直是信仰的象征，以开放的大门和心怀敬意的态度欢迎罗摩神的信众。' },
+      ta: { type: String, default: 'கௌஷாலாவின் இதயத்தில் அமைந்துள்ள ஸ்ரீ ராமச்சந்திர கோயில், தலைமுறை தலைமுறையாக பக்தியின் ஒளிவிளக்காக நின்று, ராமர் பக்தர்களை திறந்த மனதுடன் வரவேற்கிறது.' },
+    },
+    images: {
+      type: [{
+        id: { type: String },
+        src: { type: String },
+        alt: {
+          en: { type: String, default: '' },
+          ne: { type: String, default: '' },
+          hi: { type: String, default: '' },
+          zh: { type: String, default: '' },
+          ta: { type: String, default: '' },
+        },
+        order: { type: Number, default: 0 },
+        enabled: { type: Boolean, default: true },
+      }],
+      default: [],
+    },
+  },
+  
+  // ============================================
+  // SOCIAL LINKS (NEW - For floating social bar)
+  // ============================================
+  socialLinks: {
+    type: [{
+      id: { type: String },
+      platform: { 
+        type: String, 
+        required: true,
+        enum: ['facebook', 'instagram', 'youtube', 'twitter', 'linkedin', 'whatsapp', 'email', 'phone', 'tiktok', 'pinterest', 'snapchat', 'telegram', 'discord', 'reddit', 'tumblr'],
+        default: 'facebook'
+      },
+      icon: { 
+        type: String,
+        required: true,
+        enum: ['Facebook', 'Instagram', 'Youtube', 'Twitter', 'Linkedin', 'MessageCircle', 'WhatsApp', 'Mail', 'Email', 'Phone', 'Globe', 'Share2', 'TikTok', 'Pinterest', 'Snapchat', 'Telegram', 'Discord', 'Reddit', 'Tumblr'],
+        default: 'Facebook'
+      },
+      label: { type: String, required: true },
+      url: { type: String, required: true },
+      color: { type: String },
+      enabled: { type: Boolean, default: true },
+      order: { type: Number, default: 0 },
+    }],
+    default: [
+      {
+        id: '1',
+        platform: 'facebook',
+        icon: 'Facebook',
+        label: 'Facebook',
+        url: 'https://www.facebook.com',
+        enabled: true,
+        order: 0
+      },
+      {
+        id: '2',
+        platform: 'instagram',
+        icon: 'Instagram',
+        label: 'Instagram',
+        url: 'https://www.instagram.com',
+        enabled: true,
+        order: 1
+      },
+      {
+        id: '3',
+        platform: 'youtube',
+        icon: 'Youtube',
+        label: 'YouTube',
+        url: 'https://www.youtube.com',
+        enabled: true,
+        order: 2
+      },
+      {
+        id: '4',
+        platform: 'twitter',
+        icon: 'Twitter',
+        label: 'Twitter',
+        url: 'https://twitter.com',
+        enabled: true,
+        order: 3
+      }
+    ]
+  },
+  
+  // ============================================
+  // FOUNDER SECTION
+  // ============================================
+  founder: {
+    photo: { type: String, default: '/2.jpg' },
+    name: {
+      en: { type: String, default: 'Pandit Ram Prasad Acharya' },
+      ne: { type: String, default: 'पण्डित रामप्रसाद आचार्य' },
+      hi: { type: String, default: 'पंडित रामप्रसाद आचार्य' },
+      zh: { type: String, default: '潘迪特·拉姆·普拉萨德·阿查里亚' },
+      ta: { type: String, default: 'பண்டிட் ராம் பிரசாத் ஆச்சார்யா' },
+    },
+    title: {
+      en: { type: String, default: 'The Visionary Founder' },
+      ne: { type: String, default: 'दूरदर्शी संस्थापक' },
+      hi: { type: String, default: 'दूरदर्शी संस्थापक' },
+      zh: { type: String, default: '有远见的创始人' },
+      ta: { type: String, default: 'தூரநோக்கு நிறுவனர்' },
+    },
+    intro: {
+      en: { type: String, default: 'The temple\'s rich history is woven with stories of devotion, community service, and unwavering faith. Generation after generation, this sacred place has been a beacon of hope and spiritual solace for countless devotees.' },
+      ne: { type: String, default: 'मन्दिरको समृद्ध इतिहास भक्ति, समुदाय सेवा र अटल विश्वासका कथाहरूले बुनेको छ। पुस्ता पछि पुस्ता, यो पवित्र स्थान अनगिन्ती भक्तहरूको लागि आशा र आध्यात्मिक सान्त्वनाको प्रकाशस्तम्भ भएको छ।' },
+      hi: { type: String, default: 'मंदिर का समृद्ध इतिहास भक्ति, सामुदायिक सेवा और अटूट विश्वास की कहानियों से बुना गया है। पीढ़ी दर पीढ़ी, यह पवित्र स्थान अनगिनत भक्तों के लिए आशा और आध्यात्मिक सांत्वना का प्रकाशस्तंभ रहा है।' },
+      zh: { type: String, default: '寺庙丰富的历史由奉献、社区服务和坚定信仰的故事编织而成。一代又一代，这个神圣的地方一直是无数信徒希望和精神慰藉的灯塔。' },
+      ta: { type: String, default: 'கோயிலின் வளமான வரலாறு பக்தி, சமூக சேவை மற்றும் உறுதியான நம்பிக்கையின் கதைகளால் பின்னப்பட்டுள்ளது. தலைமுறை தலைமுறையாக, இந்த புனித இடம் எண்ணற்ற பக்தர்களுக்கு நம்பிக்கை மற்றும் ஆன்மீக ஆறுதலின் ஒளிவிளக்காக இருந்து வருகிறது.' },
+    },
+    subtitle: {
+      en: { type: String, default: 'Head Priest & Spiritual Leader' },
+      ne: { type: String, default: 'मुख्य पुजारी र आध्यात्मिक नेता' },
+      hi: { type: String, default: 'मुख्य पुजारी और आध्यात्मिक नेता' },
+      zh: { type: String, default: '首席祭司和精神领袖' },
+      ta: { type: String, default: 'தலைமை பூசாரி மற்றும் ஆன்மீகத் தலைவர்' },
+    },
+    para1: {
+      en: { type: String, default: 'The temple\'s rich history is woven with stories of devotion, community service, and unwavering faith. Generation after generation, this sacred place has been a beacon of hope and spiritual solace for countless devotees.' },
+      ne: { type: String, default: 'मन्दिरको समृद्ध इतिहास भक्ति, समुदाय सेवा र अटल विश्वासका कथाहरूले बुनेको छ। पुस्ता पछि पुस्ता, यो पवित्र स्थान अनगिन्ती भक्तहरूको लागि आशा र आध्यात्मिक सान्त्वनाको प्रकाशस्तम्भ भएको छ।' },
+      hi: { type: String, default: 'मंदिर का समृद्ध इतिहास भक्ति, सामुदायिक सेवा और अटूट विश्वास की कहानियों से बुना गया है। पीढ़ी दर पीढ़ी, यह पवित्र स्थान अनगिनत भक्तों के लिए आशा और आध्यात्मिक सांत्वना का प्रकाशस्तंभ रहा है।' },
+      zh: { type: String, default: '寺庙丰富的历史由奉献、社区服务和坚定信仰的故事编织而成。一代又一代，这个神圣的地方一直是无数信徒希望和精神慰藉的灯塔。' },
+      ta: { type: String, default: 'கோயிலின் வளமான வரலாறு பக்தி, சமூக சேவை மற்றும் உறுதியான நம்பிக்கையின் கதைகளால் பின்னப்பட்டுள்ளது. தலைமுறை தலைமுறையாக, இந்த புனித இடம் எண்ணற்ற பக்தர்களுக்கு நம்பிக்கை மற்றும் ஆன்மீக ஆறுதலின் ஒளிவிளக்காக இருந்து வருகிறது.' },
+    },
+    para2: {
+      en: { type: String, default: '' },
+      ne: { type: String, default: '' },
+      hi: { type: String, default: '' },
+      zh: { type: String, default: '' },
+      ta: { type: String, default: '' },
+    },
+    para3: {
+      en: { type: String, default: '' },
+      ne: { type: String, default: '' },
+      hi: { type: String, default: '' },
+      zh: { type: String, default: '' },
+      ta: { type: String, default: '' },
+    },
+    para4: {
+      en: { type: String, default: '' },
+      ne: { type: String, default: '' },
+      hi: { type: String, default: '' },
+      zh: { type: String, default: '' },
+      ta: { type: String, default: '' },
+    },
+    quote: {
+      en: { type: String, default: 'Where there is righteousness in the heart, there is beauty in the character. Where there is beauty in the character, there is harmony in the home. Where there is harmony in the home, there is order in the nation. Where there is order in the nation, there is peace in the world.' },
+      ne: { type: String, default: 'जहाँ हृदयमा धार्मिकता हुन्छ, त्यहाँ चरित्रमा सुन्दरता हुन्छ। जहाँ चरित्रमा सुन्दरता हुन्छ, त्यहाँ घरमा सद्भाव हुन्छ। जहाँ घरमा सद्भाव हुन्छ, त्यहाँ राष्ट्रमा व्यवस्था हुन्छ। जहाँ राष्ट्रमा व्यवस्था हुन्छ, त्यहाँ विश्वमा शान्ति हुन्छ।' },
+      hi: { type: String, default: 'जहाँ हृदय में धार्मिकता है, वहाँ चरित्र में सुंदरता है। जहाँ चरित्र में सुंदरता है, वहाँ घर में सद्भाव है। जहाँ घर में सद्भाव है, वहाँ राष्ट्र में व्यवस्था है। जहाँ राष्ट्र में व्यवस्था है, वहाँ विश्व में शांति है।' },
+      zh: { type: String, default: '心中有正义，性格便有美；性格有美，家庭便和谐；家庭和谐，国家便有秩序；国家有秩序，世界便和平。' },
+      ta: { type: String, default: 'இதயத்தில் நேர்மை இருந்தால், குணத்தில் அழகு இருக்கும். குணத்தில் அழகு இருந்தால், வீட்டில் ஒற்றுமை இருக்கும். வீட்டில் ஒற்றுமை இருந்தால், நாட்டில் ஒழுங்கு இருக்கும். நாட்டில் ஒழுங்கு இருந்தால், உலகில் அமைதி இருக்கும்.' },
+    },
+  },
+  
+  // ============================================
+  // LOGO SETTINGS
   // ============================================
   logo: {
     photo: { type: String, default: null },
@@ -99,19 +301,20 @@ const adminSettingsSchema = new mongoose.Schema({
       zh: { type: String, default: '室利罗摩钱德拉' },
       ta: { type: String, default: 'ஸ்ரீ ராமச்சந்திர' },
     },
-    // Logo customization fields
-    size: { type: String, default: 'w-14 h-14' },
+    size: { type: String, default: 'w-12 h-12' },
     shape: { type: String, default: 'rounded-xl' },
     bgColor: { type: String, default: 'from-vermilion to-maroon-deep' },
     showText: { type: Boolean, default: true },
     textColor: { type: String, default: 'text-maroon' },
-    textSize: { type: String, default: 'text-base md:text-xl' },
+    textSize: { type: String, default: 'text-sm md:text-base' },
     fontWeight: { type: String, default: 'font-bold' },
     showLocation: { type: Boolean, default: true },
-    width: { type: String, default: 'w-auto' },
+    maxWidth: { type: String, default: 'max-w-[48px]' },
   },
   
-  // Donation Settings
+  // ============================================
+  // DONATION SETTINGS
+  // ============================================
   donate: {
     qrPhoto: { type: String, default: null },
     baseCount: { type: Number, default: 1248 },
@@ -120,7 +323,9 @@ const adminSettingsSchema = new mongoose.Schema({
     accountHolder: { type: String, default: 'Temple Trust Fund' },
   },
   
-  // Gallery Images (for homepage)
+  // ============================================
+  // GALLERY IMAGES (for homepage)
+  // ============================================
   galleryImages: {
     type: [{
       id: { type: String },
@@ -138,7 +343,9 @@ const adminSettingsSchema = new mongoose.Schema({
     default: [],
   },
   
-  // YouTube Live Video
+  // ============================================
+  // YOUTUBE LIVE VIDEO
+  // ============================================
   liveVideo: {
     enabled: { type: Boolean, default: true },
     url: { type: String, default: 'https://www.youtube.com/embed/videoseries?list=PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf&autoplay=1&mute=1' },
@@ -158,7 +365,9 @@ const adminSettingsSchema = new mongoose.Schema({
     },
   },
   
-  // Notice Modal Settings
+  // ============================================
+  // NOTICE MODAL SETTINGS
+  // ============================================
   notice: {
     enabled: { type: Boolean, default: true },
     title: { 
@@ -250,41 +459,29 @@ const adminSettingsSchema = new mongoose.Schema({
   // ============================================
   // BOOKING MANAGEMENT SETTINGS
   // ============================================
-  
-  // Puja Types - Customizable list
   pujaTypes: {
     type: [String],
     default: ['Ram Puja', 'Satyanarayan Puja', 'Griha Pravesh Puja', 'Birthday Puja', 'General Darshan Booking'],
   },
-  
-  // Date-wise booking limits
   dateLimits: {
     type: Map,
     of: Number,
     default: {},
     description: 'Date limits for bookings (date string -> max bookings)',
   },
-  
-  // Booking availability toggle
   bookingAvailable: {
     type: Boolean,
     default: true,
   },
-  
-  // Message shown when booking is unavailable
   availabilityMessage: {
     type: String,
     default: 'Bookings are currently unavailable. Please check back later.',
   },
-  
-  // Booking stats for frontend display
   bookingStats: {
     pujaTypes: { type: Number, default: 5 },
     secureBooking: { type: String, default: '100%' },
     support: { type: String, default: '24/7' },
   },
-  
-  // Booking Background Photo (for the 50% image on booking page)
   bookingBgPhoto: {
     type: String,
     default: '/4.jpg',
@@ -293,7 +490,6 @@ const adminSettingsSchema = new mongoose.Schema({
   // ============================================
   // FOOTER SETTINGS
   // ============================================
-  
   footer: {
     enabled: { type: Boolean, default: true },
     bgType: { type: String, enum: ['color', 'image', 'video'], default: 'color' },
@@ -368,7 +564,6 @@ const adminSettingsSchema = new mongoose.Schema({
   // ============================================
   // TIMESTAMP
   // ============================================
-  
   updatedAt: {
     type: Date,
     default: Date.now,
@@ -378,8 +573,6 @@ const adminSettingsSchema = new mongoose.Schema({
 // ============================================
 // STATIC METHODS
 // ============================================
-
-// Ensure only one settings document exists
 adminSettingsSchema.statics.getSettings = async function() {
   let settings = await this.findOne();
   if (!settings) {
@@ -391,11 +584,14 @@ adminSettingsSchema.statics.getSettings = async function() {
 // ============================================
 // PRE-SAVE MIDDLEWARE
 // ============================================
-
-// Update timestamp on save
 adminSettingsSchema.pre('save', function(next) {
   this.updatedAt = Date.now();
   next();
 });
+
+// ============================================
+// INDEXES
+// ============================================
+adminSettingsSchema.index({ updatedAt: -1 });
 
 module.exports = mongoose.model('AdminSettings', adminSettingsSchema);

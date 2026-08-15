@@ -4,6 +4,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import api from '../services/api';
+import OmLoader from '../components/common/OmLoader';
 import AdminSidebar from '../components/admin/AdminSidebar';
 
 // Admin Components
@@ -24,6 +25,7 @@ import AdminNotice from '../components/admin/AdminNotice';
 import AdminBlogs from '../components/admin/AdminBlogs';
 import AdminHome from '../components/admin/AdminHome';
 import AdminFooter from '../components/admin/AdminFooter';
+import AdminSocial from '../components/admin/AdminSocial'; // <-- Import AdminSocial
 import AdminNotifications from './AdminNotifications';
 import AdminSettings from './AdminSettings';
 import CloudPhotoPage from './CloudPhotoPage';
@@ -36,6 +38,7 @@ import { Menu, Settings, Bell } from 'lucide-react';
 const AdminPage = () => {
   const { t, lang } = useLanguage();
   const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'superadmin';
   const { showToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -89,9 +92,15 @@ const AdminPage = () => {
     fetchData();
   }, []);
 
+  // ========== UPDATE SETTINGS FUNCTION ==========
   const updateSettings = async (newSettings) => {
     try {
-      const response = await api.put('/admin/settings', newSettings);
+      // If newSettings is a function, call it with current settings
+      const settingsToUpdate = typeof newSettings === 'function' 
+        ? newSettings(settings) 
+        : newSettings;
+      
+      const response = await api.put('/admin/settings', settingsToUpdate);
       setSettings(response.data);
       showToast(t.savedSuccess || 'Changes saved', 'success');
       return response.data;
@@ -106,7 +115,7 @@ const AdminPage = () => {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-vermilion border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <OmLoader size="lg" color="vermilion" className="mx-auto mb-4" />
           <p className="text-ink-soft text-sm">Loading admin panel...</p>
         </div>
       </div>
@@ -126,6 +135,7 @@ const AdminPage = () => {
     if (path === 'contact') return 'Contact Messages';
     if (path === 'visitors') return 'Visitor Analytics';
     if (path === 'backup') return 'Backup & Restore';
+    if (path === 'social') return 'Social Links'; // <-- Added social page title
     return path.charAt(0).toUpperCase() + path.slice(1);
   };
 
@@ -177,6 +187,23 @@ const AdminPage = () => {
         </header>
 
         <div className="flex-1 p-6 overflow-y-auto content-scroll">
+          {isSuperAdmin ? (
+            <Routes>
+              {/* Superadmin dashboard: Overview, Visitors, Activity Logs & Create Admin only */}
+              <Route index element={<AdminOverview 
+                settings={settings} users={users} events={events} 
+                donations={donations} bookings={bookings} 
+                t={t} lang={lang} 
+              />} />
+              <Route path="overview" element={<AdminOverview 
+                settings={settings} users={users} events={events} 
+                donations={donations} bookings={bookings} 
+                t={t} lang={lang} 
+              />} />
+              <Route path="visitors" element={<AdminVisitor t={t} />} />
+              <Route path="settings" element={<AdminSettings />} />
+            </Routes>
+          ) : (
           <Routes>
             {/* Overview */}
             <Route index element={<AdminOverview 
@@ -213,9 +240,16 @@ const AdminPage = () => {
             <Route path="about" element={<AdminAbout 
               settings={settings} updateSettings={updateSettings} t={t} 
             />} />
+            
+            {/* History */}
             <Route path="history" element={<AdminHistory 
-              history={history} setHistory={setHistory} t={t} 
+              history={history} 
+              setHistory={setHistory} 
+              t={t} 
+              settings={settings} 
+              updateSettings={updateSettings}
             />} />
+            
             <Route path="team" element={<AdminTeam 
               team={team} setTeam={setTeam} t={t} 
             />} />
@@ -272,7 +306,15 @@ const AdminPage = () => {
             {/* Notifications & Settings */}
             <Route path="notifications" element={<AdminNotifications />} />
             <Route path="settings" element={<AdminSettings />} />
+
+            {/* Social Links - NEW */}
+            <Route path="social" element={<AdminSocial 
+              settings={settings} 
+              updateSettings={updateSettings} 
+              t={t} 
+            />} />
           </Routes>
+          )}
         </div>
       </div>
 

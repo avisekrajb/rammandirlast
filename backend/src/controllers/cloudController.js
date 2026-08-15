@@ -31,6 +31,8 @@ exports.getCloudResources = async (req, res) => {
       const imageOptions = {
         resource_type: 'image',
         max_results: parseInt(maxResults) || 50,
+        // Add prefix to get resources from specific folders if needed
+        // prefix: 'temple/'
       };
       
       if (nextCursor) {
@@ -134,6 +136,10 @@ exports.deleteCloudResource = async (req, res) => {
     const { publicId } = req.params;
     const { resourceType = 'image' } = req.query;
     
+    console.log(`📝 Delete request received:`);
+    console.log(`  - Public ID: ${publicId}`);
+    console.log(`  - Resource Type: ${resourceType}`);
+    
     if (!publicId) {
       return res.status(400).json({
         success: false,
@@ -148,29 +154,49 @@ exports.deleteCloudResource = async (req, res) => {
       });
     }
     
-    console.log(`🗑️ Attempting to delete resource: ${publicId} (${resourceType})`);
+    // Decode the publicId in case it was URL encoded
+    const decodedPublicId = decodeURIComponent(publicId);
+    console.log(`  - Decoded Public ID: ${decodedPublicId}`);
     
-    // Try to delete from Cloudinary
+    // Determine the correct resource type
+    let type = resourceType;
+    if (type === 'all' || !type) {
+      // Auto-detect based on public_id or URL
+      if (decodedPublicId.includes('/video/') || 
+          decodedPublicId.endsWith('.mp4') || 
+          decodedPublicId.endsWith('.mov') ||
+          decodedPublicId.endsWith('.avi')) {
+        type = 'video';
+      } else {
+        type = 'image';
+      }
+    }
+    
+    console.log(`  - Using resource type: ${type}`);
+    
+    // Try to delete from Cloudinary with invalidation
     try {
-      const result = await cloudinary.uploader.destroy(publicId, {
-        resource_type: resourceType,
+      const result = await cloudinary.uploader.destroy(decodedPublicId, {
+        resource_type: type,
+        invalidate: true, // Force CDN cache invalidation
       });
       
-      console.log('Delete result:', result);
+      console.log(`  - Delete result:`, result);
       
       if (result.result === 'ok') {
         return res.json({
           success: true,
-          message: 'Resource deleted successfully',
-          publicId,
+          message: 'Resource deleted successfully from Cloudinary',
+          publicId: decodedPublicId,
         });
       } else if (result.result === 'not found') {
-        // Resource doesn't exist in Cloudinary, but we can still return success
-        return res.json({
-          success: true,
-          message: 'Resource already deleted or not found',
-          publicId,
-          alreadyDeleted: true,
+        // Resource doesn't exist in Cloudinary
+        console.log(`  - Resource not found in Cloudinary`);
+        return res.status(404).json({
+          success: false,
+          message: 'Resource not found in Cloudinary',
+          publicId: decodedPublicId,
+          notFound: true,
         });
       } else {
         return res.status(400).json({
@@ -180,30 +206,58 @@ exports.deleteCloudResource = async (req, res) => {
         });
       }
     } catch (cloudinaryError) {
-      // If Cloudinary returns 404, the resource doesn't exist
-      if (cloudinaryError.http_code === 404 || cloudinaryError.message === 'Resource not found') {
-        console.log('Resource not found in Cloudinary, treating as already deleted');
-        return res.json({
-          success: true,
-          message: 'Resource already deleted or not found',
-          publicId,
-          alreadyDeleted: true,
+      console.error('  - Cloudinary delete error:', cloudinaryError);
+      
+      // Check for specific Cloudinary errors
+      if (cloudinaryError.http_code === 404 || 
+          cloudinaryError.message?.includes('not found') ||
+          cloudinaryError.message?.includes('Resource not found')) {
+        return res.status(404).json({
+          success: false,
+          message: 'Resource not found in Cloudinary',
+          publicId: decodedPublicId,
+          notFound: true,
         });
+      }
+      
+      // If it's a 400 error, it might be an invalid public_id
+      if (cloudinaryError.http_code === 400) {
+        // Try with 'image' type as fallback
+        try {
+          console.log(`  - Retrying with 'image' resource type...`);
+          const retryResult = await cloudinary.uploader.destroy(decodedPublicId, {
+            resource_type: 'image',
+            invalidate: true,
+          });
+          
+          if (retryResult.result === 'ok') {
+            return res.json({
+              success: true,
+              message: 'Resource deleted successfully from Cloudinary (as image)',
+              publicId: decodedPublicId,
+            });
+          }
+        } catch (retryError) {
+          console.error('  - Retry also failed:', retryError);
+        }
       }
       
       // Re-throw other errors
       throw cloudinaryError;
     }
   } catch (error) {
-    console.error('Delete cloud resource error:', error.message);
+    console.error('❌ Delete cloud resource error:', error.message);
+    console.error('  - Error details:', error);
     
     // Check if it's a 404 from the request
-    if (error.http_code === 404 || error.message === 'Resource not found') {
-      return res.json({
-        success: true,
-        message: 'Resource already deleted or not found',
+    if (error.http_code === 404 || 
+        error.message?.includes('not found') ||
+        error.response?.status === 404) {
+      return res.status(404).json({
+        success: false,
+        message: 'Resource not found in Cloudinary',
         publicId: req.params.publicId,
-        alreadyDeleted: true,
+        notFound: true,
       });
     }
     
@@ -237,51 +291,113 @@ exports.deleteMultipleCloudResources = async (req, res) => {
     }
     
     console.log(`🗑️ Deleting ${publicIds.length} resources`);
+    console.log('  - Public IDs:', publicIds);
     
     const results = [];
     let successCount = 0;
-    let alreadyDeletedCount = 0;
+    let notFoundCount = 0;
+    let failedCount = 0;
     
     for (const publicId of publicIds) {
       try {
+        // Decode the publicId in case it was URL encoded
+        const decodedPublicId = decodeURIComponent(publicId);
+        
         // Determine resource type from ID or use provided type
         let type = resourceType;
-        if (publicId.includes('/video/') || publicId.endsWith('.mp4') || publicId.endsWith('.mov')) {
-          type = 'video';
+        if (type === 'all' || !type) {
+          if (decodedPublicId.includes('/video/') || 
+              decodedPublicId.endsWith('.mp4') || 
+              decodedPublicId.endsWith('.mov') ||
+              decodedPublicId.endsWith('.avi')) {
+            type = 'video';
+          } else {
+            type = 'image';
+          }
         }
         
+        console.log(`  - Deleting ${decodedPublicId} (${type})`);
+        
         try {
-          const result = await cloudinary.uploader.destroy(publicId, {
+          const result = await cloudinary.uploader.destroy(decodedPublicId, {
             resource_type: type,
+            invalidate: true,
           });
           
           const isSuccess = result.result === 'ok';
-          if (isSuccess) successCount++;
-          
-          results.push({
-            publicId,
-            success: isSuccess,
-            message: isSuccess ? 'Deleted' : result.result,
-          });
-        } catch (cloudinaryError) {
-          // If resource not found, count as already deleted
-          if (cloudinaryError.http_code === 404 || cloudinaryError.message === 'Resource not found') {
-            alreadyDeletedCount++;
+          if (isSuccess) {
+            successCount++;
             results.push({
-              publicId,
+              publicId: decodedPublicId,
               success: true,
-              message: 'Already deleted or not found',
-              alreadyDeleted: true,
+              message: 'Deleted successfully',
+            });
+          } else if (result.result === 'not found') {
+            notFoundCount++;
+            results.push({
+              publicId: decodedPublicId,
+              success: false,
+              message: 'Resource not found in Cloudinary',
+              notFound: true,
             });
           } else {
+            failedCount++;
             results.push({
-              publicId,
+              publicId: decodedPublicId,
               success: false,
-              message: cloudinaryError.message,
+              message: result.result || 'Failed to delete',
             });
+          }
+        } catch (cloudinaryError) {
+          console.error(`  - Error deleting ${decodedPublicId}:`, cloudinaryError.message);
+          
+          // If resource not found
+          if (cloudinaryError.http_code === 404 || 
+              cloudinaryError.message?.includes('not found')) {
+            notFoundCount++;
+            results.push({
+              publicId: decodedPublicId,
+              success: false,
+              message: 'Resource not found in Cloudinary',
+              notFound: true,
+            });
+          } else {
+            // Try with 'image' type as fallback
+            try {
+              console.log(`  - Retrying ${decodedPublicId} as image...`);
+              const retryResult = await cloudinary.uploader.destroy(decodedPublicId, {
+                resource_type: 'image',
+                invalidate: true,
+              });
+              
+              if (retryResult.result === 'ok') {
+                successCount++;
+                results.push({
+                  publicId: decodedPublicId,
+                  success: true,
+                  message: 'Deleted successfully (as image)',
+                });
+              } else {
+                failedCount++;
+                results.push({
+                  publicId: decodedPublicId,
+                  success: false,
+                  message: retryResult.result || 'Failed to delete',
+                });
+              }
+            } catch (retryError) {
+              failedCount++;
+              results.push({
+                publicId: decodedPublicId,
+                success: false,
+                message: cloudinaryError.message,
+              });
+            }
           }
         }
       } catch (error) {
+        console.error(`  - Error processing ${publicId}:`, error.message);
+        failedCount++;
         results.push({
           publicId,
           success: false,
@@ -294,10 +410,10 @@ exports.deleteMultipleCloudResources = async (req, res) => {
       success: true,
       results,
       total: results.length,
-      successCount: successCount + alreadyDeletedCount,
-      failedCount: results.length - successCount - alreadyDeletedCount,
-      alreadyDeletedCount,
-      message: `Deleted ${successCount + alreadyDeletedCount} of ${results.length} resources${alreadyDeletedCount > 0 ? ` (${alreadyDeletedCount} already deleted)` : ''}`,
+      successCount,
+      notFoundCount,
+      failedCount,
+      message: `Deleted ${successCount} resources successfully${notFoundCount > 0 ? `, ${notFoundCount} not found` : ''}${failedCount > 0 ? `, ${failedCount} failed` : ''}`,
     });
   } catch (error) {
     console.error('Delete multiple resources error:', error.message);
@@ -511,7 +627,8 @@ exports.getCloudResource = async (req, res) => {
       });
     }
     
-    const result = await cloudinary.api.resource(publicId);
+    const decodedPublicId = decodeURIComponent(publicId);
+    const result = await cloudinary.api.resource(decodedPublicId);
     
     res.json({
       success: true,

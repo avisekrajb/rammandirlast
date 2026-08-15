@@ -1,10 +1,35 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../hooks/useToast';
 import api from '../services/api';
-import { AlertCircle, Check, User, Phone, Calendar, Tag, FileText, Clock, Shield, CalendarDays, Lock } from 'lucide-react';
+import OmLoader from '../components/common/OmLoader';
+import { 
+  AlertCircle, 
+  Check, 
+  User, 
+  Phone, 
+  Calendar, 
+  Tag, 
+  FileText, 
+  Clock, 
+  Shield, 
+  CalendarDays, 
+  Lock, 
+  Download, 
+  FileDown,
+  Printer, 
+  Info, 
+  ChevronDown, 
+  ChevronUp, 
+  ExternalLink,
+  CheckCircle,
+  XCircle
+} from 'lucide-react';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+
 
 const BookingPage = () => {
   const { t, lang } = useLanguage();
@@ -25,6 +50,13 @@ const BookingPage = () => {
     secureBooking: '100%',
     support: '24/7'
   });
+  const [showMyBookings, setShowMyBookings] = useState(false);
+  const [myBookings, setMyBookings] = useState([]);
+  const [loadingBookings, setLoadingBookings] = useState(false);
+  const [downloadingId, setDownloadingId] = useState(null);
+  const bookingRefs = useRef({});
+  const bookingsSectionRef = useRef(null);
+  
   const [form, setForm] = useState({
     name: user?.name || '',
     phone: user?.phone || '',
@@ -109,7 +141,15 @@ const BookingPage = () => {
       limitReached: 'Limit Reached',
       available: 'Available',
       noSlots: 'No slots available',
-      slotsAvailable: 'slots available'
+      slotsAvailable: 'slots available',
+      myBookings: 'My Bookings',
+      viewMyBookings: 'View My Bookings',
+      hideBookings: 'Hide Bookings',
+      downloadBooking: 'Download Booking',
+      noBookings: 'You have no bookings yet',
+      makeBooking: 'Make your first booking',
+      bookingDetails: 'Booking Details',
+      download: 'Download'
     },
     ne: {
       title: 'पूजा बुक गर्नुहोस्',
@@ -139,7 +179,15 @@ const BookingPage = () => {
       limitReached: 'सीमा पुग्यो',
       available: 'उपलब्ध',
       noSlots: 'कुनै स्लट उपलब्ध छैन',
-      slotsAvailable: 'स्लटहरू उपलब्ध'
+      slotsAvailable: 'स्लटहरू उपलब्ध',
+      myBookings: 'मेरो बुकिङहरू',
+      viewMyBookings: 'मेरो बुकिङहरू हेर्नुहोस्',
+      hideBookings: 'बुकिङहरू लुकाउनुहोस्',
+      downloadBooking: 'बुकिङ डाउनलोड गर्नुहोस्',
+      noBookings: 'तपाईंको कुनै बुकिङ छैन',
+      makeBooking: 'आफ्नो पहिलो बुकिङ गर्नुहोस्',
+      bookingDetails: 'बुकिङ विवरण',
+      download: 'डाउनलोड'
     },
     hi: {
       title: 'पूजा बुक करें',
@@ -169,7 +217,15 @@ const BookingPage = () => {
       limitReached: 'सीमा पूरी हुई',
       available: 'उपलब्ध',
       noSlots: 'कोई स्लॉट उपलब्ध नहीं',
-      slotsAvailable: 'स्लॉट उपलब्ध'
+      slotsAvailable: 'स्लॉट उपलब्ध',
+      myBookings: 'मेरी बुकिंग्स',
+      viewMyBookings: 'मेरी बुकिंग्स देखें',
+      hideBookings: 'बुकिंग्स छिपाएं',
+      downloadBooking: 'बुकिंग डाउनलोड करें',
+      noBookings: 'आपकी कोई बुकिंग नहीं है',
+      makeBooking: 'अपनी पहली बुकिंग करें',
+      bookingDetails: 'बुकिंग विवरण',
+      download: 'डाउनलोड'
     },
     zh: {
       title: '预订法会',
@@ -199,7 +255,15 @@ const BookingPage = () => {
       limitReached: '已达限制',
       available: '可用',
       noSlots: '无可用名额',
-      slotsAvailable: '名额可用'
+      slotsAvailable: '名额可用',
+      myBookings: '我的预订',
+      viewMyBookings: '查看我的预订',
+      hideBookings: '隐藏预订',
+      downloadBooking: '下载预订',
+      noBookings: '您还没有预订',
+      makeBooking: '进行您的首次预订',
+      bookingDetails: '预订详情',
+      download: '下载'
     },
     ta: {
       title: 'உங்கள் பூஜையை முன்பதிவு செய்யுங்கள்',
@@ -229,7 +293,15 @@ const BookingPage = () => {
       limitReached: 'வரம்பு எட்டப்பட்டது',
       available: 'கிடைக்கும்',
       noSlots: 'ஸ்லாட்கள் இல்லை',
-      slotsAvailable: 'ஸ்லாட்கள் கிடைக்கும்'
+      slotsAvailable: 'ஸ்லாட்கள் கிடைக்கும்',
+      myBookings: 'என் முன்பதிவுகள்',
+      viewMyBookings: 'என் முன்பதிவுகளைப் பார்க்கவும்',
+      hideBookings: 'முன்பதிவுகளை மறைக்கவும்',
+      downloadBooking: 'முன்பதிவை பதிவிறக்கவும்',
+      noBookings: 'உங்களுக்கு முன்பதிவுகள் இல்லை',
+      makeBooking: 'உங்கள் முதல் முன்பதிவை செய்யுங்கள்',
+      bookingDetails: 'முன்பதிவு விவரங்கள்',
+      download: 'பதிவிறக்கவும்'
     }
   };
 
@@ -276,6 +348,183 @@ const BookingPage = () => {
     return { valid: true, message: '' };
   };
 
+  // Fetch user's bookings
+  const fetchMyBookings = async () => {
+    if (!user) return;
+    
+    setLoadingBookings(true);
+    try {
+      const response = await api.get('/bookings/my');
+      setMyBookings(response.data);
+    } catch (error) {
+      console.error('Error fetching bookings:', error);
+    } finally {
+      setLoadingBookings(false);
+    }
+  };
+
+  // Toggle my bookings view with scroll
+  const toggleMyBookings = () => {
+    const newShowState = !showMyBookings;
+    setShowMyBookings(newShowState);
+    
+    if (newShowState) {
+      // Fetch bookings first
+      fetchMyBookings().then(() => {
+        // Scroll to bookings section after a small delay to allow render
+        setTimeout(() => {
+          if (bookingsSectionRef.current) {
+            bookingsSectionRef.current.scrollIntoView({ 
+              behavior: 'smooth', 
+              block: 'start' 
+            });
+          }
+        }, 300);
+      });
+    } else {
+      // If hiding, just close it
+      setShowMyBookings(false);
+    }
+  };
+
+  // Download individual booking as PDF
+  const downloadBookingPDF = async (bookingId) => {
+    const element = bookingRefs.current[bookingId];
+    if (!element) return;
+    
+    setDownloadingId(bookingId);
+    try {
+      // Clone the element for better rendering
+      const clone = element.cloneNode(true);
+      clone.style.transform = 'scale(1)';
+      clone.style.width = '100%';
+      clone.style.background = 'white';
+      clone.style.padding = '20px';
+      clone.style.borderRadius = '12px';
+      clone.style.position = 'relative';
+      
+      // Add watermark
+      const watermarkCanvas = document.createElement('canvas');
+      watermarkCanvas.width = 400;
+      watermarkCanvas.height = 400;
+      const ctx = watermarkCanvas.getContext('2d');
+      ctx.clearRect(0, 0, watermarkCanvas.width, watermarkCanvas.height);
+      ctx.font = '28px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.translate(watermarkCanvas.width / 2, watermarkCanvas.height / 2);
+      ctx.rotate(-Math.PI / 4);
+      ctx.fillStyle = 'rgba(122, 0, 0, 0.08)';
+      ctx.fillText('Shree Ramchandra Temple', 0, 0);
+      const watermarkImg = watermarkCanvas.toDataURL('image/png');
+      
+      const watermarkDiv = document.createElement('div');
+      watermarkDiv.style.position = 'absolute';
+      watermarkDiv.style.top = '0';
+      watermarkDiv.style.left = '0';
+      watermarkDiv.style.width = '100%';
+      watermarkDiv.style.height = '100%';
+      watermarkDiv.style.pointerEvents = 'none';
+      watermarkDiv.style.backgroundImage = `url(${watermarkImg})`;
+      watermarkDiv.style.backgroundRepeat = 'repeat';
+      watermarkDiv.style.backgroundSize = '200px 200px';
+      watermarkDiv.style.backgroundPosition = 'center';
+      watermarkDiv.style.opacity = '0.4';
+      watermarkDiv.style.zIndex = '10';
+      
+      // Create container
+      const container = document.createElement('div');
+      container.style.position = 'relative';
+      container.style.width = '500px';
+      container.style.background = 'white';
+      container.style.padding = '20px';
+      container.style.borderRadius = '12px';
+      
+      // Add header
+      const header = document.createElement('div');
+      header.style.textAlign = 'center';
+      header.style.marginBottom = '15px';
+      header.style.padding = '15px';
+      header.style.background = 'linear-gradient(135deg, #7A0000, #5A0000)';
+      header.style.borderRadius = '8px';
+      header.style.color = 'white';
+      header.innerHTML = `
+        <div style="font-size: 28px;">🛕</div>
+        <div style="font-size: 18px; font-weight: bold;">Booking Confirmation</div>
+        <div style="font-size: 12px; opacity: 0.9;">Shree Ramchandra Temple</div>
+        <div style="font-size: 10px; opacity: 0.7; margin-top: 5px;">${new Date().toLocaleString()}</div>
+      `;
+      
+      container.appendChild(header);
+      container.appendChild(clone);
+      container.appendChild(watermarkDiv);
+      
+      // Add footer
+      const footer = document.createElement('div');
+      footer.style.textAlign = 'center';
+      footer.style.marginTop = '15px';
+      footer.style.padding = '10px';
+      footer.style.borderTop = '1px solid #e0dcd5';
+      footer.style.fontSize = '9px';
+      footer.style.color = '#999';
+      footer.innerHTML = `
+        <div>This is an official booking confirmation document.</div>
+        <div style="margin-top: 3px;">Document ID: ${bookingId.slice(-8).toUpperCase()}</div>
+      `;
+      container.appendChild(footer);
+      
+      // Temporarily append to body
+      container.style.position = 'absolute';
+      container.style.left = '-9999px';
+      container.style.top = '0';
+      container.style.width = '500px';
+      document.body.appendChild(container);
+      
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        width: 500,
+        height: container.scrollHeight
+      });
+      
+      document.body.removeChild(container);
+      
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`booking-${bookingId.slice(-8)}-${new Date().toISOString().split('T')[0]}.pdf`);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to download booking. Please try again.');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  // Get status color
+  const getStatusColor = (status) => {
+    switch(status) {
+      case 'confirmed': return 'text-green-600 bg-green-50 border-green-200';
+      case 'completed': return 'text-blue-600 bg-blue-50 border-blue-200';
+      case 'cancelled': return 'text-red-600 bg-red-50 border-red-200';
+      default: return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch(status) {
+      case 'confirmed': return <CheckCircle size={14} className="text-green-500" />;
+      case 'completed': return <CheckCircle size={14} className="text-blue-500" />;
+      case 'cancelled': return <AlertCircle size={14} className="text-red-500" />;
+      default: return <Clock size={14} className="text-yellow-500" />;
+    }
+  };
+
   // Fetch settings from API
   useEffect(() => {
     const fetchSettings = async () => {
@@ -283,29 +532,22 @@ const BookingPage = () => {
         const response = await api.get('/admin/settings');
         const settings = response.data;
         
-        // Set booking availability
         if (settings.bookingAvailable !== undefined) {
           setBookingAvailable(settings.bookingAvailable);
         }
         
-        // Set availability message
         if (settings.availabilityMessage) {
           setAvailabilityMessage(settings.availabilityMessage);
-        } else {
-          setAvailabilityMessage('Bookings are currently unavailable. Please check back later.');
         }
         
-        // Set puja types from admin
         if (settings.pujaTypes && settings.pujaTypes.length > 0) {
           setPujaTypesFromAdmin(settings.pujaTypes);
         }
         
-        // Set date limits
         if (settings.dateLimits) {
           setDateLimits(settings.dateLimits);
         }
         
-        // Set stats
         if (settings.bookingStats) {
           setStats({
             pujaTypes: settings.bookingStats.pujaTypes || 5,
@@ -314,15 +556,11 @@ const BookingPage = () => {
           });
         }
         
-        // Set booking background photo
         if (settings.bookingBgPhoto) {
           setBookingBgPhoto(settings.bookingBgPhoto);
-        } else {
-          setBookingBgPhoto('/4.jpg');
         }
       } catch (error) {
         console.error('Error fetching settings:', error);
-        setBookingBgPhoto('/4.jpg');
       }
     };
     fetchSettings();
@@ -343,7 +581,6 @@ const BookingPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Check if booking is available
     if (!bookingAvailable) {
       showToast(availabilityMessage || currentLabels.unavailableMsg, 'error');
       return;
@@ -354,7 +591,6 @@ const BookingPage = () => {
       return;
     }
 
-    // Validate date
     const validation = checkDateValidity(form.date);
     if (!validation.valid) {
       showToast(validation.message, 'error');
@@ -366,6 +602,10 @@ const BookingPage = () => {
       await api.post('/bookings', form);
       setDone(true);
       showToast(currentLabels.thankYou || t.thankYouBooking);
+      // Refresh bookings if showing
+      if (showMyBookings) {
+        fetchMyBookings();
+      }
       setTimeout(() => {
         navigate('/mybookings');
       }, 2000);
@@ -422,7 +662,6 @@ const BookingPage = () => {
     <main className="min-h-screen" style={{ background: 'linear-gradient(180deg, #faf8f5 0%, #ffffff 50%, #faf8f5 100%)' }}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12">
         <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100/50">
-          {/* Top bar with availability status */}
           <div className={`h-1.5 ${bookingAvailable ? 'bg-gradient-to-r from-[#7A0000] via-[#A00000] to-[#7A0000]' : 'bg-gradient-to-r from-gray-400 via-gray-500 to-gray-400'}`} />
           
           <div className="grid lg:grid-cols-2">
@@ -452,7 +691,6 @@ const BookingPage = () => {
                   {currentLabels.templeDesc}
                 </p>
                 
-                {/* Dynamic Stats with Language Support */}
                 <div className="grid grid-cols-3 gap-3 mt-6">
                   <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 text-center border border-white/10 hover:bg-white/20 transition-all duration-300">
                     <div className="text-white text-lg font-bold">{stats.pujaTypes}+</div>
@@ -479,11 +717,25 @@ const BookingPage = () => {
             {/* Right Side - Form 50% */}
             <div className="p-6 md:p-8 lg:p-10 overflow-y-auto max-h-[600px] lg:max-h-[700px] scrollbar-hide">
               <div className="mb-6">
-                <div className="flex items-center gap-2 mb-1">
-                  <div className={`w-8 h-0.5 rounded-full ${bookingAvailable ? 'bg-[#7A0000]' : 'bg-gray-400'}`} />
-                  <span className={`text-[10px] font-bold uppercase tracking-wider ${bookingAvailable ? 'text-[#7A0000]' : 'text-gray-400'}`}>
-                    {bookingAvailable ? currentLabels.bookNowLabel : currentLabels.unavailable}
-                  </span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-8 h-0.5 rounded-full ${bookingAvailable ? 'bg-[#7A0000]' : 'bg-gray-400'}`} />
+                    <span className={`text-[10px] font-bold uppercase tracking-wider ${bookingAvailable ? 'text-[#7A0000]' : 'text-gray-400'}`}>
+                      {bookingAvailable ? currentLabels.bookNowLabel : currentLabels.unavailable}
+                    </span>
+                  </div>
+                  
+                  {/* View My Bookings Button */}
+                  <button
+                    onClick={toggleMyBookings}
+                    className="flex items-center gap-1.5 text-xs text-[#7A0000] hover:text-[#5A0000] font-medium bg-[#7A0000]/10 px-3 py-1.5 rounded-full transition-all hover:bg-[#7A0000]/20"
+                  >
+                    {showMyBookings ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    {showMyBookings ? currentLabels.hideBookings : currentLabels.viewMyBookings}
+                    <span className="bg-[#7A0000] text-white text-[8px] w-4 h-4 rounded-full flex items-center justify-center">
+                      {myBookings.length}
+                    </span>
+                  </button>
                 </div>
                 <h2 className={`text-xl md:text-2xl font-serif font-bold ${bookingAvailable ? 'text-[#7A0000]' : 'text-gray-400'}`}>
                   {currentLabels.title}
@@ -556,7 +808,6 @@ const BookingPage = () => {
                       }`}
                       required
                     />
-                    {/* Date validation message */}
                     {form.date && dateLimitMessage && (
                       <p className={`text-xs mt-1 flex items-center gap-1 ${
                         !isDateValidForBooking ? 'text-red-500' : 'text-green-500'
@@ -612,7 +863,6 @@ const BookingPage = () => {
                   />
                 </div>
 
-                {/* Submit Button - Disabled when booking unavailable or date invalid */}
                 <button
                   type="submit"
                   disabled={loading || done || !bookingAvailable || (form.date && !isDateValidForBooking)}
@@ -656,7 +906,6 @@ const BookingPage = () => {
                   )}
                 </button>
 
-                {/* Unavailable Message - Displayed when booking is disabled */}
                 {!bookingAvailable && (
                   <div className="flex items-center justify-center gap-2 text-xs text-gray-600 bg-gray-50 py-3 rounded-xl border border-gray-200">
                     <Lock size={13} className="text-gray-400" />
@@ -683,6 +932,136 @@ const BookingPage = () => {
             </div>
           </div>
         </div>
+
+        {/* My Bookings Section - Downside with ref for scrolling */}
+        <div ref={bookingsSectionRef}>
+          {showMyBookings && (
+            <div className="mt-8 animate-fadeIn">
+              <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100/50 p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-[#7A0000]/10 flex items-center justify-center">
+                      <CalendarDays size={20} className="text-[#7A0000]" />
+                    </div>
+                    <h3 className="text-xl font-serif font-bold text-gray-800">
+                      {currentLabels.myBookings}
+                    </h3>
+                    <span className="text-xs text-gray-400 bg-gray-100 px-2.5 py-0.5 rounded-full">
+                      {myBookings.length}
+                    </span>
+                  </div>
+                  
+                  <button
+                    onClick={() => navigate('/mybookings')}
+                    className="flex items-center gap-1.5 text-xs text-[#7A0000] hover:text-[#5A0000] font-medium bg-[#7A0000]/10 px-3 py-1.5 rounded-full transition-all hover:bg-[#7A0000]/20"
+                  >
+                    <ExternalLink size={14} />
+                    {t.viewAll || 'View All'}
+                  </button>
+                </div>
+
+                {loadingBookings ? (
+                  <div className="text-center py-8">
+                    <OmLoader size="md" color="maroon" className="mx-auto mb-3" />
+                    <p className="text-sm text-gray-500">Loading your bookings...</p>
+                  </div>
+                ) : myBookings.length === 0 ? (
+                  <div className="text-center py-12 bg-gray-50 rounded-2xl border border-gray-100">
+                    <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3">
+                      <Calendar size={28} className="text-gray-400" />
+                    </div>
+                    <h4 className="text-lg font-serif font-semibold text-gray-700">{currentLabels.noBookings}</h4>
+                    <p className="text-sm text-gray-400 mt-1">{currentLabels.makeBooking}</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {myBookings.map((booking) => (
+                      <div
+                        key={booking._id}
+                        ref={(el) => (bookingRefs.current[booking._id] = el)}
+                        className="bg-white rounded-2xl shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden border border-gray-100 hover:border-[#7A0000]/20 group"
+                      >
+                        <div className={`h-1 w-full ${
+                          booking.status === 'confirmed' ? 'bg-green-500' :
+                          booking.status === 'completed' ? 'bg-blue-500' :
+                          booking.status === 'cancelled' ? 'bg-red-500' : 'bg-yellow-500'
+                        }`} />
+                        
+                        <div className="p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${getStatusColor(booking.status)}`}>
+                              {getStatusIcon(booking.status)}
+                              {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                            </div>
+                            <span className="text-[8px] text-gray-400 font-mono">
+                              #{booking._id.slice(-6)}
+                            </span>
+                          </div>
+
+                          <div className="mb-2">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-[#7A0000] bg-[#7A0000]/10 px-2 py-0.5 rounded-full">
+                              <Tag size={10} />
+                              {booking.type}
+                            </span>
+                          </div>
+
+                          <h4 className="text-sm font-semibold text-gray-800 truncate">
+                            {booking.name}
+                          </h4>
+
+                          <div className="flex items-center gap-1.5 text-xs text-gray-500 mt-1">
+                            <Phone size={11} className="text-[#7A0000]" />
+                            <span>{booking.phone}</span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 text-xs text-gray-500 mt-0.5">
+                            <Calendar size={11} className="text-[#7A0000]" />
+                            <span>{booking.date}</span>
+                          </div>
+
+                          {booking.description && (
+                            <div className="mt-2 pt-2 border-t border-gray-100">
+                              <p className="text-[10px] text-gray-500 line-clamp-1">
+                                {booking.description}
+                              </p>
+                            </div>
+                          )}
+
+                          <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
+                            <span className="text-[8px] text-gray-400">
+                              {formatDate(booking.createdAt)}
+                            </span>
+                            <button
+                              onClick={() => downloadBookingPDF(booking._id)}
+                              disabled={downloadingId === booking._id}
+                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium transition-all ${
+                                downloadingId === booking._id
+                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                  : 'bg-[#7A0000]/10 text-[#7A0000] hover:bg-[#7A0000] hover:text-white'
+                              }`}
+                            >
+                              {downloadingId === booking._id ? (
+                                <>
+                                  <div className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                                  Downloading...
+                                </>
+                              ) : (
+                                <>
+                                  <Download size={12} />
+                                  {currentLabels.download}
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       <style>{`
@@ -694,9 +1073,32 @@ const BookingPage = () => {
           -ms-overflow-style: none;
           scrollbar-width: none;
         }
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.4s ease-out forwards;
+        }
       `}</style>
     </main>
   );
+};
+
+// Helper function for date formatting
+const formatDate = (dateString) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
 };
 
 export default BookingPage;

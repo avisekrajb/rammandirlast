@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import OmLoader from '../components/common/OmLoader';
 
 const AdminRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -8,12 +9,12 @@ const AdminRoute = ({ children }) => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 border-3 border-maroon rounded-full animate-spin border-t-transparent" />
+        <OmLoader size="md" color="maroon" />
       </div>
     );
   }
 
-  if (!user || user.role !== 'admin') {
+  if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
     return <Navigate to="/" replace />;
   }
 
