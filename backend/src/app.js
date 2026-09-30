@@ -37,7 +37,9 @@ app.use(passport.session());
 const allowedOrigins = [
   process.env.FRONTEND_URL || 'http://localhost:4000',
   'http://localhost:3000',
-  'http://localhost:5000',
+  'http://localhost:5000', 
+  'https://rammandirlastbackend.onrender.com',
+  'https://rammandirlast.onrender.com',
   'https://your-frontend-url.onrender.com',
   'https://shree-ramchandra-temple.onrender.com',
 ];
