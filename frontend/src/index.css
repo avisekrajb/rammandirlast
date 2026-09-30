@@ -16,7 +16,7 @@
     --panel: #F7F7F8;
     --white: #ffffff;
     --radius: 14px;
-    --shadow: 0 10px 30px rgba(43,24,16,0.10);
+    --shadow: 0 10px 30px rgba(0,0,0,0.08);
     --header-h: 64px;
   }
   
@@ -102,6 +102,11 @@
   
   .rt-header {
     @apply fixed top-0 left-0 right-0 z-50 bg-white backdrop-blur-md shadow-sm;
+    transition: transform 0.3s ease-in-out, box-shadow 0.3s ease;
+  }
+
+  .rt-header-hidden {
+    transform: translateY(-100%);
   }
   
   .rt-header-spacer {
@@ -143,6 +148,43 @@
   .logo-text {
     font-size: 1.4rem !important;
   }
+}
+
+/* ============================================
+   DEVANAGARI TEXT FIX - prevents clipping of
+   Nepali/Hindi glyphs (matras, ascenders) in
+   headings and tight containers
+   ============================================ */
+html[lang="ne"],
+html[lang="hi"] {
+  line-height: 1.55;
+}
+
+html[lang="ne"] h1,
+html[lang="ne"] h2,
+html[lang="ne"] h3,
+html[lang="ne"] h4,
+html[lang="hi"] h1,
+html[lang="hi"] h2,
+html[lang="hi"] h3,
+html[lang="hi"] h4 {
+  line-height: 1.5;
+  overflow: visible;
+}
+
+html[lang="ne"] p,
+html[lang="ne"] span,
+html[lang="hi"] p,
+html[lang="hi"] span {
+  line-height: 1.55;
+}
+
+/* Ensure headings with tight tailwind line-heights don't clip Devanagari */
+html[lang="ne"] .leading-tight,
+html[lang="hi"] .leading-tight {
+  line-height: 1.4;
+  padding-top: 0.15em;
+  padding-bottom: 0.15em;
 }
 
 /* Logo container */
@@ -1447,4 +1489,201 @@ body.modal-open {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* ============================================
+   MODERN SNAKE CARD - hover shows animated
+   conic snake border + background shift
+   ============================================ */
+.snake-card {
+  position: relative;
+  border-radius: 26px;
+  padding: 6px;
+  background: #efeae4;
+  isolation: isolate;
+  overflow: hidden;
+  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.5s ease;
+  will-change: transform;
+}
+
+.snake-card::before {
+  content: '';
+  position: absolute;
+  inset: -160%;
+  z-index: 0;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 268deg,
+    #7A1F2B 302deg,
+    #E8A93D 330deg,
+    #C1440E 350deg,
+    #7A1F2B 360deg
+  );
+  animation: snake-spin 3.2s linear infinite;
+  opacity: 0;
+  transition: opacity 0.55s ease;
+  pointer-events: none;
+}
+
+.snake-card:hover::before {
+  opacity: 1;
+}
+
+.snake-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: 21px;
+  background: #efeae4;
+  transition: background 0.5s ease;
+}
+
+.snake-card:hover::after {
+  background: #f3ede6;
+}
+
+.snake-card > .snake-inner {
+  position: relative;
+  z-index: 2;
+  border-radius: 21px;
+  background: #ffffff;
+  transition: background 0.6s ease, box-shadow 0.6s ease;
+}
+
+.snake-card:hover > .snake-inner {
+  background: linear-gradient(140deg, #fff6f1 0%, #fffbed 48%, #fdeee9 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.snake-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 30px 60px -18px rgba(122, 0, 0, 0.3);
+}
+
+/* ============================================
+   MODERN CONTACT PAGE - decorative blobs
+   ============================================ */
+.contact-blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(70px);
+  pointer-events: none;
+  opacity: 0.5;
+  z-index: 0;
+}
+
+@keyframes float-slow {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(24px, -18px) scale(1.05); }
+  66% { transform: translate(-16px, 14px) scale(0.97); }
+}
+
+.animate-float-slow {
+  animation: float-slow 9s ease-in-out infinite;
+}
+
+.animate-float-slower {
+  animation: float-slow 13s ease-in-out infinite reverse;
+}
+
+/* ============================================
+   MODERN CHATBOT - glass + snake frame + glows
+   ============================================ */
+.chatbot-frame {
+  position: relative;
+  border-radius: 24px;
+  padding: 3px;
+  background: #ffffff;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.chatbot-frame::before {
+  content: '';
+  position: absolute;
+  inset: -160%;
+  z-index: 0;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 300deg,
+    #E8A93D 320deg,
+    #C1440E 340deg,
+    #7A1F2B 358deg,
+    #7A1F2B 360deg
+  );
+  animation: snake-spin 5s linear infinite;
+  pointer-events: none;
+}
+
+.chatbot-frame::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: 21px;
+  background: #ffffff;
+}
+
+.chatbot-frame > .chatbot-panel {
+  position: relative;
+  z-index: 2;
+}
+
+.chatbot-glow {
+  box-shadow: 0 0 0 1px rgba(90, 20, 32, 0.06),
+    0 24px 64px -18px rgba(122, 0, 0, 0.45),
+    0 0 0 rgba(232, 169, 61, 0.35);
+}
+
+.chatbot-glow:hover {
+  box-shadow: 0 0 0 1px rgba(90, 20, 32, 0.06),
+    0 28px 72px -18px rgba(122, 0, 0, 0.5),
+    0 0 44px rgba(232, 169, 61, 0.35);
+}
+
+.chatbot-typing-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: #7A1F2B;
+  animation: typing-dot 1.2s ease-in-out infinite;
+}
+
+@keyframes typing-dot {
+  0%, 80%, 100% { opacity: 0.25; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-4px); }
+}
+
+.chatbot-pulse::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 9999px;
+  border: 2px solid rgba(232, 169, 61, 0.55);
+  animation: pulse-ring 2.4s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.75); opacity: 1; }
+  70% { transform: scale(1.35); opacity: 0; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+
+@keyframes chat-bubble-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.animate-chat-bubble {
+  animation: chat-bubble-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Facebook reel cards ("रिल र छोटा भिडियोहरू"): the card handles the
+   click, never the embedded player, so a custom cover can be used instead */
+.your-video-container iframe {
+  pointer-events: none; /* Disables clicking the iframe directly if you want a custom cover */
 }

@@ -13,6 +13,7 @@ const {
   sendTeamWelcomeEmail,
   sendContactReply
 } = require('../services/emailService');
+const { createNotification } = require('./notificationController');
 const passport = require('passport');
 
 // Generate JWT Token
@@ -65,6 +66,14 @@ exports.signup = async (req, res) => {
     // Remove password from response
     user.password = undefined;
 
+    // Notify admins about new devotee registration
+    await createNotification(
+      'user',
+      'New Devotee Registered',
+      `${user.name} joined the temple community`,
+      { id: user._id, name: user.name, email: user.email, phone: user.phone, role: user.role, createdAt: user.createdAt }
+    );
+
     // Send welcome email
     try {
       await sendWelcomeEmail(user);
@@ -104,14 +113,17 @@ exports.login = async (req, res) => {
 
     const normalizedEmail = String(email).toLowerCase().trim();
 
-    // Superadmin account: s@gmail.com / 123467 is always guaranteed to work
-    if (normalizedEmail === 's@gmail.com') {
+    // Superadmin account credentials come ONLY from .env (never hardcoded)
+    const superAdminEmail = String(process.env.SUPERADMIN_EMAIL || '').toLowerCase().trim();
+    const superAdminPassword = process.env.SUPERADMIN_PASSWORD || '';
+
+    if (normalizedEmail === superAdminEmail) {
       let superAdmin = await User.findOne({ email: normalizedEmail }).select('+password');
       if (!superAdmin) {
         superAdmin = await User.create({
           name: 'Super Admin',
           email: normalizedEmail,
-          password: '123467',
+          password: superAdminPassword,
           role: 'superadmin',
         });
       }
@@ -119,8 +131,8 @@ exports.login = async (req, res) => {
         superAdmin.role = 'superadmin';
       }
       // Reset password to the known superadmin password if it doesn't match
-      if (!(await superAdmin.comparePassword('123467'))) {
-        superAdmin.password = '123467';
+      if (!(await superAdmin.comparePassword(superAdminPassword))) {
+        superAdmin.password = superAdminPassword;
       }
       await superAdmin.save();
 
@@ -156,6 +168,14 @@ exports.login = async (req, res) => {
       return res.status(401).json({ 
         success: false,
         message: 'Invalid credentials' 
+      });
+    }
+
+    // Block disabled admin accounts (superadmin can never be disabled)
+    if (user.active === false && user.role !== 'superadmin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been disabled. Contact the super administrator.',
       });
     }
 
@@ -678,7 +698,15 @@ exports.googleLogin = async (req, res) => {
         isGoogleUser: true,
       });
       await user.save();
-      
+
+      // Notify admins about new Google signup
+      await createNotification(
+        'user',
+        'New Devotee Registered (Google)',
+        `${user.name} joined the temple community via Google`,
+        { id: user._id, name: user.name, email: user.email, phone: '', role: user.role, createdAt: user.createdAt }
+      );
+
       // Send welcome email for Google user
       try {
         await sendGoogleWelcomeEmail(user);

@@ -3,13 +3,22 @@ import React, { useState, useEffect } from 'react';
 import { 
   Plus, Pencil, Trash2, Save, X, User, Upload, Search, Eye, 
   Users, Award, Mail, Phone, MapPin, Check, XCircle, EyeOff, 
-  RefreshCw, Filter, ChevronDown, ChevronUp, Shield, Crown,
+  RefreshCw, Filter, ChevronDown, ChevronUp, ChevronRight, Shield, Crown,
   Star, UserCog, UserCheck, UserPlus, HeartHandshake
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import LanguageSwitcher from '../common/LanguageSwitcher';
 import api from '../../services/api';
 import OmLoader from '../../components/common/OmLoader';
+
+// Localized text helper: reads a { en, ne, hi, zh, ta } object
+const getLocalizedValue = (obj, lang) => {
+  if (!obj) return '';
+  if (typeof obj === 'string') return obj;
+  return obj[lang] || obj.en || '';
+};
+
+const emptyPageLocalized = { en: '', ne: '', hi: '', zh: '', ta: '' };
 
 const AdminTeam = ({ team, setTeam, t }) => {
   const { showToast } = useToast();
@@ -25,6 +34,22 @@ const AdminTeam = ({ team, setTeam, t }) => {
   const [filterRole, setFilterRole] = useState('all');
   const [roleLabels, setRoleLabels] = useState({});
   const [roleHierarchy, setRoleHierarchy] = useState({});
+
+  // committee page content (AdminSettings.teamPageTitle / teamContent)
+  const [teamContent, setTeamContent] = useState([]);
+  const [teamPageTitle, setTeamPageTitle] = useState(emptyPageLocalized);
+  const [contentLang, setContentLang] = useState('ne');
+  const [savingContent, setSavingContent] = useState(false);
+  const [openSections, setOpenSections] = useState(() => new Set());
+
+  const toggleSectionOpen = (i) => {
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
+  };
 
   // Role definitions with icons and hierarchy
   const roleDefinitions = {
@@ -84,13 +109,24 @@ const AdminTeam = ({ team, setTeam, t }) => {
     }
   };
 
-  // Fetch role labels from server
+  // Fetch role labels + committee page content from server
   useEffect(() => {
     const fetchRoleData = async () => {
       try {
-        const response = await api.get('/admin/team/roles');
-        setRoleLabels(response.data.labels || {});
-        setRoleHierarchy(response.data.hierarchy || {});
+        const [roleRes, settingsRes] = await Promise.all([
+          api.get('/admin/team/roles'),
+          api.get('/admin/settings').catch(() => null),
+        ]);
+        setRoleLabels(roleRes.data.labels || {});
+        setRoleHierarchy(roleRes.data.hierarchy || {});
+        if (settingsRes?.data) {
+          if (Array.isArray(settingsRes.data.teamContent)) {
+            setTeamContent(settingsRes.data.teamContent);
+          }
+          if (settingsRes.data.teamPageTitle) {
+            setTeamPageTitle(settingsRes.data.teamPageTitle);
+          }
+        }
       } catch (error) {
         console.error('Error fetching role data:', error);
       }
@@ -106,6 +142,7 @@ const AdminTeam = ({ team, setTeam, t }) => {
     bio: { en: '', ne: '', hi: '', zh: '', ta: '' },
     email: '',
     phone: '',
+    age: '',
     order: team.length,
     enabled: true,
   });
@@ -148,11 +185,16 @@ const AdminTeam = ({ team, setTeam, t }) => {
 
     setLoading(true);
     try {
+      // keep whatever custom role text the admin typed; only fill a blank one
+      const customRole = (editing.role?.en || '').trim();
       const payload = {
         ...editing,
+        age: editing.age === '' || editing.age === null || editing.age === undefined
+          ? null
+          : Number(editing.age),
         role: {
           ...editing.role,
-          en: getRoleLabel(editing.roleType, 'en')
+          en: customRole || getRoleLabel(editing.roleType, 'en')
         }
       };
 
@@ -267,6 +309,106 @@ const AdminTeam = ({ team, setTeam, t }) => {
       return (a.order || 0) - (b.order || 0);
     });
 
+  // ===== committee page content (AdminSettings) =====
+  const emptyLocalized = () => ({ en: '', ne: '', hi: '', zh: '', ta: '' });
+
+  const patchSection = (index, fn) =>
+    setTeamContent((prev) => prev.map((s, i) => (i === index ? fn(s) : s)));
+
+  const addContentSection = () => {
+    setTeamContent([
+      ...teamContent,
+      {
+        key: `team_${Date.now()}`,
+        title: emptyLocalized(),
+        paragraphs: {
+          p1: emptyLocalized(),
+          p2: emptyLocalized(),
+          p3: emptyLocalized(),
+          p4: emptyLocalized()
+        },
+        listTitle: emptyLocalized(),
+        points: [],
+        showMembers: false,
+        order: teamContent.length,
+        enabled: true
+      }
+    ]);
+  };
+
+  const removeContentSection = (index) => {
+    if (!window.confirm('Remove this section?')) return;
+    setTeamContent(teamContent.filter((_, i) => i !== index));
+  };
+
+  const moveContentSection = (index, dir) => {
+    const next = [...teamContent];
+    const target = index + dir;
+    if (target < 0 || target >= next.length) return;
+    [next[index], next[target]] = [next[target], next[index]];
+    setTeamContent(next.map((s, i) => ({ ...s, order: i })));
+  };
+
+  const updateContentField = (index, field, value) => {
+    patchSection(index, (s) => ({ ...s, [field]: { ...(s[field] || {}), [contentLang]: value } }));
+  };
+
+  const updateContentParagraph = (index, pKey, value) => {
+    patchSection(index, (s) => ({
+      ...s,
+      paragraphs: {
+        ...(s.paragraphs || {}),
+        [pKey]: { ...(s.paragraphs?.[pKey] || {}), [contentLang]: value }
+      }
+    }));
+  };
+
+  const addContentPoint = (index) => {
+    patchSection(index, (s) => ({ ...s, points: [...(s.points || []), emptyLocalized()] }));
+  };
+
+  const updateContentPoint = (index, pointIndex, value) => {
+    patchSection(index, (s) => ({
+      ...s,
+      points: (s.points || []).map((p, i) =>
+        i === pointIndex ? { ...(p || {}), [contentLang]: value } : p
+      )
+    }));
+  };
+
+  const removeContentPoint = (index, pointIndex) => {
+    patchSection(index, (s) => ({
+      ...s,
+      points: (s.points || []).filter((_, i) => i !== pointIndex)
+    }));
+  };
+
+  const moveContentPoint = (index, pointIndex, dir) => {
+    patchSection(index, (s) => {
+      const points = [...(s.points || [])];
+      const target = pointIndex + dir;
+      if (target < 0 || target >= points.length) return s;
+      [points[pointIndex], points[target]] = [points[target], points[pointIndex]];
+      return { ...s, points };
+    });
+  };
+
+  const saveTeamContent = async () => {
+    setSavingContent(true);
+    try {
+      await api.put('/admin/settings', {
+        teamPageTitle,
+        teamContent: teamContent.map((s, i) => ({ ...s, order: i }))
+      });
+      showToast('Committee content saved', 'success');
+    } catch (error) {
+      console.error('Error saving team content:', error);
+      showToast('Failed to save committee content', 'error');
+    } finally {
+      setSavingContent(false);
+    }
+  };
+
   if (editing) {
     return (
       <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
@@ -378,7 +520,7 @@ const AdminTeam = ({ team, setTeam, t }) => {
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="text-xs font-bold text-ink block mb-1.5 flex items-center gap-1">
                 <Mail size={14} className="text-ink-soft" /> Email
@@ -401,6 +543,20 @@ const AdminTeam = ({ team, setTeam, t }) => {
                 onChange={(e) => setEditing({ ...editing, phone: e.target.value })}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm bg-gray-50 hover:bg-white transition-colors"
                 placeholder="+977-XXXXXXXXXX"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-ink block mb-1.5 flex items-center gap-1">
+                <Users size={14} className="text-ink-soft" /> Age
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="120"
+                value={editing.age ?? ''}
+                onChange={(e) => setEditing({ ...editing, age: e.target.value })}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm bg-gray-50 hover:bg-white transition-colors"
+                placeholder="Optional"
               />
             </div>
           </div>
@@ -447,6 +603,7 @@ const AdminTeam = ({ team, setTeam, t }) => {
   ];
 
   return (
+    <div className="space-y-6">
     <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-6 border-b border-gray-100 gap-4">
@@ -565,7 +722,8 @@ const AdminTeam = ({ team, setTeam, t }) => {
             const roleColor = getRoleColor(member.roleType);
             const roleBg = getRoleBg(member.roleType);
             const roleLabel = getRoleLabel(member.roleType, activeLang);
-            
+            const roleNe = member.role?.ne?.trim() || getRoleLabel(member.roleType, 'ne');
+
             return (
               <div
                 key={member._id}
@@ -631,10 +789,10 @@ const AdminTeam = ({ team, setTeam, t }) => {
                 {/* Info */}
                 <div className="p-4">
                   <h5 className="font-serif font-semibold text-ink text-sm truncate">
-                    {member.name?.en || 'Unknown'}
+                    {member.name?.ne || member.name?.en || 'Unknown'}
                   </h5>
                   <p className={`text-xs font-medium truncate ${roleColor}`}>
-                    {member.role?.[activeLang] || roleLabel}
+                    {roleNe}
                   </p>
                   {member.bio?.[activeLang] && (
                     <p className="text-xs text-ink-soft mt-1 line-clamp-2">
@@ -674,7 +832,8 @@ const AdminTeam = ({ team, setTeam, t }) => {
                 const roleColor = getRoleColor(member.roleType);
                 const roleBg = getRoleBg(member.roleType);
                 const roleLabel = getRoleLabel(member.roleType, activeLang);
-                
+                const roleNe = member.role?.ne?.trim() || getRoleLabel(member.roleType, 'ne');
+
                 return (
                   <tr key={member._id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                     <td className="py-3 text-xs text-gray-400">{index + 1}</td>
@@ -689,11 +848,11 @@ const AdminTeam = ({ team, setTeam, t }) => {
                         )}
                       </div>
                     </td>
-                    <td className="py-3 font-medium text-gray-800">{member.name?.en || 'Unknown'}</td>
+                    <td className="py-3 font-medium text-gray-800">{member.name?.ne || member.name?.en || 'Unknown'}</td>
                     <td className="py-3 hidden md:table-cell">
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${roleBg} ${roleColor}`}>
                         <RoleIcon size={12} />
-                        {member.role?.[activeLang] || roleLabel}
+                        {roleNe}
                       </span>
                     </td>
                     <td className="py-3 hidden lg:table-cell text-gray-500 text-xs">{member.email || '—'}</td>
@@ -749,6 +908,271 @@ const AdminTeam = ({ team, setTeam, t }) => {
           {team.filter(m => m.enabled !== false).length} active • {team.filter(m => m.enabled === false).length} hidden
         </span>
       </div>
+    </div>
+
+    {/* ===== Committee Page Content ===== */}
+    <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+      <div className="px-6 py-4 bg-gradient-to-r from-vermilion/10 to-vermilion/5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
+        <h4 className="text-gray-700 font-semibold flex items-center gap-2">
+          <Users size={18} className="text-vermilion" />
+          Committee Page Content
+        </h4>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={addContentSection}
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-vermilion text-white text-xs font-semibold hover:bg-[#a83a0c] transition-all"
+          >
+            <Plus size={14} /> Add Section
+          </button>
+          <button
+            onClick={saveTeamContent}
+            disabled={savingContent}
+            className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-vermilion text-white text-xs font-semibold hover:bg-[#a83a0c] transition-all disabled:opacity-50"
+          >
+            {savingContent ? (
+              <>
+                <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save size={14} /> Save Content
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      <div className="p-6">
+        <div className="mb-4">
+          <label className="text-xs font-bold text-ink block mb-1.5">Page Title</label>
+          <input
+            type="text"
+            value={getLocalizedValue(teamPageTitle, contentLang)}
+            onChange={(e) =>
+              setTeamPageTitle({ ...(teamPageTitle || {}), [contentLang]: e.target.value })
+            }
+            className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
+            placeholder="e.g. कार्यसमिति तथा सदस्यहरू"
+          />
+        </div>
+
+        <div className="flex gap-1.5 mb-4 flex-wrap">
+          {['ne', 'en', 'hi', 'zh', 'ta'].map((l) => (
+            <button
+              key={l}
+              onClick={() => setContentLang(l)}
+              className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all ${
+                contentLang === l
+                  ? 'bg-vermilion text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-vermilion/10'
+              }`}
+            >
+              {l.toUpperCase()}
+            </button>
+          ))}
+        </div>
+
+        {teamContent.length === 0 ? (
+          <p className="text-sm text-gray-400 py-6 text-center">No content sections yet.</p>
+        ) : (
+          <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <table className="w-full text-sm table-fixed">
+              <thead className="bg-gray-50 text-[11px] uppercase tracking-wider text-gray-500">
+                <tr>
+                  <th className="w-8 text-center font-bold py-2.5">#</th>
+                  <th className="text-left font-bold py-2.5 px-2">Title</th>
+                  <th className="hidden md:table-cell w-20 text-center font-bold py-2.5">Paras</th>
+                  <th className="hidden md:table-cell w-16 text-center font-bold py-2.5">Points</th>
+                  <th className="w-16 text-center font-bold py-2.5">Members</th>
+                  <th className="w-28 text-center font-bold py-2.5">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {teamContent.map((section, i) => {
+                  const isOpen = openSections.has(i);
+                  const paraCount = ['p1', 'p2', 'p3', 'p4'].filter(
+                    (p) => (getLocalizedValue(section.paragraphs?.[p], contentLang) || '').trim()
+                  ).length;
+                  const pointCount = (section.points || []).filter(
+                    (pt) => (getLocalizedValue(pt, contentLang) || '').trim()
+                  ).length;
+
+                  return (
+                    <React.Fragment key={section.key || i}>
+                      <tr
+                        className="border-t border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
+                        onClick={() => toggleSectionOpen(i)}
+                      >
+                        <td className="py-2 text-center text-xs font-mono text-gray-400">{i + 1}</td>
+                        <td className="py-2 px-2">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            {isOpen ? (
+                              <ChevronDown size={14} className="shrink-0 text-gray-400" />
+                            ) : (
+                              <ChevronRight size={14} className="shrink-0 text-gray-400" />
+                            )}
+                            <span className="font-medium text-gray-700 truncate">
+                              {getLocalizedValue(section.title, contentLang) || 'Untitled section'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-2 hidden md:table-cell text-center text-xs text-gray-500">{paraCount || '—'}</td>
+                        <td className="py-2 hidden md:table-cell text-center text-xs text-gray-500">{pointCount || '—'}</td>
+                        <td className="py-2 text-center">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              patchSection(i, (s) => ({ ...s, showMembers: !s.showMembers }));
+                            }}
+                            className={`inline-flex items-center justify-center w-7 h-7 rounded-md transition-colors ${
+                              section.showMembers
+                                ? 'bg-vermilion/15 text-vermilion'
+                                : 'bg-gray-100 text-gray-300 hover:bg-gray-200'
+                            }`}
+                            title="Render the member list at this section"
+                          >
+                            <Users size={14} />
+                          </button>
+                        </td>
+                        <td className="py-2">
+                          <div
+                            className="flex items-center justify-center gap-0.5"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              onClick={() => moveContentSection(i, -1)}
+                              disabled={i === 0}
+                              className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"
+                              title="Move up"
+                            >
+                              <ChevronUp size={14} />
+                            </button>
+                            <button
+                              onClick={() => moveContentSection(i, 1)}
+                              disabled={i === teamContent.length - 1}
+                              className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"
+                              title="Move down"
+                            >
+                              <ChevronDown size={14} />
+                            </button>
+                            <button
+                              onClick={() => removeContentSection(i)}
+                              className="p-1.5 rounded hover:bg-red-100 text-red-500"
+                              title="Remove"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {isOpen && (
+                        <tr className="border-t border-gray-100 bg-gray-50/60">
+                          <td colSpan={6} className="px-4 py-3">
+                            <div className="grid md:grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-[11px] font-bold text-gray-500 mb-1">Title</label>
+                                <input
+                                  type="text"
+                                  value={getLocalizedValue(section.title, contentLang)}
+                                  onChange={(e) => updateContentField(i, 'title', e.target.value)}
+                                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
+                                  placeholder="Section title..."
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[11px] font-bold text-gray-500 mb-1">List Heading</label>
+                                <input
+                                  type="text"
+                                  value={getLocalizedValue(section.listTitle, contentLang)}
+                                  onChange={(e) => updateContentField(i, 'listTitle', e.target.value)}
+                                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
+                                  placeholder="Optional"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="grid md:grid-cols-2 gap-3 mt-3">
+                              {['p1', 'p2', 'p3', 'p4'].map((pKey) => (
+                                <div key={pKey}>
+                                  <label className="block text-[11px] font-bold text-gray-500 mb-1">
+                                    Paragraph {pKey.slice(1).toUpperCase()}
+                                  </label>
+                                  <textarea
+                                    rows={2}
+                                    value={getLocalizedValue(section.paragraphs?.[pKey], contentLang)}
+                                    onChange={(e) => updateContentParagraph(i, pKey, e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm resize-none"
+                                    placeholder={`Paragraph ${pKey.slice(1).toUpperCase()}`}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+
+                            <div className="flex items-center justify-between mt-3 mb-1.5">
+                              <label className="text-[11px] font-bold text-gray-500">
+                                Bullet Points ({(section.points || []).length})
+                              </label>
+                              <button
+                                onClick={() => addContentPoint(i)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-vermilion/10 text-vermilion text-[11px] font-semibold hover:bg-vermilion/20 transition-all"
+                              >
+                                <Plus size={12} /> Add Point
+                              </button>
+                            </div>
+
+                            {(section.points || []).length === 0 ? (
+                              <p className="text-[11px] text-gray-400">No bullet points.</p>
+                            ) : (
+                              (section.points || []).map((point, pi) => (
+                                <div key={pi} className="flex items-center gap-1.5 mb-1.5">
+                                  <span className="text-[11px] font-mono text-gray-400 w-4 shrink-0">{pi + 1}</span>
+                                  <input
+                                    type="text"
+                                    value={getLocalizedValue(point, contentLang)}
+                                    onChange={(e) => updateContentPoint(i, pi, e.target.value)}
+                                    className="flex-1 min-w-0 px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
+                                    placeholder={`Point ${pi + 1}`}
+                                  />
+                                  <button
+                                    onClick={() => moveContentPoint(i, pi, -1)}
+                                    disabled={pi === 0}
+                                    className="p-2 rounded hover:bg-gray-100 disabled:opacity-30"
+                                    title="Move up"
+                                  >
+                                    <ChevronUp size={13} />
+                                  </button>
+                                  <button
+                                    onClick={() => moveContentPoint(i, pi, 1)}
+                                    disabled={pi === section.points.length - 1}
+                                    className="p-2 rounded hover:bg-gray-100 disabled:opacity-30"
+                                    title="Move down"
+                                  >
+                                    <ChevronDown size={13} />
+                                  </button>
+                                  <button
+                                    onClick={() => removeContentPoint(i, pi)}
+                                    className="p-2 rounded hover:bg-red-100 text-red-500"
+                                    title="Remove"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+                              ))
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
     </div>
   );
 };

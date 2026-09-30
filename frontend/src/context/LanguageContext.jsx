@@ -15,6 +15,7 @@ export const LanguageProvider = ({ children }) => {
 
   useEffect(() => {
     setLanguage(lang);
+    document.documentElement.lang = lang;
   }, [lang]);
 
   const t = translations[lang] || translations.en;

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Event = require('../models/Event');
+const { ensureSeedEvents, getHomeEvents } = require('../controllers/eventController');
 const protect = require('../middleware/auth');
 const admin = require('../middleware/admin');
 
@@ -8,11 +9,17 @@ const admin = require('../middleware/admin');
 // SPECIFIC ROUTES (MUST BE BEFORE /:id)
 // ============================================
 
+// @desc    Get the events the admin placed on the home page (max 4, in slot order)
+// @route   GET /api/events/home
+// @access  Public
+router.get('/home', getHomeEvents);
+
 // @desc    Get upcoming events
 // @route   GET /api/events/upcoming
 // @access  Public
 router.get('/upcoming', async (req, res) => {
   try {
+    await ensureSeedEvents();
     const events = await Event.find({ upcoming: true }).sort({ date: 1 }).limit(6);
     res.json(events);
   } catch (error) {
@@ -118,6 +125,7 @@ router.get('/stats/engagement', protect, admin, async (req, res) => {
 // @access  Public
 router.get('/', async (req, res) => {
   try {
+    await ensureSeedEvents();
     const events = await Event.find().sort({ date: 1 });
     res.json(events);
   } catch (error) {

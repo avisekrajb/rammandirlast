@@ -1,6 +1,21 @@
 const mongoose = require('mongoose');
 
+// Reusable localized text object: { en, ne, hi, zh, ta }
+const localizedStringSchema = new mongoose.Schema({
+  en: { type: String, default: '' },
+  ne: { type: String, default: '' },
+  hi: { type: String, default: '' },
+  zh: { type: String, default: '' },
+  ta: { type: String, default: '' },
+}, { _id: false });
+
 const adminSettingsSchema = new mongoose.Schema({
+  // ============================================
+  // LANGUAGES (super-admin enabled/disabled)
+  // Empty/undefined => all languages enabled.
+  // ============================================
+  enabledLanguages: [String],
+
   // ============================================
   // HERO SECTION
   // ============================================
@@ -15,6 +30,20 @@ const adminSettingsSchema = new mongoose.Schema({
   heroEnabled: {
     type: Boolean,
     default: true,
+  },
+  heroTitle: {
+    en: { type: String, default: 'Shree Ramchandra Temple' },
+    ne: { type: String, default: 'श्री रामचन्द्र मन्दिर' },
+    hi: { type: String, default: 'श्री रामचंद्र मंदिर' },
+    zh: { type: String, default: '什里·拉姆钱德拉神庙' },
+    ta: { type: String, default: 'ஸ்ரீ ராமச்சந்திர கோவில்' },
+  },
+  heroTagline: {
+    en: { type: String, default: 'Where devotion meets the sacred banks of Bagmati' },
+    ne: { type: String, default: 'जहाँ भक्ति बागमतीको पवित्र किनारमा मिल्छ' },
+    hi: { type: String, default: 'जहाँ भक्ति बागमती के पवित्र तटों से मिलती है' },
+    zh: { type: String, default: '虔诚与巴格马蒂圣河相遇之处' },
+    ta: { type: String, default: 'பக்தி பாக்மதியின் புனித கரையில் சந்திக்கும் இடம்' },
   },
   
   // ============================================
@@ -218,7 +247,28 @@ const adminSettingsSchema = new mongoose.Schema({
       }
     ]
   },
-  
+
+  // ============================================
+  // FACEBOOK VIDEO EMBEDS (Gallery Videos tab + Home page)
+  // ============================================
+  facebookVideo: {
+    enabled: { type: Boolean, default: true },
+  },
+  facebookVideos: {
+    type: [{
+      url: { type: String, required: true },
+      enabled: { type: Boolean, default: true },
+    }],
+    default: [],
+  },
+  facebookReels: {
+    type: [{
+      url: { type: String, required: true },
+      enabled: { type: Boolean, default: true },
+    }],
+    default: [],
+  },
+
   // ============================================
   // FOUNDER SECTION
   // ============================================
@@ -302,7 +352,7 @@ const adminSettingsSchema = new mongoose.Schema({
       ta: { type: String, default: 'ஸ்ரீ ராமச்சந்திர' },
     },
     size: { type: String, default: 'w-12 h-12' },
-    shape: { type: String, default: 'rounded-xl' },
+    shape: { type: String, default: 'rounded-full' },
     bgColor: { type: String, default: 'from-vermilion to-maroon-deep' },
     showText: { type: Boolean, default: true },
     textColor: { type: String, default: 'text-maroon' },
@@ -370,6 +420,7 @@ const adminSettingsSchema = new mongoose.Schema({
   // ============================================
   notice: {
     enabled: { type: Boolean, default: true },
+    photo: { type: String, default: '' },
     title: { 
       en: { type: String, default: 'Heartfelt Request' },
       ne: { type: String, default: 'हार्दिक अनुरोध' },
@@ -455,13 +506,127 @@ const adminSettingsSchema = new mongoose.Schema({
       ta: { type: String, default: 'தானம் செய்யுங்கள்' },
     },
   },
+
+  // ============================================
+  // NOTICES (multiple - displayed in order in the notice modal)
+  // ============================================
+  notices: {
+    type: [{
+      id: { type: String, default: '' },
+      enabled: { type: Boolean, default: true },
+      photo: { type: String, default: '' },
+      title: {
+        en: { type: String, default: '' },
+        ne: { type: String, default: '' },
+        hi: { type: String, default: '' },
+        zh: { type: String, default: '' },
+        ta: { type: String, default: '' },
+      },
+      banner: {
+        en: { type: String, default: '' },
+        ne: { type: String, default: '' },
+        hi: { type: String, default: '' },
+        zh: { type: String, default: '' },
+        ta: { type: String, default: '' },
+      },
+      body: {
+        en: { type: String, default: '' },
+        ne: { type: String, default: '' },
+        hi: { type: String, default: '' },
+        zh: { type: String, default: '' },
+        ta: { type: String, default: '' },
+      },
+      cost: {
+        en: { type: String, default: '' },
+        ne: { type: String, default: '' },
+        hi: { type: String, default: '' },
+        zh: { type: String, default: '' },
+        ta: { type: String, default: '' },
+      },
+      donors: {
+        en: { type: String, default: '' },
+        ne: { type: String, default: '' },
+        hi: { type: String, default: '' },
+        zh: { type: String, default: '' },
+        ta: { type: String, default: '' },
+      },
+      applicant: {
+        en: { type: String, default: '' },
+        ne: { type: String, default: '' },
+        hi: { type: String, default: '' },
+        zh: { type: String, default: '' },
+        ta: { type: String, default: '' },
+      },
+      committee: {
+        en: { type: String, default: '' },
+        ne: { type: String, default: '' },
+        hi: { type: String, default: '' },
+        zh: { type: String, default: '' },
+        ta: { type: String, default: '' },
+      },
+      location: {
+        en: { type: String, default: '' },
+        ne: { type: String, default: '' },
+        hi: { type: String, default: '' },
+        zh: { type: String, default: '' },
+        ta: { type: String, default: '' },
+      },
+      contactNo: {
+        en: { type: String, default: '' },
+        ne: { type: String, default: '' },
+        hi: { type: String, default: '' },
+        zh: { type: String, default: '' },
+        ta: { type: String, default: '' },
+      },
+      contactDetails: {
+        en: { type: String, default: '' },
+        ne: { type: String, default: '' },
+        hi: { type: String, default: '' },
+        zh: { type: String, default: '' },
+        ta: { type: String, default: '' },
+      },
+      qrLabel: {
+        en: { type: String, default: '' },
+        ne: { type: String, default: '' },
+        hi: { type: String, default: '' },
+        zh: { type: String, default: '' },
+        ta: { type: String, default: '' },
+      },
+      donateBtn: {
+        en: { type: String, default: '' },
+        ne: { type: String, default: '' },
+        hi: { type: String, default: '' },
+        zh: { type: String, default: '' },
+        ta: { type: String, default: '' },
+      },
+    }],
+    default: [],
+  },
   
   // ============================================
   // BOOKING MANAGEMENT SETTINGS
   // ============================================
+  // Includes the ceremonies the temple complex can host:
+  // "मन्दिर परिसरमा आयोजना गर्न सकिने कार्यक्रम"
   pujaTypes: {
     type: [String],
-    default: ['Ram Puja', 'Satyanarayan Puja', 'Griha Pravesh Puja', 'Birthday Puja', 'General Darshan Booking'],
+    default: [
+      'Ram Puja',
+      'Satyanarayan Puja',
+      'Griha Pravesh Puja',
+      'Birthday Puja',
+      'General Darshan Booking',
+      'Wedding (Vivah)',
+      'Bratabandha',
+      'Pasni',
+      'Chauraasi Puja',
+      'Wedding Anniversary',
+      'Engagement',
+      'Religious Puja & Rituals',
+      'Meeting & Seminar',
+      'Cultural Program',
+      'Film & Music Video Shooting',
+    ],
   },
   dateLimits: {
     type: Map,
@@ -478,7 +643,7 @@ const adminSettingsSchema = new mongoose.Schema({
     default: 'Bookings are currently unavailable. Please check back later.',
   },
   bookingStats: {
-    pujaTypes: { type: Number, default: 5 },
+    pujaTypes: { type: Number, default: 15 },
     secureBooking: { type: String, default: '100%' },
     support: { type: String, default: '24/7' },
   },
@@ -486,7 +651,90 @@ const adminSettingsSchema = new mongoose.Schema({
     type: String,
     default: '/4.jpg',
   },
+  bookingContent: {
+    type: [{
+      key: { type: String, default: '' },
+      title: { type: localizedStringSchema, default: () => ({}) },
+      paragraphs: {
+        p1: { type: localizedStringSchema, default: () => ({}) },
+        p2: { type: localizedStringSchema, default: () => ({}) },
+        p3: { type: localizedStringSchema, default: () => ({}) },
+        p4: { type: localizedStringSchema, default: () => ({}) },
+      },
+      listTitle: { type: localizedStringSchema, default: () => ({}) },
+      points: { type: [localizedStringSchema], default: () => [] },
+      group: { type: localizedStringSchema, default: () => ({}) },
+      showForm: { type: Boolean, default: false },
+      order: { type: Number, default: 0 },
+      enabled: { type: Boolean, default: true },
+    }],
+    default: () => [],
+  },
   
+  // ============================================
+  // TEAM / COMMITTEE SETTINGS
+  // ============================================
+  // Page heading for /templeteams
+  teamPageTitle: { type: localizedStringSchema, default: () => ({}) },
+  // "कार्यसमिति तथा सदस्यहरू" content. `showMembers: true` renders the
+  // committee member list at that position.
+  teamContent: {
+    type: [{
+      key: { type: String, default: '' },
+      title: { type: localizedStringSchema, default: () => ({}) },
+      paragraphs: {
+        p1: { type: localizedStringSchema, default: () => ({}) },
+        p2: { type: localizedStringSchema, default: () => ({}) },
+        p3: { type: localizedStringSchema, default: () => ({}) },
+        p4: { type: localizedStringSchema, default: () => ({}) },
+      },
+      listTitle: { type: localizedStringSchema, default: () => ({}) },
+      points: { type: [localizedStringSchema], default: () => [] },
+      showMembers: { type: Boolean, default: false },
+      order: { type: Number, default: 0 },
+      enabled: { type: Boolean, default: true },
+    }],
+    default: () => [],
+  },
+  
+  // ============================================
+  // DONATE PAGE CONTENT
+  // ============================================
+  // Published prose shown at the bottom of /donate, below the donation form.
+  donatePageTitle: { type: localizedStringSchema, default: () => ({}) },
+  donateIntro: { type: localizedStringSchema, default: () => ({}) },
+  donateContent: {
+    type: [{
+      key: { type: String, default: '' },
+      title: { type: localizedStringSchema, default: () => ({}) },
+      // short lead paragraph, printed directly under the title
+      desc: { type: localizedStringSchema, default: () => ({}) },
+      // free-length body list; older records stored a fixed { p1..p4 } object
+      paragraphs: { type: mongoose.Schema.Types.Mixed, default: () => [] },
+      listTitle: { type: localizedStringSchema, default: () => ({}) },
+      points: { type: [localizedStringSchema], default: () => [] },
+      order: { type: Number, default: 0 },
+      enabled: { type: Boolean, default: true },
+    }],
+    default: () => [],
+  },
+
+  // ============================================
+  // EVENTS PAGE HEADINGS
+  // ============================================
+  // Every line of chrome on /events, as rows so the admin can add their own.
+  eventsPageText: {
+    type: [{
+      key: { type: String, default: '' },
+      // English hint naming the slot, e.g. "Page title"
+      label: { type: String, default: '' },
+      text: { type: localizedStringSchema, default: () => ({}) },
+      order: { type: Number, default: 0 },
+      enabled: { type: Boolean, default: true },
+    }],
+    default: () => [],
+  },
+
   // ============================================
   // FOOTER SETTINGS
   // ============================================
@@ -561,6 +809,90 @@ const adminSettingsSchema = new mongoose.Schema({
     },
   },
   
+  // ============================================
+  // DAILY AARTI & TEMPLE INFORMATION SETTINGS
+  // ============================================
+  dailyAarti: {
+    enabled: { type: Boolean, default: true },
+    title: {
+      en: { type: String, default: 'Daily Aarti & Darshan Times' },
+      ne: { type: String, default: 'दैनिक आरती र दर्शन समय' },
+      hi: { type: String, default: 'दैनिक आरती और दर्शन समय' },
+      zh: { type: String, default: '每日法会与朝拜时间' },
+      ta: { type: String, default: 'தினசரி ஆரத்தி மற்றும் தரிசன நேரங்கள்' },
+    },
+    subtitle: {
+      en: { type: String, default: 'Join us for the daily divine aarti at Shree Ramchandra Temple' },
+      ne: { type: String, default: 'श्री रामचन्द्र मन्दिरमा दैनिक दिव्य आरतीमा सहभागी हुनुहोस्' },
+      hi: { type: String, default: 'श्री रामचंद्र मंदिर में दैनिक दिव्य आरती में शामिल हों' },
+      zh: { type: String, default: '请加入我们在什里·拉姆钱德拉神庙的每日神圣法会' },
+      ta: { type: String, default: 'ஸ்ரீ ராமச்சந்திர கோவிலில் தினசரி தெய்வீக ஆரத்தியில் கலந்துகொள்ளுங்கள்' },
+    },
+    aartis: [{
+      name: {
+        en: { type: String, default: 'Morning Aarti' },
+        ne: { type: String, default: 'बिहानको आरती' },
+        hi: { type: String, default: 'सुबह की आरती' },
+        zh: { type: String, default: '晨间法会' },
+        ta: { type: String, default: 'காலை ஆரத்தி' },
+      },
+      time: { type: String, default: '05:30 AM' },
+    }],
+    templeInfo: {
+      enabled: { type: Boolean, default: true },
+      title: {
+        en: { type: String, default: 'Temple Information' },
+        ne: { type: String, default: 'मन्दिर जानकारी' },
+        hi: { type: String, default: 'मंदिर की जानकारी' },
+        zh: { type: String, default: '寺庙信息' },
+        ta: { type: String, default: 'கோவில் தகவல்' },
+      },
+      openingHours: {
+        en: { type: String, default: '5:00 AM – 8:00 PM' },
+        ne: { type: String, default: 'बिहान ५:०० – राति ८:००' },
+        hi: { type: String, default: 'सुबह 5:00 – रात 8:00' },
+        zh: { type: String, default: '上午5:00 – 晚上8:00' },
+        ta: { type: String, default: 'காலை 5:00 – இரவு 8:00' },
+      },
+      location: {
+        en: { type: String, default: 'Battisputali, Gaushala, Kathmandu, Nepal' },
+        ne: { type: String, default: 'बत्तीसपुतली, गौशाला, काठमाडौं, नेपाल' },
+        hi: { type: String, default: 'बत्तीसपुतली, गौशाला, काठमाडौं, नेपाल' },
+        zh: { type: String, default: '尼泊尔加德满都巴提斯普塔利' },
+        ta: { type: String, default: 'பட்டீஸ்புதாலி, கௌஷாலா, காத்மாண்டு, நேபாளம்' },
+      },
+      specialAartis: {
+        en: { type: String, default: 'Special aartis on festivals and Ekadashi' },
+        ne: { type: String, default: 'पर्वहरू र एकादशीमा विशेष आरती' },
+        hi: { type: String, default: 'त्योहारों और एकादशी पर विशेष आरती' },
+        zh: { type: String, default: '节日和 Ekadashi 有特别法会' },
+        ta: { type: String, default: 'திருவிழாக்கள் மற்றும் ஏகாதசியில் சிறப்பு ஆரத்தி' },
+      },
+    },
+  },
+
+  // ============================================
+  // MAINTENANCE MODE (super-admin only)
+  // When enabled, public visitors see a modal.
+  // ============================================
+  maintenanceMode: {
+    enabled: { type: Boolean, default: false },
+    title: {
+      en: { type: String, default: 'Under Development' },
+      ne: { type: String, default: 'विकास अन्तर्गत' },
+      hi: { type: String, default: 'विकास कार्य जारी है' },
+      zh: { type: String, default: '网站建设中' },
+      ta: { type: String, default: 'வேலை நடைபெறுகிறது' },
+    },
+    message: {
+      en: { type: String, default: 'We are working hard to improve your experience. Please visit us again soon.' },
+      ne: { type: String, default: 'हामी तपाईंको अनुभव सुधार्न कडा मेहनत गरिरहेका छौं। कृपया चाँडै फेरि भेट्नुहोस्।' },
+      hi: { type: String, default: 'हम आपके अनुभव को बेहतर बनाने के लिए कड़ी मेहनत कर रहे हैं। कृपया जल्द ही फिर से आएं।' },
+      zh: { type: String, default: '我们正在努力改善您的体验。请尽快再次访问。' },
+      ta: { type: String, default: 'உங்கள் அனுபவத்தை மேம்படுத்த நாங்கள் கடுமையாக உழைத்து வருகிறோம். விரைவில் மீண்டும் வாருங்கள்.' },
+    },
+  },
+
   // ============================================
   // TIMESTAMP
   // ============================================

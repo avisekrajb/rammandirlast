@@ -53,6 +53,16 @@ const teamSchema = new mongoose.Schema({
     default: '',
     trim: true,
   },
+  // Optional age, editable from Admin → Team
+  age: {
+    type: Number,
+    default: null,
+  },
+  // Marks a member that ships with the app, so it is only ever seeded once.
+  seedKey: {
+    type: String,
+    default: '',
+  },
   order: {
     type: Number,
     default: 0,

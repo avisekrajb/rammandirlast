@@ -3,11 +3,35 @@ import {
   Save, Trash2, QrCode, CreditCard, Wallet, Smartphone, 
   Banknote, Mail, Settings, Gift, FileText, Download,
   Eye, Check, X, Clock, User, Calendar, Search,
-  Filter, RefreshCw, ChevronDown, ChevronUp
+  Filter, RefreshCw, ChevronDown, ChevronUp, ChevronRight,
+  Plus, Hand
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import api from '../../services/api';
 import DonationReceipt from '../common/DonationReceipt';
+
+const EMPTY_LOC = { en: '', ne: '', hi: '', zh: '', ta: '' };
+const emptyLoc = () => ({ en: '', ne: '', hi: '', zh: '', ta: '' });
+
+const locValue = (obj, lang) => (obj ? (obj[lang] || obj.en || obj.ne || '') : '');
+
+// paragraphs is a free-length list; older records stored a fixed { p1..p4 } object
+const normalizeSection = (raw) => {
+  const section = { ...(raw || {}) };
+  const p = raw?.paragraphs;
+  if (Array.isArray(p)) {
+    section.paragraphs = p.map((x) => ({ ...(x || {}) }));
+  } else if (p && typeof p === 'object') {
+    section.paragraphs = Object.keys(p)
+      .filter((k) => /^p\d+$/i.test(k))
+      .sort((a, b) => parseInt(a.slice(1), 10) - parseInt(b.slice(1), 10))
+      .map((k) => ({ ...(p[k] || {}) }));
+  } else {
+    section.paragraphs = [];
+  }
+  section.points = Array.isArray(section.points) ? section.points : [];
+  return section;
+};
 
 const AdminDonations = ({ donations, setDonations, settings, updateSettings, t, lang }) => {
   const { showToast } = useToast();
@@ -23,6 +47,22 @@ const AdminDonations = ({ donations, setDonations, settings, updateSettings, t, 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [expandedId, setExpandedId] = useState(null);
+
+  // "दान तथा सहयोग" page content
+  const [donateContent, setDonateContent] = useState([]);
+  const [donatePageTitle, setDonatePageTitle] = useState(EMPTY_LOC);
+  const [donateIntro, setDonateIntro] = useState(EMPTY_LOC);
+  const [contentLang, setContentLang] = useState('ne');
+  const [savingContent, setSavingContent] = useState(false);
+  const [openRows, setOpenRows] = useState(() => new Set());
+
+  useEffect(() => {
+    if (Array.isArray(settings?.donateContent)) {
+      setDonateContent(settings.donateContent.map(normalizeSection));
+    }
+    if (settings?.donatePageTitle) setDonatePageTitle(settings.donatePageTitle);
+    if (settings?.donateIntro) setDonateIntro(settings.donateIntro);
+  }, [settings]);
 
   // Initialize from settings when available
   useEffect(() => {
@@ -47,6 +87,129 @@ const AdminDonations = ({ donations, setDonations, settings, updateSettings, t, 
     completed: 'bg-green-50 text-green-700 border-green-200',
     failed: 'bg-red-50 text-red-700 border-red-200',
     refunded: 'bg-gray-50 text-gray-700 border-gray-200',
+  };
+
+  // ===== Donate page content helpers =====
+  const patchSection = (index, fn) =>
+    setDonateContent((prev) => prev.map((s, i) => (i === index ? fn(s) : s)));
+
+  const setSectionField = (index, field, value) =>
+    patchSection(index, (s) => ({ ...s, [field]: { ...(s[field] || {}), [contentLang]: value } }));
+
+  const setSectionParagraph = (index, pIndex, value) => {
+    patchSection(index, (s) => {
+      const paragraphs = normalizeSection(s).paragraphs;
+      while (paragraphs.length <= pIndex) paragraphs.push(emptyLoc());
+      paragraphs[pIndex] = { ...(paragraphs[pIndex] || {}), [contentLang]: value };
+      return { ...s, paragraphs };
+    });
+  };
+
+  const addParagraph = (index) =>
+    patchSection(index, (s) => ({
+      ...s,
+      paragraphs: [...normalizeSection(s).paragraphs, emptyLoc()]
+    }));
+
+  const removeParagraph = (index, pIndex) =>
+    patchSection(index, (s) => ({
+      ...s,
+      paragraphs: normalizeSection(s).paragraphs.filter((_, i) => i !== pIndex)
+    }));
+
+  const moveParagraph = (index, pIndex, dir) =>
+    patchSection(index, (s) => {
+      const paragraphs = normalizeSection(s).paragraphs;
+      const target = pIndex + dir;
+      if (target < 0 || target >= paragraphs.length) return s;
+      [paragraphs[pIndex], paragraphs[target]] = [paragraphs[target], paragraphs[pIndex]];
+      return { ...s, paragraphs };
+    });
+
+  const addPoint = (index) =>
+    patchSection(index, (s) => ({ ...s, points: [...(s.points || []), emptyLoc()] }));
+
+  const setPoint = (index, pIndex, value) =>
+    patchSection(index, (s) => ({
+      ...s,
+      points: (s.points || []).map((p, i) => (i === pIndex ? { ...(p || {}), [contentLang]: value } : p))
+    }));
+
+  const removePoint = (index, pIndex) =>
+    patchSection(index, (s) => ({
+      ...s,
+      points: (s.points || []).filter((_, i) => i !== pIndex)
+    }));
+
+  const movePoint = (index, pIndex, dir) =>
+    patchSection(index, (s) => {
+      const points = [...(s.points || [])];
+      const target = pIndex + dir;
+      if (target < 0 || target >= points.length) return s;
+      [points[pIndex], points[target]] = [points[target], points[pIndex]];
+      return { ...s, points };
+    });
+
+  const addSection = () =>
+    setDonateContent((prev) => [
+      ...prev,
+      {
+        key: `donate_${Date.now()}`,
+        title: emptyLoc(),
+        desc: emptyLoc(),
+        paragraphs: [],
+        listTitle: emptyLoc(),
+        points: [],
+        order: prev.length,
+        enabled: true
+      }
+    ]);
+
+  const removeSection = (index) => {
+    if (!window.confirm('Remove this section?')) return;
+    setDonateContent((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const moveSection = (index, dir) =>
+    setDonateContent((prev) => {
+      const next = [...prev];
+      const target = index + dir;
+      if (target < 0 || target >= next.length) return prev;
+      [next[index], next[target]] = [next[target], next[index]];
+      return next.map((s, i) => ({ ...s, order: i }));
+    });
+
+  const toggleSectionEnabled = (index) =>
+    patchSection(index, (s) => ({ ...s, enabled: s.enabled === false }));
+
+  const toggleRow = (index) =>
+    setOpenRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+
+  const saveContent = async () => {
+    setSavingContent(true);
+    try {
+      const payload = {
+        donatePageTitle,
+        donateIntro,
+        donateContent: donateContent.map((s, i) => ({
+          ...normalizeSection(s),
+          order: i
+        }))
+      };
+      await api.put('/admin/settings', payload);
+      if (updateSettings) updateSettings((prev) => ({ ...prev, ...payload }));
+      showToast('Donate page content saved', 'success');
+    } catch (error) {
+      console.error('Error saving donate content:', error);
+      showToast(error.response?.data?.message || 'Failed to save donate page content', 'error');
+    } finally {
+      setSavingContent(false);
+    }
   };
 
   const handleDelete = async (id) => {
@@ -532,6 +695,350 @@ const AdminDonations = ({ donations, setDonations, settings, updateSettings, t, 
           settings={settings}
         />
       )}
+
+      {/* Donate Page Content — table form */}
+      <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+        <div className="px-6 py-4 bg-gradient-to-r from-[#7A0000]/10 to-[#A00000]/5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h4 className="text-gray-700 font-semibold flex items-center gap-2">
+              <Hand size={18} className="text-[#7A0000]" />
+              Donate Page Content
+            </h4>
+            <p className="text-xs text-gray-400">
+              Shown at the bottom of the donate page, under the donation form.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={addSection}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#7A0000] text-white text-xs font-semibold hover:bg-[#5A0000] transition-all"
+            >
+              <Plus size={14} /> Add Section
+            </button>
+            <button
+              onClick={saveContent}
+              disabled={savingContent}
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[#7A0000] text-white text-xs font-semibold hover:bg-[#5A0000] transition-all disabled:opacity-50"
+            >
+              {savingContent ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save size={14} /> Save Content
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        <div className="p-6">
+          <div className="grid md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold text-ink-soft mb-1">Page Title</label>
+              <input
+                type="text"
+                value={locValue(donatePageTitle, contentLang)}
+                onChange={(e) => setDonatePageTitle({ ...donatePageTitle, [contentLang]: e.target.value })}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:border-[#7A0000] focus:outline-none text-sm"
+                placeholder="e.g. दान तथा सहयोग"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-ink-soft mb-1">Page Intro</label>
+              <input
+                type="text"
+                value={locValue(donateIntro, contentLang)}
+                onChange={(e) => setDonateIntro({ ...donateIntro, [contentLang]: e.target.value })}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:border-[#7A0000] focus:outline-none text-sm"
+                placeholder="Short lead-in shown under the page title"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-1.5 mt-4 mb-4 flex-wrap">
+            {['ne', 'en', 'hi', 'zh', 'ta'].map((l) => (
+              <button
+                key={l}
+                onClick={() => setContentLang(l)}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all ${
+                  contentLang === l
+                    ? 'bg-[#7A0000] text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-[#7A0000]/10'
+                }`}
+              >
+                {l === 'ne' ? 'नेपाली' : l.toUpperCase()}
+              </button>
+            ))}
+          </div>
+
+          {donateContent.length === 0 ? (
+            <p className="text-sm text-gray-400 py-6 text-center">No content sections yet.</p>
+          ) : (
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <table className="w-full text-sm table-fixed">
+                <thead className="bg-gray-50 text-[11px] uppercase tracking-wider text-gray-500">
+                  <tr>
+                    <th className="w-8 text-center font-bold py-2.5">#</th>
+                    <th className="text-left font-bold py-2.5 px-2">Title</th>
+                    <th className="hidden md:table-cell w-16 text-center font-bold py-2.5">Paras</th>
+                    <th className="hidden md:table-cell w-16 text-center font-bold py-2.5">Points</th>
+                    <th className="w-14 text-center font-bold py-2.5">Show</th>
+                    <th className="w-28 text-center font-bold py-2.5">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {donateContent.map((rawSection, i) => {
+                    const section = normalizeSection(rawSection);
+                    const isOpen = openRows.has(i);
+                    const paraCount = section.paragraphs.filter(
+                      (p) => (locValue(p, contentLang) || '').trim()
+                    ).length;
+                    const pointCount = section.points.filter(
+                      (pt) => (locValue(pt, contentLang) || '').trim()
+                    ).length;
+
+                    return (
+                      <React.Fragment key={section.key || i}>
+                        <tr
+                          className="border-t border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
+                          onClick={() => toggleRow(i)}
+                        >
+                          <td className="py-2 text-center text-xs font-mono text-gray-400">{i + 1}</td>
+                          <td className="py-2 px-2">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              {isOpen ? (
+                                <ChevronDown size={14} className="shrink-0 text-gray-400" />
+                              ) : (
+                                <ChevronRight size={14} className="shrink-0 text-gray-400" />
+                              )}
+                              <span className="font-medium text-gray-700 truncate">
+                                {locValue(section.title, contentLang) || 'Untitled section'}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-2 hidden md:table-cell text-center text-xs text-gray-500">
+                            {paraCount || '—'}
+                          </td>
+                          <td className="py-2 hidden md:table-cell text-center text-xs text-gray-500">
+                            {pointCount || '—'}
+                          </td>
+                          <td className="py-2 text-center">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleSectionEnabled(i);
+                              }}
+                              className={`inline-flex items-center justify-center w-7 h-7 rounded-md transition-colors ${
+                                section.enabled === false
+                                  ? 'bg-gray-100 text-gray-300 hover:bg-gray-200'
+                                  : 'bg-[#7A0000]/15 text-[#7A0000]'
+                              }`}
+                              title={section.enabled === false ? 'Hidden on the page' : 'Visible on the page'}
+                            >
+                              {section.enabled === false ? <X size={14} /> : <Check size={14} />}
+                            </button>
+                          </td>
+                          <td className="py-2">
+                            <div
+                              className="flex items-center justify-center gap-0.5"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                onClick={() => moveSection(i, -1)}
+                                disabled={i === 0}
+                                className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"
+                                title="Move up"
+                              >
+                                <ChevronUp size={14} />
+                              </button>
+                              <button
+                                onClick={() => moveSection(i, 1)}
+                                disabled={i === donateContent.length - 1}
+                                className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"
+                                title="Move down"
+                              >
+                                <ChevronDown size={14} />
+                              </button>
+                              <button
+                                onClick={() => removeSection(i)}
+                                className="p-1.5 rounded hover:bg-red-100 text-red-500"
+                                title="Remove"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+
+                        {isOpen && (
+                          <tr className="border-t border-gray-100 bg-gray-50/60">
+                            <td colSpan={6} className="px-4 py-3">
+                              <div className="grid md:grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-[11px] font-bold text-gray-500 mb-1">Title</label>
+                                  <input
+                                    type="text"
+                                    value={locValue(section.title, contentLang)}
+                                    onChange={(e) => setSectionField(i, 'title', e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-[#7A0000] focus:outline-none text-sm"
+                                    placeholder="Section title..."
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[11px] font-bold text-gray-500 mb-1">
+                                    Description
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={locValue(section.desc, contentLang)}
+                                    onChange={(e) => setSectionField(i, 'desc', e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-[#7A0000] focus:outline-none text-sm"
+                                    placeholder="Short lead paragraph under the title"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between mt-3 mb-1.5">
+                                <label className="text-[11px] font-bold text-gray-500">
+                                  Paragraphs ({section.paragraphs.length})
+                                </label>
+                                <button
+                                  onClick={() => addParagraph(i)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#7A0000]/10 text-[#7A0000] text-[11px] font-semibold hover:bg-[#7A0000]/20 transition-all"
+                                >
+                                  <Plus size={12} /> Add Paragraph
+                                </button>
+                              </div>
+                              <p className="text-[11px] text-gray-400 mb-2">
+                                Add as many as you need. Empty ones are skipped on the public page.
+                              </p>
+
+                              {section.paragraphs.length === 0 ? (
+                                <p className="text-[11px] text-gray-400">No paragraphs yet.</p>
+                              ) : (
+                                section.paragraphs.map((para, pi) => (
+                                  <div key={pi} className="mb-2">
+                                    <div className="flex items-center gap-1.5 mb-1">
+                                      <span className="text-[11px] font-mono text-gray-400 w-4 shrink-0">
+                                        {pi + 1}
+                                      </span>
+                                      <span className="text-xs text-gray-500 flex-1">
+                                        Paragraph {pi + 1}
+                                      </span>
+                                      <button
+                                        onClick={() => moveParagraph(i, pi, -1)}
+                                        disabled={pi === 0}
+                                        className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-30"
+                                        title="Move up"
+                                      >
+                                        <ChevronUp size={13} />
+                                      </button>
+                                      <button
+                                        onClick={() => moveParagraph(i, pi, 1)}
+                                        disabled={pi === section.paragraphs.length - 1}
+                                        className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-30"
+                                        title="Move down"
+                                      >
+                                        <ChevronDown size={13} />
+                                      </button>
+                                      <button
+                                        onClick={() => removeParagraph(i, pi)}
+                                        className="p-1.5 rounded hover:bg-red-100 text-red-500"
+                                        title="Remove"
+                                      >
+                                        <Trash2 size={13} />
+                                      </button>
+                                    </div>
+                                    <textarea
+                                      rows={2}
+                                      value={locValue(para, contentLang)}
+                                      onChange={(e) => setSectionParagraph(i, pi, e.target.value)}
+                                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-[#7A0000] focus:outline-none text-sm resize-none"
+                                      placeholder={`Paragraph ${pi + 1}`}
+                                    />
+                                  </div>
+                                ))
+                              )}
+
+                              <div className="grid md:grid-cols-2 gap-3 mt-3">
+                                <div>
+                                  <label className="block text-[11px] font-bold text-gray-500 mb-1">
+                                    List Heading
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={locValue(section.listTitle, contentLang)}
+                                    onChange={(e) => setSectionField(i, 'listTitle', e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-[#7A0000] focus:outline-none text-sm"
+                                    placeholder="Optional"
+                                  />
+                                </div>
+                                <div className="flex items-end">
+                                  <button
+                                    onClick={() => addPoint(i)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-[#7A0000]/10 text-[#7A0000] text-[11px] font-semibold hover:bg-[#7A0000]/20 transition-all"
+                                  >
+                                    <Plus size={12} /> Add Point
+                                  </button>
+                                </div>
+                              </div>
+
+                              {section.points.length > 0 && (
+                                <div className="mt-2">
+                                  {section.points.map((point, pi) => (
+                                    <div key={pi} className="flex items-center gap-1.5 mb-1.5">
+                                      <span className="text-[11px] font-mono text-gray-400 w-4 shrink-0">
+                                        {pi + 1}
+                                      </span>
+                                      <input
+                                        type="text"
+                                        value={locValue(point, contentLang)}
+                                        onChange={(e) => setPoint(i, pi, e.target.value)}
+                                        className="flex-1 min-w-0 px-3 py-2 border border-gray-200 rounded-lg focus:border-[#7A0000] focus:outline-none text-sm"
+                                        placeholder={`Point ${pi + 1}`}
+                                      />
+                                      <button
+                                        onClick={() => movePoint(i, pi, -1)}
+                                        disabled={pi === 0}
+                                        className="p-2 rounded hover:bg-gray-200 disabled:opacity-30"
+                                        title="Move up"
+                                      >
+                                        <ChevronUp size={13} />
+                                      </button>
+                                      <button
+                                        onClick={() => movePoint(i, pi, 1)}
+                                        disabled={pi === section.points.length - 1}
+                                        className="p-2 rounded hover:bg-gray-200 disabled:opacity-30"
+                                        title="Move down"
+                                      >
+                                        <ChevronDown size={13} />
+                                      </button>
+                                      <button
+                                        onClick={() => removePoint(i, pi)}
+                                        className="p-2 rounded hover:bg-red-100 text-red-500"
+                                        title="Remove"
+                                      >
+                                        <Trash2 size={13} />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
@@ -92,6 +92,7 @@ const NotificationItem = ({ notification, onMarkRead, onDelete, onToggleExpand, 
                   notification.type === 'booking' ? 'bg-vermilion/10 text-vermilion' :
                   notification.type === 'donation' ? 'bg-green-50 text-green-600' :
                   notification.type === 'contact' ? 'bg-purple-50 text-purple-600' :
+                  notification.type === 'subscribe' ? 'bg-amber-50 text-amber-600' :
                   'bg-gray-100 text-gray-600'
                 }`}>
                   {notification.type}
@@ -148,6 +149,12 @@ const NotificationItem = ({ notification, onMarkRead, onDelete, onToggleExpand, 
                         notification.data.status === 'read' ? 'bg-blue-100 text-blue-700' :
                         'bg-yellow-100 text-yellow-700'
                       }`}>{notification.data.status || 'new'}</span></p>
+                    </>
+                  )}
+                  {notification.type === 'subscribe' && (
+                    <>
+                      <p><strong className="text-ink">Email:</strong> <span className="text-ink-soft">{notification.data.email}</span></p>
+                      <p><strong className="text-ink">Subscribed:</strong> <span className="text-ink-soft">{new Date(notification.data.createdAt || notification.time).toLocaleDateString()}</span></p>
                     </>
                   )}
                 </div>
@@ -220,185 +227,69 @@ const AdminNotifications = () => {
     bookings: 0,
     donations: 0,
     contacts: 0,
+    subscribes: 0,
     old: 0
   });
   const fetched = useRef(false);
-  const cleanupInterval = useRef(null);
 
-  // Load deleted IDs from localStorage
-  const getDeletedIds = () => {
-    try {
-      const stored = localStorage.getItem('deleted_notification_ids');
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
+  // Map a backend notification to the shape used by the UI
+  const mapNotification = (n) => {
+    const type = n.type || 'system';
+    let icon;
+    let bgColor;
+    switch (type) {
+      case 'user':
+        icon = <User size={18} className="text-blue-500" />;
+        bgColor = 'bg-blue-50';
+        break;
+      case 'booking':
+        icon = <CalendarDays size={18} className="text-vermilion" />;
+        bgColor = 'bg-vermilion/10';
+        break;
+      case 'donation':
+        icon = <Gift size={18} className="text-green-500" />;
+        bgColor = 'bg-green-50';
+        break;
+      case 'contact':
+        icon = <MessageSquare size={18} className="text-purple-500" />;
+        bgColor = 'bg-purple-50';
+        break;
+      case 'subscribe':
+        icon = <Mail size={18} className="text-amber-500" />;
+        bgColor = 'bg-amber-50';
+        break;
+      default:
+        icon = <Bell size={18} className="text-gray-500" />;
+        bgColor = 'bg-gray-50';
+        break;
     }
+    return {
+      id: n._id,
+      type,
+      title: n.title,
+      message: n.message,
+      time: n.createdAt || new Date().toISOString(),
+      read: !!n.read,
+      data: n.data || {},
+      icon,
+      bgColor,
+    };
   };
 
-  // Save deleted IDs to localStorage
-  const saveDeletedIds = (ids) => {
-    try {
-      localStorage.setItem('deleted_notification_ids', JSON.stringify(ids));
-    } catch (error) {
-      console.error('Error saving deleted IDs:', error);
-    }
-  };
-
-  // Add ID to deleted list
-  const addDeletedId = (id) => {
-    const deletedIds = getDeletedIds();
-    if (!deletedIds.includes(id)) {
-      deletedIds.push(id);
-      saveDeletedIds(deletedIds);
-    }
-  };
-
-  // Auto-delete notifications older than 6 months
-  const cleanupOldNotifications = useCallback((notifs) => {
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-    
-    const filtered = notifs.filter(n => {
-      const notifDate = new Date(n.time);
-      return notifDate >= sixMonthsAgo;
-    });
-    
-    const deletedIds = getDeletedIds();
-    const newDeletedIds = [...deletedIds];
-    
-    notifs.forEach(n => {
-      const notifDate = new Date(n.time);
-      if (notifDate < sixMonthsAgo && !deletedIds.includes(n.id)) {
-        newDeletedIds.push(n.id);
-      }
-    });
-    
-    if (newDeletedIds.length > deletedIds.length) {
-      saveDeletedIds(newDeletedIds);
-    }
-    
-    return filtered;
-  }, []);
-
-  // Generate unique notifications
-  const generateNotifications = useCallback((usersData, bookingsData, donationsData, contactsData) => {
-    const notifs = [];
-    const seenIds = new Set();
-    const deletedIds = getDeletedIds();
-
-    // New Users
-    usersData.slice(0, 20).forEach(u => {
-      const id = `user-${u._id}`;
-      if (!seenIds.has(id) && !deletedIds.includes(id)) {
-        seenIds.add(id);
-        notifs.push({
-          id: id,
-          type: 'user',
-          title: 'New Devotee Registered',
-          message: `${u.name} joined the temple community`,
-          time: u.createdAt || new Date().toISOString(),
-          read: false,
-          data: u,
-          icon: <User size={18} className="text-blue-500" />,
-          bgColor: 'bg-blue-50',
-          borderColor: 'border-blue-200',
-          badgeColor: 'bg-blue-500'
-        });
-      }
-    });
-
-    // New Bookings
-    bookingsData.slice(0, 20).forEach(b => {
-      const id = `booking-${b._id}`;
-      if (!seenIds.has(id) && !deletedIds.includes(id)) {
-        seenIds.add(id);
-        notifs.push({
-          id: id,
-          type: 'booking',
-          title: 'New Puja Booking',
-          message: `${b.name} booked a ${b.type} puja`,
-          time: b.createdAt || new Date().toISOString(),
-          read: false,
-          data: b,
-          icon: <CalendarDays size={18} className="text-vermilion" />,
-          bgColor: 'bg-vermilion/10',
-          borderColor: 'border-vermilion/20',
-          badgeColor: 'bg-vermilion'
-        });
-      }
-    });
-
-    // New Donations
-    donationsData.slice(0, 20).forEach(d => {
-      const id = `donation-${d._id}`;
-      if (!seenIds.has(id) && !deletedIds.includes(id)) {
-        seenIds.add(id);
-        notifs.push({
-          id: id,
-          type: 'donation',
-          title: 'New Donation Received',
-          message: `${d.name} donated to the temple`,
-          time: d.date || new Date().toISOString(),
-          read: false,
-          data: d,
-          icon: <Gift size={18} className="text-green-500" />,
-          bgColor: 'bg-green-50',
-          borderColor: 'border-green-200',
-          badgeColor: 'bg-green-500'
-        });
-      }
-    });
-
-    // Contact Messages
-    contactsData.slice(0, 20).forEach(c => {
-      const id = `contact-${c._id}`;
-      if (!seenIds.has(id) && !deletedIds.includes(id)) {
-        seenIds.add(id);
-        notifs.push({
-          id: id,
-          type: 'contact',
-          title: 'New Contact Message',
-          message: `${c.name} sent a message: "${c.message.substring(0, 50)}${c.message.length > 50 ? '...' : ''}"`,
-          time: c.createdAt || new Date().toISOString(),
-          read: c.status === 'read' || c.status === 'replied',
-          data: c,
-          icon: <MessageSquare size={18} className="text-purple-500" />,
-          bgColor: 'bg-purple-50',
-          borderColor: 'border-purple-200',
-          badgeColor: 'bg-purple-500'
-        });
-      }
-    });
-
-    return notifs;
-  }, []);
-
-  // Fetch real data
+  // Fetch real notifications from backend
   useEffect(() => {
     if (fetched.current) return;
     fetched.current = true;
 
     const fetchNotifications = async () => {
       try {
-        const [usersRes, bookingsRes, donationsRes, contactsRes] = await Promise.all([
-          api.get('/admin/users'),
-          api.get('/admin/bookings'),
-          api.get('/admin/donations'),
-          api.get('/contact')
-        ]);
+        const res = await api.get('/admin/notifications');
 
-        let notifications = generateNotifications(
-          usersRes.data || [],
-          bookingsRes.data || [],
-          donationsRes.data || [],
-          contactsRes.data?.data || []
-        );
+        const notifs = (res.data?.data || []).map(mapNotification);
+        notifs.sort((a, b) => new Date(b.time) - new Date(a.time));
 
-        notifications.sort((a, b) => new Date(b.time) - new Date(a.time));
-        notifications = cleanupOldNotifications(notifications);
-
-        setNotifications(notifications);
-        updateStats(notifications);
+        setNotifications(notifs);
+        updateStats(notifs, res.data?.stats);
       } catch (error) {
         console.error('Error fetching notifications:', error);
         showToast('Failed to load notifications', 'error');
@@ -407,47 +298,8 @@ const AdminNotifications = () => {
       }
     };
 
-    const updateStats = (notifs) => {
-      const unreadCount = notifs.filter(n => !n.read).length;
-      const userCount = notifs.filter(n => n.type === 'user').length;
-      const bookingCount = notifs.filter(n => n.type === 'booking').length;
-      const donationCount = notifs.filter(n => n.type === 'donation').length;
-      const contactCount = notifs.filter(n => n.type === 'contact').length;
-
-      const threeMonthsAgo = new Date();
-      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-      const oldCount = notifs.filter(n => new Date(n.time) < threeMonthsAgo).length;
-
-      setStats({
-        total: notifs.length,
-        unread: unreadCount,
-        users: userCount,
-        bookings: bookingCount,
-        donations: donationCount,
-        contacts: contactCount,
-        old: oldCount
-      });
-    };
-
     fetchNotifications();
-
-    cleanupInterval.current = setInterval(() => {
-      setNotifications(prev => {
-        const cleaned = cleanupOldNotifications(prev);
-        if (cleaned.length < prev.length) {
-          updateStats(cleaned);
-          return cleaned;
-        }
-        return prev;
-      });
-    }, 6 * 60 * 60 * 1000);
-
-    return () => {
-      if (cleanupInterval.current) {
-        clearInterval(cleanupInterval.current);
-      }
-    };
-  }, [cleanupOldNotifications, generateNotifications, showToast]);
+  }, [showToast]);
 
   const handleDelete = (id) => {
     setDeleteType('single');
@@ -455,15 +307,20 @@ const AdminNotifications = () => {
     setShowDeleteModal(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     const id = deleteId;
-    addDeletedId(id);
-    
-    const updatedNotifications = notifications.filter(n => n.id !== id);
-    setNotifications(updatedNotifications);
-    updateStats(updatedNotifications);
-    
-    showToast('Notification deleted successfully', 'success');
+    try {
+      await api.delete(`/admin/notifications/${id}`);
+
+      const updatedNotifications = notifications.filter(n => n.id !== id);
+      setNotifications(updatedNotifications);
+      updateStats(updatedNotifications);
+
+      showToast('Notification deleted successfully', 'success');
+    } catch (error) {
+      console.error('Delete notification error:', error);
+      showToast('Failed to delete notification', 'error');
+    }
     setShowDeleteModal(false);
     setDeleteId(null);
     setDeleteType(null);
@@ -475,57 +332,74 @@ const AdminNotifications = () => {
     setShowDeleteModal(true);
   };
 
-  const confirmDeleteAll = () => {
-    const allIds = notifications.map(n => n.id);
-    allIds.forEach(id => addDeletedId(id));
-    
-    setNotifications([]);
-    setStats({
-      total: 0,
-      unread: 0,
-      users: 0,
-      bookings: 0,
-      donations: 0,
-      contacts: 0,
-      old: 0
-    });
-    
-    showToast('All notifications deleted successfully', 'success');
+  const confirmDeleteAll = async () => {
+    try {
+      await api.delete('/admin/notifications', { data: { type: filter } });
+
+      const remaining = filter === 'all'
+        ? []
+        : notifications.filter(n => n.type !== filter);
+
+      setNotifications(remaining);
+      updateStats(remaining);
+
+      showToast('Notifications deleted successfully', 'success');
+    } catch (error) {
+      console.error('Delete all notifications error:', error);
+      showToast('Failed to delete notifications', 'error');
+    }
     setShowDeleteModal(false);
     setDeleteType(null);
   };
 
-  const handleMarkRead = (id) => {
+  const handleMarkRead = async (id) => {
     const notification = notifications.find(n => n.id === id);
     if (!notification) return;
-    
+
     const wasUnread = !notification.read;
-    
+    const nextRead = !notification.read;
+
+    // Optimistic update
     const updatedNotifications = notifications.map(n => {
       if (n.id === id) {
-        return { ...n, read: !n.read };
+        return { ...n, read: nextRead };
       }
       return n;
     });
-    
+
     setNotifications(updatedNotifications);
     updateStats(updatedNotifications);
-    
-    showToast(wasUnread ? 'Notification marked as read' : 'Notification marked as unread', 'success');
+
+    try {
+      await api.put(`/admin/notifications/${id}/read`, { read: nextRead });
+      showToast(wasUnread ? 'Notification marked as read' : 'Notification marked as unread', 'success');
+    } catch (error) {
+      console.error('Mark notification read error:', error);
+      // Revert on failure
+      setNotifications(notifications);
+      updateStats(notifications);
+      showToast('Failed to update notification', 'error');
+    }
   };
 
-  const handleMarkAllRead = () => {
+  const handleMarkAllRead = async () => {
     const unreadCount = notifications.filter(n => !n.read).length;
-    
+
     const updatedNotifications = notifications.map(n => ({
       ...n,
       read: true
     }));
-    
+
     setNotifications(updatedNotifications);
     updateStats(updatedNotifications);
-    
-    showToast(`Marked ${unreadCount} notifications as read`, 'success');
+
+    try {
+      await api.put('/admin/notifications/read-all');
+      showToast(`Marked ${unreadCount} notifications as read`, 'success');
+    } catch (error) {
+      console.error('Mark all read error:', error);
+      showToast('Failed to mark all as read', 'error');
+    }
   };
 
   const toggleExpand = (id) => {
@@ -535,25 +409,13 @@ const AdminNotifications = () => {
   const refreshNotifications = async () => {
     setLoading(true);
     try {
-      const [usersRes, bookingsRes, donationsRes, contactsRes] = await Promise.all([
-        api.get('/admin/users'),
-        api.get('/admin/bookings'),
-        api.get('/admin/donations'),
-        api.get('/contact')
-      ]);
+      const res = await api.get('/admin/notifications');
 
-      let notifications = generateNotifications(
-        usersRes.data || [],
-        bookingsRes.data || [],
-        donationsRes.data || [],
-        contactsRes.data?.data || []
-      );
+      const notifs = (res.data?.data || []).map(mapNotification);
+      notifs.sort((a, b) => new Date(b.time) - new Date(a.time));
 
-      notifications.sort((a, b) => new Date(b.time) - new Date(a.time));
-      notifications = cleanupOldNotifications(notifications);
-
-      setNotifications(notifications);
-      updateStats(notifications);
+      setNotifications(notifs);
+      updateStats(notifs, res.data?.stats);
       showToast('Notifications refreshed', 'success');
     } catch (error) {
       console.error('Error refreshing notifications:', error);
@@ -563,24 +425,26 @@ const AdminNotifications = () => {
     }
   };
 
-  const updateStats = (notifs) => {
+  const updateStats = (notifs, serverStats) => {
     const unreadCount = notifs.filter(n => !n.read).length;
     const userCount = notifs.filter(n => n.type === 'user').length;
     const bookingCount = notifs.filter(n => n.type === 'booking').length;
     const donationCount = notifs.filter(n => n.type === 'donation').length;
     const contactCount = notifs.filter(n => n.type === 'contact').length;
+    const subscribeCount = notifs.filter(n => n.type === 'subscribe').length;
 
     const threeMonthsAgo = new Date();
     threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
     const oldCount = notifs.filter(n => new Date(n.time) < threeMonthsAgo).length;
 
     setStats({
-      total: notifs.length,
-      unread: unreadCount,
-      users: userCount,
-      bookings: bookingCount,
-      donations: donationCount,
-      contacts: contactCount,
+      total: serverStats?.total ?? notifs.length,
+      unread: serverStats?.unread ?? unreadCount,
+      users: serverStats?.users ?? userCount,
+      bookings: serverStats?.bookings ?? bookingCount,
+      donations: serverStats?.donations ?? donationCount,
+      contacts: serverStats?.contacts ?? contactCount,
+      subscribes: serverStats?.subscribes ?? subscribeCount,
       old: oldCount
     });
   };
@@ -625,7 +489,7 @@ const AdminNotifications = () => {
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 mb-6">
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3 text-center hover:shadow-md transition-all">
           <div className="text-xl font-bold text-ink">{stats.total}</div>
           <div className="text-[10px] text-ink-soft font-medium">Total</div>
@@ -649,6 +513,10 @@ const AdminNotifications = () => {
         <div className="bg-white rounded-xl shadow-sm border border-purple-100 p-3 text-center hover:shadow-md transition-all">
           <div className="text-xl font-bold text-purple-600">{stats.contacts}</div>
           <div className="text-[10px] text-ink-soft font-medium">Contacts</div>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-amber-100 p-3 text-center hover:shadow-md transition-all">
+          <div className="text-xl font-bold text-amber-600">{stats.subscribes}</div>
+          <div className="text-[10px] text-ink-soft font-medium">Subscribers</div>
         </div>
       </div>
 
@@ -690,7 +558,7 @@ const AdminNotifications = () => {
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
         <div className="flex gap-2 flex-wrap">
-          {['all', 'user', 'booking', 'donation', 'contact'].map((type) => (
+          {['all', 'user', 'booking', 'donation', 'contact', 'subscribe'].map((type) => (
             <button
               key={type}
               onClick={() => setFilter(type)}

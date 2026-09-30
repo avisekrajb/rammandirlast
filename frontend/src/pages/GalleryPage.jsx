@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSearchParams } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { useToast } from '../context/ToastContext';
 import { X, Download, Image as ImageIcon, Youtube } from 'lucide-react';
 import api from '../services/api';
+import { handleImageError } from '../utils/imageFallback';
 import OmLoader from '../components/common/OmLoader';
+import FacebookVideoSection from '../components/common/FacebookVideoSection';
 
 // Fallback images for when API fails
 const fallbackImages = [
@@ -26,92 +29,6 @@ const getLocalizedText = (obj, lang) => {
   if (typeof obj === 'string') return obj;
   return obj[lang] || obj.en || '';
 };
-
-// ─── Facebook Embedded Videos (same set used on the Home page) ─────────────
-// Admin-editable via settings?.facebookVideos (array of { url, enabled }) if
-// wired up later; falls back to this hardcoded list otherwise.
-const DEFAULT_FACEBOOK_VIDEOS = [
-  'https://www.facebook.com/shreeramchandramandir/videos/2472164706588918/',
-  'https://www.facebook.com/shreeramchandramandir/videos/1075819584931828/',
-  'https://www.facebook.com/shreeramchandramandir/videos/2273607406769837/',
-  'https://www.facebook.com/shreeramchandramandir/videos/1614691790082453/',
-  'https://www.facebook.com/shreeramchandramandir/videos/2106938773498642/',
-  'https://www.facebook.com/shreeramchandramandir/videos/1041350001985138/',
-];
-
-const FACEBOOK_VIDEOS_PAGE_SIZE = 6;
-
-function FacebookVideoCard({ url }) {
-  const embedSrc = `https://www.facebook.com/plugins/video.php?height=314&href=${encodeURIComponent(
-    url
-  )}&show_text=false&width=560&t=0`;
-
-  return (
-    <div className="rounded-xl overflow-hidden shadow-lg border border-line bg-black">
-      <div className="relative w-full" style={{ paddingBottom: '56.13%' /* 314/560 aspect ratio */ }}>
-        <iframe
-          src={embedSrc}
-          className="absolute inset-0 w-full h-full"
-          style={{ border: 'none', overflow: 'hidden' }}
-          scrolling="no"
-          frameBorder="0"
-          allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
-          allowFullScreen
-          title="Facebook Video"
-        />
-      </div>
-    </div>
-  );
-}
-
-function FacebookVideosSection({ settings, t }) {
-  const [showAll, setShowAll] = useState(false);
-
-  const fbEnabled = settings?.facebookVideo?.enabled !== false;
-  if (!fbEnabled) return null;
-
-  const configuredVideos = settings?.facebookVideos
-    ?.filter(v => v.enabled !== false)
-    ?.map(v => v.url)
-    ?.filter(Boolean);
-
-  const videos = configuredVideos && configuredVideos.length > 0
-    ? configuredVideos
-    : DEFAULT_FACEBOOK_VIDEOS;
-
-  if (videos.length === 0) return null;
-
-  const visibleVideos = showAll ? videos : videos.slice(0, FACEBOOK_VIDEOS_PAGE_SIZE);
-  const hasMore = videos.length > FACEBOOK_VIDEOS_PAGE_SIZE;
-
-  return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-16">
-      <div className="text-center mb-8">
-        <h2 className="font-serif text-2xl sm:text-3xl" style={{ color: "#7A0000" }}>
-          {t.facebookVideoTitle || 'Watch on Facebook'}
-        </h2>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {visibleVideos.map((url, idx) => (
-          <FacebookVideoCard key={`${url}-${idx}`} url={url} />
-        ))}
-      </div>
-
-      {hasMore && (
-        <div className="text-center mt-10">
-          <button
-            onClick={() => setShowAll(prev => !prev)}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-full font-semibold text-sm text-white hover:-translate-y-0.5 transition-all shadow-lg shadow-vermilion/30"
-            style={{ backgroundColor: "#7A0000" }}
-          >
-            {showAll ? (t.viewLess || 'View Less') : (t.viewMore || 'View More')}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ─── Watermark Utility Functions ──────────────────────────────────────────
 const WATERMARK_TEXT = 'श्री राम मंदिर';
@@ -404,11 +321,20 @@ function LightboxModal({ items, index, t, lang, onClose, onPrev, onNext }) {
             src={item.photo}
             alt={caption}
             className="max-w-full max-h-[82vh] object-contain rounded-lg"
-            onError={(e) => { e.target.src = '/1.jpg'; }}
-          />
-        )}
+              onError={(e) => { handleImageError(e, '/1.jpg'); }}
+            />
+          )}
         <div className="mt-3 text-center">
-          {caption && <p className="text-white/80 text-sm">{caption}</p>}
+          {(() => {
+            const title = getLocalizedText(item.title, lang) || caption;
+            const desc = getLocalizedText(item.description, lang);
+            return (
+              <>
+                {title && <p className="text-white/80 text-sm font-serif font-medium">{title}</p>}
+                {desc && <p className="text-white/50 text-xs mt-1 max-w-md mx-auto">{desc}</p>}
+              </>
+            );
+          })()}
           <p className="text-white/35 text-xs mt-1">{index + 1} / {items.length}</p>
         </div>
       </motion.div>
@@ -420,12 +346,26 @@ function LightboxModal({ items, index, t, lang, onClose, onPrev, onNext }) {
 const GalleryPage = () => {
   const { t, lang } = useLanguage();
   const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useState('photos');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') === 'videos' ? 'videos' : 'photos');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lbState, setLbState] = useState(null);
   const [settings, setSettings] = useState(null);
   const fetched = useRef(false);
+
+  // Keep the tab in sync with the ?tab= query param (used by "View More Reels")
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'videos' || tab === 'photos') {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setSearchParams(tab === 'videos' ? { tab: 'videos' } : {}, { replace: true });
+  };
 
   // Fetch gallery items from API
   useEffect(() => {
@@ -503,7 +443,7 @@ const GalleryPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center" style={{ background: '#faf8f5' }}>
+      <div className="min-h-[60vh] flex items-center justify-center" style={{ background: '#ffffff' }}>
         <div className="text-center">
           <OmLoader size="lg" color="vermilion" className="mx-auto mb-4" />
           <p className="text-ink-soft text-sm">Loading gallery...</p>
@@ -513,7 +453,7 @@ const GalleryPage = () => {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: '#faf8f5' }}>
+    <div className="min-h-screen" style={{ background: '#ffffff' }}>
       {/* Header */}
       <div className="pt-28 pb-6 text-center px-4">
         <motion.div
@@ -534,7 +474,7 @@ const GalleryPage = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-center gap-2 py-4">
           <button
-            onClick={() => setActiveTab('photos')}
+            onClick={() => handleTabChange('photos')}
             className={`flex items-center gap-2 px-6 py-2 rounded-full text-sm font-medium transition-all ${
               activeTab === 'photos'
                 ? 'bg-vermilion text-white shadow-lg shadow-vermilion/20'
@@ -545,7 +485,7 @@ const GalleryPage = () => {
             {t.galleryPhotos || 'Photos'}
           </button>
           <button
-            onClick={() => setActiveTab('videos')}
+            onClick={() => handleTabChange('videos')}
             className={`flex items-center gap-2 px-6 py-2 rounded-full text-sm font-medium transition-all ${
               activeTab === 'videos'
                 ? 'bg-vermilion text-white shadow-lg shadow-vermilion/20'
@@ -588,7 +528,7 @@ const GalleryPage = () => {
                       alt={caption}
                       loading="lazy"
                       className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-500 ease-out"
-                      onError={(e) => { e.target.src = '/1.jpg'; }}
+                        onError={(e) => { handleImageError(e, '/1.jpg'); }}
                     />
                   )}
                   
@@ -599,13 +539,20 @@ const GalleryPage = () => {
                   <div className="absolute bottom-0 left-0 right-0 p-3 transform translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out">
                     <div className="text-center">
                       <p className="text-white/90 text-xs sm:text-sm font-medium tracking-wider font-serif">
-                        श्री राम मंदिर
+                        {getLocalizedText(item.title, lang) || caption || 'श्री राम मंदिर'}
                       </p>
-                      {caption && (
-                        <p className="text-white/60 text-[10px] sm:text-xs mt-0.5 truncate">
-                          {caption}
-                        </p>
-                      )}
+                      {(() => {
+                        const desc = getLocalizedText(item.description, lang);
+                        return desc ? (
+                          <p className="text-white/60 text-[10px] sm:text-xs mt-0.5 line-clamp-2">
+                            {desc}
+                          </p>
+                        ) : (
+                          <p className="text-white/60 text-[10px] sm:text-xs mt-0.5 truncate">
+                            {caption}
+                          </p>
+                        );
+                      })()}
                     </div>
                   </div>
                   
@@ -630,9 +577,9 @@ const GalleryPage = () => {
         </div>
       )}
 
-      {/* Facebook Embedded Videos - Videos tab only */}
+      {/* Facebook Videos + Reels - Videos tab only */}
       {activeTab === 'videos' && (
-        <FacebookVideosSection settings={settings} t={t} />
+        <FacebookVideoSection settings={settings} t={t} showViewMoreReels={false} containerClass="max-w-7xl mx-auto px-4 sm:px-6 pb-16" />
       )}
 
       <AnimatePresence>

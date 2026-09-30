@@ -531,7 +531,7 @@ const MyBookingsPage = () => {
   }
 
   return (
-    <main className="min-h-screen" style={{ background: 'linear-gradient(180deg, #faf8f5 0%, #ffffff 50%, #faf8f5 100%)' }}>
+    <main className="min-h-screen" style={{ background: '#ffffff' }}>
       <PageHero title={t.myBookings} sub={t.bookingIntro} />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">

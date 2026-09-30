@@ -2,6 +2,7 @@ const Donation = require('../models/Donation');
 const User = require('../models/User');
 const AdminSettings = require('../models/AdminSettings');
 const { sendDonationConfirmation } = require('../services/emailService');
+const { createNotification } = require('./notificationController');
 
 // @desc    Create donation
 // @route   POST /api/donations
@@ -34,6 +35,14 @@ exports.createDonation = async (req, res) => {
       console.error('Email sending error:', emailError);
       // Don't fail the request if email fails
     }
+
+    // Notify admins about new donation
+    await createNotification(
+      'donation',
+      'New Donation Received',
+      `${donation.name} donated to the temple`,
+      { id: donation._id, name: donation.name, email: donation.email, amount: donation.amount, date: donation.date, status: donation.status }
+    );
 
     res.status(201).json({
       success: true,

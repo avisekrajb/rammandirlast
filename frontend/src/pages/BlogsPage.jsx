@@ -108,7 +108,7 @@ const BlogsPage = () => {
   };
 
   return (
-    <div className="min-h-screen" style={{ background: 'linear-gradient(180deg, #faf8f5 0%, #ffffff 50%, #faf8f5 100%)' }}>
+    <div className="min-h-screen" style={{ background: '#ffffff' }}>
       {/* Header */}
       <div className="relative pt-24 pb-12 text-center px-6 overflow-hidden">
         <div className="absolute inset-0 opacity-5">

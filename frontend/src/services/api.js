@@ -1,8 +1,11 @@
 import axios from 'axios';
 import { getToken } from './auth';
 
+// Relative base URL by default: requests go to the same origin and the dev-server
+// proxy forwards /api to the backend. This keeps the app working unchanged from
+// http://localhost:4000 and from a phone on http://192.168.1.107:4000.
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000/api',
+  baseURL: process.env.REACT_APP_API_URL || '/api',
   headers: {
     'Content-Type': 'application/json',
   },

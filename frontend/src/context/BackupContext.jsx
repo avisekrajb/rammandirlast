@@ -30,6 +30,7 @@ export const BackupProvider = ({ children }) => {
         description: options.description || 'Auto backup',
         type: options.type || 'full',
         includeDeleted: options.includeDeleted !== false,
+        sections: options.sections || [],
       });
 
       // Simulate progress
@@ -85,16 +86,21 @@ export const BackupProvider = ({ children }) => {
       const response = await api.get(`/admin/backup/${backupId}/download`, {
         responseType: 'blob',
       });
-      
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+
+      const contentType = response.headers['content-type'] || '';
+      const isZip = contentType.includes('zip');
+      const extension = isZip ? 'zip' : 'json';
+      const filename = `backup-${new Date().toISOString().split('T')[0]}.${extension}`;
+
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: contentType }));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `backup-${new Date().toISOString().split('T')[0]}.json`);
+      link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
       link.remove();
-      
-      showToast('Backup downloaded successfully', 'success');
+
+      showToast(isZip ? 'Backup ZIP (with media) downloaded' : 'Backup downloaded successfully', 'success');
     } catch (error) {
       console.error('Download error:', error);
       showToast('Failed to download backup', 'error');

@@ -17,7 +17,7 @@ const AdminLogo = ({ settings, updateSettings, t }) => {
   
   // Logo size settings - MODERN approach with max constraints
   const [logoSize, setLogoSize] = useState(settings?.logo?.size || 'w-12 h-12');
-  const [logoShape, setLogoShape] = useState(settings?.logo?.shape || 'rounded-xl');
+  const [logoShape, setLogoShape] = useState(settings?.logo?.shape || 'rounded-full');
   const [logoBgColor, setLogoBgColor] = useState(settings?.logo?.bgColor || 'from-vermilion to-maroon-deep');
   const [showText, setShowText] = useState(settings?.logo?.showText !== false);
   const [textColor, setTextColor] = useState(settings?.logo?.textColor || 'text-maroon');

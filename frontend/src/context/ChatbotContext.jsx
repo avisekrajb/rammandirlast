@@ -1,5 +1,7 @@
 import React, { createContext, useState, useContext, useRef, useEffect, useCallback } from 'react';
 import { useLanguage } from './LanguageContext';
+import { useAuth } from './AuthContext';
+import api from '../services/api';
 import chatbotData from '../data/chatbotData.json';
 
 // Translations for chatbot
@@ -36,6 +38,18 @@ const translations = {
     methods: "Methods",
     contact: "Contact",
     typeMessage: "Type a message...",
+    loginRequired: "Please login to use the temple assistant",
+    loginToChat: "Login to chat with the assistant",
+    developer: "This website and the temple assistant were developed by Abhishek Rajbanshi of zeroinfinitytechnology.",
+    aartiInfo: "Aarti Schedule",
+    galleryInfo: "Gallery & Videos",
+    calendarInfo: "Festival Calendar",
+    historyInfo: "Temple History",
+    visitingInfo: "Visiting Guide",
+    blogsInfo: "News & Blogs",
+    privacyInfo: "Privacy Policy",
+    termsInfo: "Terms & Conditions",
+    related: "Related questions",
   },
   ne: {
     greeting: "🕉 जय श्री राम! आज म कसरी सहायता गर्न सक्छु?",
@@ -69,6 +83,18 @@ const translations = {
     methods: "विधिहरू",
     contact: "सम्पर्क",
     typeMessage: "सन्देश टाइप गर्नुहोस्...",
+    loginRequired: "मन्दिर सहायक प्रयोग गर्न कृपया लगइन गर्नुहोस्",
+    loginToChat: "सहायकसँग कुरा गर्न लगइन गर्नुहोस्",
+    developer: "यो वेबसाइट र मन्दिर सहायक Abhishek Rajbanshi (zeroinfinitytechnology) द्वारा विकास गरिएको हो।",
+    aartiInfo: "आरती तालिका",
+    galleryInfo: "ग्यालरी र भिडियोहरू",
+    calendarInfo: "चाडपर्व पात्रो",
+    historyInfo: "मन्दिरको इतिहास",
+    visitingInfo: "भ्रमण गाइड",
+    blogsInfo: "समाचार र ब्लगहरू",
+    privacyInfo: "गोपनीयता नीति",
+    termsInfo: "सर्त र शर्तहरू",
+    related: "सम्बन्धित प्रश्नहरू",
   },
   hi: {
     greeting: "🕉 जय श्री राम! आज मैं कैसे सहायता कर सकता हूँ?",
@@ -102,6 +128,18 @@ const translations = {
     methods: "तरीके",
     contact: "संपर्क",
     typeMessage: "संदेश टाइप करें...",
+    loginRequired: "मंदिर सहायक का उपयोग करने के लिए कृपया लॉगिन करें",
+    loginToChat: "सहायक से बात करने के लिए लॉगिन करें",
+    developer: "इस वेबसाइट और मंदिर सहायक को Abhishek Rajbanshi (zeroinfinitytechnology) ने विकसित किया है।",
+    aartiInfo: "आरती समय सारणी",
+    galleryInfo: "गैलरी और वीडियो",
+    calendarInfo: "त्योहार कैलेंडर",
+    historyInfo: "मंदिर का इतिहास",
+    visitingInfo: "दर्शन गाइड",
+    blogsInfo: "समाचार और ब्लॉग",
+    privacyInfo: "गोपनीयता नीति",
+    termsInfo: "नियम और शर्तें",
+    related: "संबंधित प्रश्न",
   },
   zh: {
     greeting: "🕉 贾伊·什里·拉姆！今天我能如何帮助您？",
@@ -135,6 +173,18 @@ const translations = {
     methods: "方法",
     contact: "联系",
     typeMessage: "输入消息...",
+    loginRequired: "请登录以使用寺庙助手",
+    loginToChat: "登录后与助手聊天",
+    developer: "此网站和寺庙助手由 Abhishek Rajbanshi（zeroinfinitytechnology）开发。",
+    aartiInfo: "阿尔蒂时间表",
+    galleryInfo: "画廊和视频",
+    calendarInfo: "节日日历",
+    historyInfo: "寺庙历史",
+    visitingInfo: "参观指南",
+    blogsInfo: "新闻和博客",
+    privacyInfo: "隐私政策",
+    termsInfo: "条款和条件",
+    related: "相关问题",
   },
   ta: {
     greeting: "🕉 ஜெய் ஸ்ரீ ராம்! இன்று நான் எவ்வாறு உதவ முடியும்?",
@@ -168,6 +218,18 @@ const translations = {
     methods: "முறைகள்",
     contact: "தொடர்பு",
     typeMessage: "செய்தியை தட்டச்சு செய்க...",
+    loginRequired: "கோவில் உதவியாளரைப் பயன்படுத்த தயவுசெய்து உள்நுழையவும்",
+    loginToChat: "உதவியாளருடன் அரட்டையடிக்க உள்நுழையவும்",
+    developer: "இந்த இணையதளம் மற்றும் கோவில் உதவியாளரை Abhishek Rajbanshi (zeroinfinitytechnology) உருவாக்கினார்.",
+    aartiInfo: "ஆரத்தி அட்டவணை",
+    galleryInfo: "கேலரி மற்றும் வீடியோக்கள்",
+    calendarInfo: "பண்டிகை நாட்காட்டி",
+    historyInfo: "கோவில் வரலாறு",
+    visitingInfo: "பார்வையாளர் வழிகாட்டி",
+    blogsInfo: "செய்திகள் மற்றும் வலைப்பதிவுகள்",
+    privacyInfo: "தனியுரிமைக் கொள்கை",
+    termsInfo: "விதிமுறைகள் மற்றும் நிபந்தனைகள்",
+    related: "தொடர்புடைய கேள்விகள்",
   }
 };
 
@@ -186,6 +248,7 @@ export const useChatbot = () => {
 // Provider component
 export const ChatbotProvider = ({ children }) => {
   const { lang } = useLanguage();
+  const { isAuthenticated } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -193,22 +256,88 @@ export const ChatbotProvider = ({ children }) => {
   const messagesEndRef = useRef(null);
   const [suggestions, setSuggestions] = useState([]);
 
+  // Live data fetched from backend (fallback to static JSON)
+  const [liveData, setLiveData] = useState(null);
+
+  const getLocalizedText = useCallback((obj) => {
+    if (!obj) return '';
+    if (typeof obj === 'string') return obj;
+    return obj[lang] || obj.en || '';
+  }, [lang]);
+
+  // Fetch real data from the backend
+  useEffect(() => {
+    let mounted = true;
+    const fetchLiveData = async () => {
+      try {
+        const [settingsRes, teamRes, eventsRes] = await Promise.all([
+          api.get('/admin/settings'),
+          api.get('/admin/team'),
+          api.get('/events'),
+        ]);
+        if (!mounted) return;
+
+        const settings = settingsRes.data || {};
+        const team = (teamRes.data || []).filter(m => m.enabled !== false);
+        const events = ((eventsRes.data?.data || eventsRes.data) || []).filter(e => e.upcoming);
+
+        setLiveData({
+          ...chatbotData,
+          temple: {
+            ...chatbotData.temple,
+            name: getLocalizedText(settings.templeName) || chatbotData.temple?.name,
+            description: getLocalizedText(settings.about?.intro) || chatbotData.temple?.description,
+            hours: settings.dailyAarti?.templeInfo?.openingHours
+              ? (typeof settings.dailyAarti.templeInfo.openingHours === 'object'
+                  ? getLocalizedText(settings.dailyAarti.templeInfo.openingHours)
+                  : settings.dailyAarti.templeInfo.openingHours)
+              : chatbotData.temple?.hours,
+            phone: settings.contact?.phone || settings.notice?.contactDetails?.en || chatbotData.temple?.phone,
+            email: settings.contact?.email || chatbotData.temple?.email,
+          },
+          team: team.map(m => ({
+            name: getLocalizedText(m.name),
+            role: getLocalizedText(m.role),
+            bio: getLocalizedText(m.bio),
+            email: m.email,
+            phone: m.phone,
+            roleType: m.roleType,
+          })),
+          events: events.map(e => ({
+            title: getLocalizedText(e.title),
+            date: getLocalizedText(e.dateNepali) || e.date,
+            description: getLocalizedText(e.desc),
+            location: getLocalizedText(e.location) || 'Shree Ramchandra Temple',
+          })),
+        });
+      } catch (error) {
+        console.error('Error fetching chatbot data:', error);
+        setLiveData(null);
+      }
+    };
+    fetchLiveData();
+    return () => { mounted = false; };
+  }, [lang, getLocalizedText]);
+
+  const data = liveData || chatbotData;
+
   // Get current language translations
   const getTranslation = useCallback((key) => {
     return translations[lang]?.[key] || translations.en[key] || key;
   }, [lang]);
 
-  // Initialize messages when language changes
+  // Initialize with greeting only when there are no messages yet
   useEffect(() => {
     const greeting = getTranslation('greeting');
-    setMessages([
-      {
-        id: 1,
+    setMessages(prev => {
+      if (prev.length > 0) return prev;
+      return [{
+        id: 'greeting',
         text: greeting,
         sender: 'bot',
         timestamp: new Date().toISOString(),
-      }
-    ]);
+      }];
+    });
     setSuggestions([
       getTranslation('templeHours'),
       getTranslation('location'),
@@ -221,6 +350,47 @@ export const ChatbotProvider = ({ children }) => {
     ]);
   }, [lang, getTranslation]);
 
+  // Load persisted messages from the database for the logged-in user
+  useEffect(() => {
+    if (!isAuthenticated()) return;
+    let mounted = true;
+    const loadMessages = async () => {
+      try {
+        const res = await api.get('/chatbot/messages');
+        if (!mounted) return;
+        const stored = res.data?.data || [];
+        if (stored.length > 0) {
+          setMessages(stored.map(m => ({
+            id: m._id,
+            text: m.text,
+            sender: m.sender,
+            timestamp: m.createdAt,
+          })));
+        } else {
+          // No saved messages - show the localized greeting
+          setMessages([{
+            id: 'greeting',
+            text: getTranslation('greeting'),
+            sender: 'bot',
+            timestamp: new Date().toISOString(),
+          }]);
+        }
+      } catch (error) {
+        console.error('Error loading chat messages:', error);
+        if (mounted) {
+          setMessages([{
+            id: 'greeting',
+            text: getTranslation('greeting'),
+            sender: 'bot',
+            timestamp: new Date().toISOString(),
+          }]);
+        }
+      }
+    };
+    loadMessages();
+    return () => { mounted = false; };
+  }, [isAuthenticated, lang, getTranslation]);
+
   // Scroll to bottom when messages change
   useEffect(() => {
     scrollToBottom();
@@ -230,75 +400,181 @@ export const ChatbotProvider = ({ children }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Search through all data
+  // Score how well a query matches a piece of text (word-level, multilingual aware)
+  const wordScore = (query, text) => {
+    if (!text) return 0;
+    const q = String(query).toLowerCase().trim();
+    const t = String(text).toLowerCase();
+    if (!q) return 0;
+    if (t.includes(q)) return 12;
+    const stopWords = new Set(['what', 'which', 'when', 'where', 'who', 'how', 'the', 'and', 'are', 'for', 'our', 'any', 'about', 'can', 'you', 'tell', 'me', 'like', 'is', 'of', 'in', 'on', 'to', 'a', 'an', 'do', 'does', 'did', 'at', 'from', 'नि', 'को', 'का', 'मा', 'हो']);
+    const words = q.split(/[\s?.,!]+/).filter(w => w.replace(/[^A-Za-z0-9\u0900-\u097F\u3040-\u30FF\u0B80-\u0BFF\u4E00-\u9FFF]/gi, '').length > 1 && !stopWords.has(w));
+    let score = 0;
+    words.forEach(w => {
+      if (t.includes(w)) score += 3;
+    });
+    return score;
+  };
+
+  const pushIf = (results, type, data, query, searchableText, boost = 0) => {
+    const score = wordScore(query, searchableText) + boost;
+    if (score > 0) {
+      results.push({ type, data, relevance: score });
+    }
+  };
+
+  // Search through every section of the website knowledge base
   const searchData = (query) => {
     const results = [];
-    const searchTerm = query.toLowerCase().trim();
 
-    if (chatbotData.temple) {
-      const temple = chatbotData.temple;
-      if (temple.name?.toLowerCase().includes(searchTerm) || 
-          temple.description?.toLowerCase().includes(searchTerm) ||
-          temple.location?.toLowerCase().includes(searchTerm) ||
-          temple.hours?.toLowerCase().includes(searchTerm)) {
-        results.push({ type: 'temple', data: temple, relevance: 10 });
-      }
+    if (data.temple) {
+      const temple = data.temple;
+      pushIf(results, 'temple', temple, query,
+        `${temple.name} ${temple.description} ${temple.location} ${temple.address} ${temple.hours} ${temple.phone} ${temple.email} darshan pray worship temple open`, 1);
     }
 
-    if (chatbotData.team) {
-      chatbotData.team.forEach(member => {
-        const searchableText = `${member.name} ${member.role} ${member.bio} ${member.email} ${member.phone}`.toLowerCase();
-        if (searchableText.includes(searchTerm)) {
-          results.push({ type: 'team', data: member, relevance: 8 });
-        }
+    if (data.about) {
+      const about = data.about;
+      pushIf(results, 'about', about, query,
+        `${about.deities} ${about.significance} ${about.established} ${about.aartiTimings} deities god ram sita lakshman significance`, 1);
+    }
+
+    if (data.history) {
+      const history = data.history;
+      pushIf(results, 'history', history, query,
+        `${history.title} ${history.summary} ${history.timeline?.map(x => `${x.year} ${x.event}`).join(' ')} old past tradition origin`, 1);
+    }
+
+    if (data.team) {
+      data.team.forEach(member => {
+        const searchableText = `${member.name} ${member.role} ${member.bio} ${member.email} ${member.phone}`;
+        pushIf(results, 'team', member, query, searchableText, 1);
       });
     }
 
-    if (chatbotData.events) {
-      chatbotData.events.forEach(event => {
-        const searchableText = `${event.title} ${event.description} ${event.date} ${event.location}`.toLowerCase();
-        if (searchableText.includes(searchTerm)) {
-          results.push({ type: 'event', data: event, relevance: 7 });
-        }
+    if (data.events) {
+      data.events.forEach(event => {
+        const searchableText = `${event.title} ${event.description} ${event.date} ${event.location}`;
+        pushIf(results, 'event', event, query, searchableText, 1);
       });
     }
 
-    if (chatbotData.faqs) {
-      chatbotData.faqs.forEach(faq => {
-        const searchableText = `${faq.question} ${faq.answer}`.toLowerCase();
-        if (searchableText.includes(searchTerm)) {
-          results.push({ type: 'faq', data: faq, relevance: 9 });
-        }
+    if (data.aarti) {
+      const aarti = data.aarti;
+      const scheduleText = aarti.schedule?.map(s => `${s.name} ${s.time}`).join(' ');
+      pushIf(results, 'aarti', aarti, query,
+        `${aarti.info} ${scheduleText} ${aarti.prasad} aarti arati darshan mangala sandhya shayan morning evening`, 1);
+    }
+
+    if (data.visiting) {
+      const visiting = data.visiting;
+      pushIf(results, 'visiting', visiting, query,
+        `${visiting.info} ${visiting.howToReach} ${visiting.guidelines} ${visiting.bestTime} reach direction travel parking dress visit`, 1);
+    }
+
+    if (data.calendar) {
+      const calendar = data.calendar;
+      const festivalsText = calendar.festivals?.map(f => `${f.name} ${f.date} ${f.note}`).join(' ');
+      pushIf(results, 'calendar', calendar, query,
+        `${calendar.info} ${festivalsText} festival calendar months dates occasions`, 1);
+    }
+
+    if (data.videos) {
+      data.videos.forEach(video => {
+        const searchableText = `${video.title} ${video.description} ${video.category}`;
+        pushIf(results, 'video', video, query, searchableText, 1);
       });
     }
 
-    if (chatbotData.gallery) {
-      chatbotData.gallery.forEach(item => {
-        const searchableText = `${item.title} ${item.description} ${item.category}`.toLowerCase();
-        if (searchableText.includes(searchTerm)) {
-          results.push({ type: 'gallery', data: item, relevance: 5 });
-        }
+    if (data.blogs) {
+      data.blogs.forEach(blog => {
+        const searchableText = `${blog.title} ${blog.description} ${blog.date}`;
+        pushIf(results, 'blog', blog, query, searchableText, 1);
       });
     }
 
-    if (chatbotData.donations) {
-      const donation = chatbotData.donations;
-      const searchableText = `${donation.info} ${donation.methods?.join(' ')} ${donation.contact}`.toLowerCase();
-      if (searchableText.includes(searchTerm)) {
-        results.push({ type: 'donation', data: donation, relevance: 8 });
-      }
+    if (data.faqs) {
+      data.faqs.forEach(faq => {
+        const searchableText = `${faq.question} ${faq.answer}`;
+        pushIf(results, 'faq', faq, query, searchableText, 3);
+      });
     }
 
-    if (chatbotData.booking) {
-      const booking = chatbotData.booking;
-      const searchableText = `${booking.info} ${booking.contact}`.toLowerCase();
-      if (searchableText.includes(searchTerm)) {
-        results.push({ type: 'booking', data: booking, relevance: 8 });
-      }
+    if (data.gallery) {
+      data.gallery.forEach(item => {
+        const searchableText = `${item.title} ${item.description} ${item.category}`;
+        pushIf(results, 'gallery', item, query, searchableText, 1);
+      });
+    }
+
+    if (data.donations) {
+      const donation = data.donations;
+      const searchableText = `${donation.info} ${donation.methods?.join(' ')} ${donation.contact} ${donation.bankDetails?.bankName} ${donation.bankDetails?.accountName}`;
+      pushIf(results, 'donation', donation, query, searchableText, 1);
+    }
+
+    if (data.booking) {
+      const booking = data.booking;
+      const searchableText = `${booking.info} ${booking.contact} ${booking.phone}`;
+      pushIf(results, 'booking', booking, query, searchableText, 1);
     }
 
     results.sort((a, b) => b.relevance - a.relevance);
     return results;
+  };
+
+  const suggestionMap = {
+    temple: ['templeHours', 'location', 'upcomingEvents'],
+    about: ['historyInfo', 'founder', 'aartiInfo'],
+    history: ['founder', 'aboutTemple', 'upcomingEvents'],
+    team: ['teamMembers', 'contactInfo', 'aboutTemple'],
+    event: ['upcomingEvents', 'templeHours', 'bookingInfo'],
+    aarti: ['aartiInfo', 'templeHours', 'location'],
+    visiting: ['visitingInfo', 'templeHours', 'upcomingEvents'],
+    calendar: ['calendarInfo', 'upcomingEvents', 'templeHours'],
+    video: ['galleryInfo', 'upcomingEvents', 'bookingInfo'],
+    blog: ['blogsInfo', 'upcomingEvents', 'contactInfo'],
+    faq: ['templeHours', 'donationInfo', 'location'],
+    gallery: ['galleryInfo', 'upcomingEvents', 'aboutTemple'],
+    donation: ['donationInfo', 'bookingInfo', 'upcomingEvents'],
+    booking: ['bookingInfo', 'templeHours', 'location'],
+  };
+
+  // Format a search result into a nice chat answer
+  const formatResult = (result, query, trans) => {
+    const d = result.data;
+    switch (result.type) {
+      case 'temple':
+        return `🏛️ ${trans('aboutTemple')}\n\n${d.name || 'Shree Ramchandra Temple'}\n${d.description || ''}\n📍 ${d.address || d.location || ''}`;
+      case 'about':
+        return `🏛️ ${trans('aboutTemple')}\n\n🙏 ${trans('founder')}: ${d.established || ''}\n\n✨ ${d.significance || ''}\n⏰ ${d.aartiTimings || ''}`;
+      case 'history':
+        return `📜 ${trans('historyInfo')}\n\n${d.summary || ''}\n\n${(d.timeline || []).map(x => `• ${x.year}: ${x.event}`).join('\n')}`;
+      case 'team':
+        return `👤 ${d.name}\n📋 ${d.role}\n${d.bio || ''}\n${d.email ? `📧 ${d.email}\n` : ''}${d.phone ? `📞 ${d.phone}` : ''}`;
+      case 'event':
+        return `🎉 ${d.title}\n📅 ${d.date}\n${d.description || ''}\n📍 ${d.location || ''}`;
+      case 'aarti':
+        return `🕉️ ${trans('aartiInfo')}:\n\n${(d.schedule || []).map(s => `• ${s.name}: ${s.time}`).join('\n')}\n\n${d.info || ''}`;
+      case 'visiting':
+        return `🚶 ${trans('visitingInfo')}:\n\n📍 ${d.howToReach || ''}\n\n🕐 ${d.bestTime || ''}\n\n📋 ${d.guidelines || ''}`;
+      case 'calendar':
+        return `📅 ${trans('calendarInfo')}:\n\n${(d.festivals || []).map(f => `• ${f.name} — ${f.date}\n   ${f.note || ''}`).join('\n')}`;
+      case 'video':
+        return `🎬 ${d.title}\n${d.description || ''}\n\n👀 Visit the Videos section on our website to watch.`;
+      case 'blog':
+        return `📰 ${d.title}\n${d.description || ''}\n\n📖 Visit the Blogs section on our website to read more.`;
+      case 'faq':
+        return `💡 ${d.answer || ''}`;
+      case 'gallery':
+        return `🖼️ ${d.title}\n${d.description || ''}\n\n📷 Visit the Gallery section on our website to see photos.`;
+      case 'donation':
+        return `💰 ${trans('donationInfo')}:\n${d.info || ''}\n\n${trans('methods')}: ${(d.methods || []).join(', ')}\n\n${d.bankDetails?.bankName ? `🏦 ${d.bankDetails.bankName}\n👤 ${d.bankDetails.accountName}\n🔢 ${d.bankDetails.accountNumber}\n\n` : ''}📞 ${trans('contact')}: ${d.contact || ''}`;
+      case 'booking':
+        return `📋 ${trans('bookingInfo')}:\n${d.info || ''}\n\n📞 ${trans('contact')}: ${d.contact || ''}\n📞 ${trans('phone')}: ${d.phone || ''}`;
+      default:
+        return `📌 ${d.title || d.name || trans('foundInfo')} ${query}`;
+    }
   };
 
   // Generate response based on query
@@ -306,42 +582,97 @@ export const ChatbotProvider = ({ children }) => {
     const searchResults = searchData(query);
     const queryLower = query.toLowerCase().trim();
     const trans = getTranslation;
+    const transKey = (k) => getTranslation(k);
 
-    const greetings = ['hello', 'hi', 'hey', 'नमस्ते', 'नमस्कार', 'हैलो', '你好', 'வணக்கம்'];
-    if (greetings.some(g => queryLower.includes(g))) {
+    const greetings = ['hello', 'hi', 'hey', 'नमस्ते', 'नमस्कार', 'हैलो', 'नमो', '你好', 'வணக்கம்'];
+    if (greetings.some(g => queryLower.includes(g)) && !queryLower.includes('history')) {
       return {
         text: `${trans('greeting')}`,
-        suggestions: [trans('templeHours'), trans('location'), trans('donationInfo'), trans('bookingInfo')]
+        suggestions: [transKey('templeHours'), transKey('location'), transKey('donationInfo'), transKey('bookingInfo')]
       };
     }
 
-    if (queryLower.includes('hour') || queryLower.includes('timing') || queryLower.includes('open') || 
+    const thanks = ['thank', 'thanks', 'धन्यवाद', '谢谢', 'நன்றி', 'धन्यवाद्'];
+    if (thanks.some(x => queryLower.includes(x))) {
+      return {
+        text: `🙏 Jai Shree Ram! You are most welcome. Is there anything else I can help you with?`,
+        suggestions: [transKey('templeHours'), transKey('upcomingEvents'), transKey('donationInfo')]
+      };
+    }
+
+    if (queryLower.includes('developer') || queryLower.includes('developed') ||
+        queryLower.includes('who made') || queryLower.includes('made this') ||
+        queryLower.includes('who created') || queryLower.includes('creator') ||
+        queryLower.includes('विकास') || queryLower.includes('बनाएको') || queryLower.includes('बनायो') ||
+        queryLower.includes('开发') || queryLower.includes('开发者') || queryLower.includes('உருவாக்க')) {
+      return {
+        text: `👨‍💻 ${trans('developer')}`,
+        suggestions: [transKey('aboutTemple'), transKey('teamMembers'), transKey('contactInfo')]
+      };
+    }
+
+    if (queryLower.includes('privacy') || queryLower.includes('data') || queryLower.includes('information use') ||
+        queryLower.includes('गोपनीयता') || queryLower.includes('隐私') || queryLower.includes('தனியுரிமை') ||
+        queryLower.includes('personal information')) {
+      return {
+        text: `🔒 ${trans('privacyInfo')}:\n\n${data.privacy || 'We respect your privacy and never share your data.'}`,
+        suggestions: [transKey('termsInfo'), transKey('contactInfo'), transKey('aboutTemple')]
+      };
+    }
+
+    if (queryLower.includes('term') || queryLower.includes('condition') || queryLower.includes('rules') ||
+        queryLower.includes('rule') || queryLower.includes('नियम') || queryLower.includes('条款') || queryLower.includes('விதிமுறை')) {
+      return {
+        text: `📄 ${trans('termsInfo')}:\n\n${data.terms || 'Please use our services responsibly.'}`,
+        suggestions: [transKey('privacyInfo'), transKey('bookingInfo'), transKey('contactInfo')]
+      };
+    }
+
+    if (queryLower.includes('hour') || queryLower.includes('timing') || queryLower.includes('open') ||
         queryLower.includes('darshan') || queryLower.includes('समय') || queryLower.includes('时间') || queryLower.includes('நேரம்')) {
       return {
-        text: `🕐 ${trans('templeHours')}:\n${chatbotData.temple?.hours || '5:00 AM - 10:00 PM (Daily)'}\n\n📍 ${trans('location')}: ${chatbotData.temple?.location || 'Gaushala, Kathmandu'}`,
-        suggestions: [trans('location'), trans('upcomingEvents'), trans('bookingInfo')]
+        text: `🕐 ${trans('templeHours')}:\n${data.temple?.hours || '5:00 AM - 10:00 PM (Daily)'}\n\n🌟 ${transKey('aartiInfo')}:\n${(data.aarti?.schedule || []).map(s => `• ${s.name}: ${s.time}`).join('\n')}\n\n📍 ${trans('location')}: ${data.temple?.location || 'Gaushala, Kathmandu'}`,
+        suggestions: [transKey('aartiInfo'), transKey('location'), transKey('upcomingEvents')]
+      };
+    }
+
+    if (queryLower.includes('aarti') || queryLower.includes('arati') || queryLower.includes('भजन') ||
+        queryLower.includes('आरती') || queryLower.includes('阿尔蒂') || queryLower.includes('ஆரத்தி') ||
+        queryLower.includes('pray') || queryLower.includes(' chant') || queryLower.includes('puja schedule')) {
+      return {
+        text: `🕉️ ${trans('aartiInfo')}:\n\n${(data.aarti?.schedule || []).map(s => `• ${s.name}: ${s.time}`).join('\n')}\n\n${data.aarti?.info || ''}${data.aarti?.prasad || ''}`,
+        suggestions: [transKey('templeHours'), transKey('location'), transKey('visitingInfo')]
       };
     }
 
     if (queryLower.includes('location') || queryLower.includes('address') || queryLower.includes('where') ||
         queryLower.includes('स्थान') || queryLower.includes('पता') || queryLower.includes('位置') || queryLower.includes('இருப்பிடம்')) {
       return {
-        text: `📍 ${trans('address')}: ${chatbotData.temple?.address || 'Battisputali, Gaushala, Kathmandu, Nepal'}\n\n📞 ${trans('phone')}: ${chatbotData.temple?.phone || '+977-1-4XXXXXX'}\n📧 ${trans('email')}: ${chatbotData.temple?.email || 'info@ramchandratemple.org.np'}`,
-        suggestions: [trans('templeHours'), trans('upcomingEvents'), trans('donationInfo')]
+        text: `📍 ${trans('address')}: ${data.temple?.address || 'Battisputali, Gaushala, Kathmandu, Nepal'}\n\n📞 ${trans('phone')}: ${data.temple?.phone || '+977-1-4598526'}\n📧 ${trans('email')}: ${data.temple?.email || 'shreramchandra@gmail.com'}`,
+        suggestions: [transKey('visitingInfo'), transKey('templeHours'), transKey('upcomingEvents')]
+      };
+    }
+
+    if (queryLower.includes('reach') || queryLower.includes('visit') || queryLower.includes('direction') ||
+        queryLower.includes('travel') || queryLower.includes('guide') || queryLower.includes('car') ||
+        queryLower.includes('पुग्न') || queryLower.includes('कसरी') || queryLower.includes('参观') || queryLower.includes('வழி')) {
+      return {
+        text: `🚶 ${trans('visitingInfo')}:\n\n📍 ${data.visiting?.howToReach || 'Located at Battisputali, Gaushala, Kathmandu, easily reachable from any part of the city.'}\n\n🕐 ${data.visiting?.bestTime || ''}\n\n📋 ${data.visiting?.guidelines || ''}`,
+        suggestions: [transKey('templeHours'), transKey('location'), transKey('upcomingEvents')]
       };
     }
 
     if (queryLower.includes('founder') || queryLower.includes('found') || queryLower.includes('patron') ||
         queryLower.includes('संस्थापक') || queryLower.includes('创始人') || queryLower.includes('நிறுவனர்')) {
       return {
-        text: `🙏 ${trans('founder')}:\n${chatbotData.founder?.name || 'Late Mr. Sanak Singh Tandon Lahuri Chhetri'}\n\n${chatbotData.founder?.bio || 'Founder of Shri Ramchandra Temple'}`,
-        suggestions: [trans('teamMembers'), trans('aboutTemple'), 'History']
+        text: `🙏 ${trans('founder')}:\n${data.founder?.name || 'Late Mr. Sanak Singh Tandon Lahuri Chhetri'}\n\n${data.founder?.bio || 'Founder of Shri Ramchandra Temple'}`,
+        suggestions: [transKey('teamMembers'), transKey('aboutTemple'), transKey('historyInfo')]
       };
     }
 
     if (queryLower.includes('team') || queryLower.includes('member') || queryLower.includes('coordinator') ||
-        queryLower.includes('टीम') || queryLower.includes('团队') || queryLower.includes('குழு')) {
-      const teamMembers = chatbotData.team || [];
+        queryLower.includes('committee') || queryLower.includes('टीम') || queryLower.includes('团队') || queryLower.includes('குழு')) {
+      const teamMembers = data.team || [];
       if (teamMembers.length > 0) {
         let response = `👥 ${trans('ourTeam')}:\n\n`;
         teamMembers.forEach(member => {
@@ -353,32 +684,34 @@ export const ChatbotProvider = ({ children }) => {
         });
         return {
           text: response,
-          suggestions: [trans('aboutTemple'), trans('upcomingEvents'), trans('contactInfo')]
+          suggestions: [transKey('aboutTemple'), transKey('upcomingEvents'), transKey('contactInfo')]
         };
       }
     }
 
     if (queryLower.includes('donate') || queryLower.includes('donation') || queryLower.includes('support') ||
-        queryLower.includes('दान') || queryLower.includes('捐赠') || queryLower.includes('நன்கொடை')) {
-      const donation = chatbotData.donations || {};
+        queryLower.includes('दान') || queryLower.includes('捐赠') || queryLower.includes('நன்கொடை') ||
+        queryLower.includes('घर') || queryLower.includes('bel') || queryLower.includes('seva')) {
+      const donation = data.donations || {};
       return {
-        text: `💰 ${trans('donationInfo')}:\n${donation.info || 'Support the temple through donations.'}\n\n${trans('methods')}: ${donation.methods?.join(', ') || 'Bank Transfer, Cash, Online'}\n\n📞 ${trans('contact')}: ${donation.contact || 'info@ramchandratemple.org.np'}`,
-        suggestions: [trans('bookingInfo'), trans('upcomingEvents'), trans('templeHours')]
+        text: `💰 ${trans('donationInfo')}:\n${donation.info || 'Support the temple through donations.'}\n\n${trans('methods')}: ${donation.methods?.join(', ') || 'Bank Transfer, Cash, Online'}\n\n${donation.bankDetails?.bankName ? `🏦 ${donation.bankDetails.bankName}\n👤 ${donation.bankDetails.accountName}\n🔢 ${donation.bankDetails.accountNumber}\n\n` : ''}📞 ${trans('contact')}: ${donation.contact || 'info@ramchandratemple.org.np'}`,
+        suggestions: [transKey('bookingInfo'), transKey('upcomingEvents'), transKey('templeHours')]
       };
     }
 
     if (queryLower.includes('booking') || queryLower.includes('book') || queryLower.includes('reserve') ||
+        queryLower.includes('hall') || queryLower.includes('ceremony') || queryLower.includes('booking') ||
         queryLower.includes('बुकिंग') || queryLower.includes('预订') || queryLower.includes('முன்பதிவு')) {
-      const booking = chatbotData.booking || {};
+      const booking = data.booking || {};
       return {
-        text: `📋 ${trans('bookingInfo')}:\n${booking.info || 'Bookings available for temple events and ceremonies.'}\n\n📞 ${trans('contact')}: ${booking.contact || 'info@ramchandratemple.org.np'}`,
-        suggestions: [trans('templeHours'), trans('location'), trans('donationInfo')]
+        text: `📋 ${trans('bookingInfo')}:\n${booking.info || 'Bookings available for temple events and ceremonies.'}\n\n📞 ${trans('contact')}: ${booking.contact || 'info@ramchandratemple.org.np'}\n📞 ${trans('phone')}: ${booking.phone || '+977-1-4598526'}`,
+        suggestions: [transKey('templeHours'), transKey('location'), transKey('donationInfo')]
       };
     }
 
     if (queryLower.includes('event') || queryLower.includes('festival') || queryLower.includes('celebration') ||
         queryLower.includes('कार्यक्रम') || queryLower.includes('活动') || queryLower.includes('நிகழ்வு')) {
-      const events = chatbotData.events || [];
+      const events = data.events || [];
       if (events.length > 0) {
         let response = `🎉 ${trans('upcomingEvents')}:\n\n`;
         events.forEach(event => {
@@ -390,70 +723,91 @@ export const ChatbotProvider = ({ children }) => {
         });
         return {
           text: response,
-          suggestions: [trans('templeHours'), trans('donationInfo'), trans('teamMembers')]
+          suggestions: [transKey('calendarInfo'), transKey('templeHours'), transKey('teamMembers')]
         };
       }
     }
 
-    if (queryLower.includes('history') || queryLower.includes('story') || queryLower.includes('about') ||
-        queryLower.includes('इतिहास') || queryLower.includes('历史') || queryLower.includes('வரலாறு')) {
+    if (queryLower.includes('calendar') || queryLower.includes('occasions') || queryLower.includes('dates') ||
+        queryLower.includes('पात्रो') || queryLower.includes('日历') || queryLower.includes('நாட்காட்டி')) {
+      const calendar = data.calendar || {};
       return {
-        text: `🏛️ ${chatbotData.temple?.name || 'Shree Ramchandra Temple'}\n\n${chatbotData.temple?.description || 'A sacred Vaishnava temple dedicated to Lord Ram, Sita, and Lakshman, serving devotees for generations on the banks of the Bagmati River.'}`,
-        suggestions: [trans('founder'), trans('teamMembers'), trans('upcomingEvents')]
+        text: `📅 ${trans('calendarInfo')}:\n\n${(calendar.festivals || []).map(f => `• ${f.name} — ${f.date}\n   ${f.note || ''}`).join('\n')}`,
+        suggestions: [transKey('upcomingEvents'), transKey('templeHours'), transKey('bookingInfo')]
+      };
+    }
+
+    if (queryLower.includes('gallery') || queryLower.includes('photo') || queryLower.includes('picture') ||
+        queryLower.includes('image') || queryLower.includes('video') || queryLower.includes('फोटो') ||
+        queryLower.includes('照片') || queryLower.includes('கேலரி') || queryLower.includes('videos')) {
+      const gallery = data.gallery || [];
+      const videos = data.videos || [];
+      let response = `📷 ${trans('galleryInfo')}:\n\n`;
+      gallery.forEach(item => {
+        response += `🖼️ ${item.title}\n   ${item.description || ''}\n\n`;
+      });
+      videos.forEach(video => {
+        response += `🎬 ${video.title}\n   ${video.description || ''}\n\n`;
+      });
+      return {
+        text: response,
+        suggestions: [transKey('upcomingEvents'), transKey('aboutTemple'), transKey('bookingInfo')]
+      };
+    }
+
+    if (queryLower.includes('history') || queryLower.includes('story') || queryLower.includes('about') ||
+        queryLower.includes('established') || queryLower.includes('origin') ||
+        queryLower.includes('इतिहास') || queryLower.includes('历史') || queryLower.includes('வரலாறு') ||
+        queryLower.includes('temple about')) {
+      const history = data.history || {};
+      return {
+        text: `🏛️ ${data.temple?.name || 'Shree Ramchandra Temple'}\n\n${data.temple?.description || ''}\n\n📜 ${trans('historyInfo')}:\n${history.summary || ''}\n\n${(history.timeline || []).map(x => `• ${x.year}: ${x.event}`).join('\n')}\n\n${data.about?.significance || ''}`,
+        suggestions: [transKey('founder'), transKey('teamMembers'), transKey('upcomingEvents')]
+      };
+    }
+
+    if (queryLower.includes('news') || queryLower.includes('blog') || queryLower.includes('article') ||
+        queryLower.includes('समाचार') || queryLower.includes('博客') || queryLower.includes('செய்தி') ||
+        queryLower.includes('update')) {
+      const blogs = data.blogs || [];
+      return {
+        text: `📰 ${trans('blogsInfo')}:\n\n${(blogs.length ? blogs : [{ title: 'Blogs section', description: 'Visit the Blogs section on our website for the latest news and spiritual articles.', date: '' }]).map(b => `• ${b.title}\n   ${b.description || ''}`).join('\n')}`,
+        suggestions: [transKey('upcomingEvents'), transKey('aboutTemple'), transKey('contactInfo')]
       };
     }
 
     if (queryLower.includes('contact') || queryLower.includes('phone') || queryLower.includes('email') ||
-        queryLower.includes('संपर्क') || queryLower.includes('联系') || queryLower.includes('தொடர்பு')) {
+        queryLower.includes('call') || queryLower.includes('संपर्क') || queryLower.includes('联系') || queryLower.includes('தொடர்பு')) {
       return {
-        text: `📞 ${trans('contactInfo')}:\n\n📍 ${trans('address')}: ${chatbotData.temple?.address || 'Battisputali, Gaushala, Kathmandu, Nepal'}\n📞 ${trans('phone')}: ${chatbotData.temple?.phone || '+977-1-4XXXXXX'}\n📧 ${trans('email')}: ${chatbotData.temple?.email || 'info@ramchandratemple.org.np'}`,
-        suggestions: [trans('templeHours'), trans('location'), trans('donationInfo')]
+        text: `📞 ${trans('contactInfo')}:\n\n📍 ${trans('address')}: ${data.temple?.address || 'Battisputali, Gaushala, Kathmandu, Nepal'}\n📞 ${trans('phone')}: ${data.temple?.phone || '+977-1-4598526'}\n📧 ${trans('email')}: ${data.temple?.email || 'shreramchandra@gmail.com'}`,
+        suggestions: [transKey('templeHours'), transKey('location'), transKey('donationInfo')]
       };
     }
 
     if (searchResults.length > 0) {
       const topResult = searchResults[0];
       let response = `🔍 ${trans('foundInfo')} "${query}":\n\n`;
-      
-      if (topResult.type === 'temple') {
-        response += `🏛️ ${topResult.data.name}\n${topResult.data.description}\n📍 ${topResult.data.location}`;
-      } else if (topResult.type === 'team') {
-        response += `👤 ${topResult.data.name}\n📋 ${topResult.data.role}\n${topResult.data.bio || ''}`;
-      } else if (topResult.type === 'event') {
-        response += `🎉 ${topResult.data.title}\n📅 ${topResult.data.date}\n${topResult.data.description}`;
-      } else if (topResult.type === 'faq') {
-        response += `❓ ${topResult.data.question}\n💡 ${topResult.data.answer}`;
-      } else {
-        response += `📌 ${topResult.data.title || topResult.data.name || 'Found information'}`;
-      }
-      
-      const suggestionMap = {
-        temple: [trans('templeHours'), trans('location'), trans('upcomingEvents')],
-        team: [trans('teamMembers'), trans('contactInfo'), trans('aboutTemple')],
-        event: [trans('upcomingEvents'), trans('templeHours'), trans('bookingInfo')],
-        faq: [trans('templeHours'), trans('donationInfo'), trans('location')],
-        donation: [trans('donationInfo'), trans('bookingInfo'), trans('upcomingEvents')],
-        booking: [trans('bookingInfo'), trans('templeHours'), trans('location')]
-      };
-      
+      response += formatResult(topResult, query, trans);
       return {
         text: response,
-        suggestions: suggestionMap[topResult.type] || [trans('templeHours'), trans('location'), trans('contactInfo')]
+        suggestions: (suggestionMap[topResult.type] || ['templeHours', 'location', 'contactInfo']).map(transKey)
       };
     }
 
     return {
-      text: `🙏 ${trans('noResults')} "${query}". ${trans('hereAreTopics')}\n\n• ${trans('templeHours')}\n• ${trans('location')}\n• ${trans('teamMembers')}\n• ${trans('upcomingEvents')}\n• ${trans('donationInfo')}\n• ${trans('bookingInfo')}\n• ${trans('contactInfo')}\n\n${trans('askMe')}`,
-      suggestions: [trans('templeHours'), trans('teamMembers'), trans('upcomingEvents'), trans('donationInfo'), trans('contactInfo')]
+      text: `🙏 ${trans('noResults')} "${query}". ${trans('hereAreTopics')}\n\n• ${trans('templeHours')}\n• ${trans('aartiInfo')}\n• ${trans('location')}\n• ${trans('teamMembers')}\n• ${trans('upcomingEvents')}\n• ${trans('calendarInfo')}\n• ${trans('donationInfo')}\n• ${trans('bookingInfo')}\n• ${trans('visitingInfo')}\n• ${trans('galleryInfo')}\n• ${trans('historyInfo')}\n• ${trans('contactInfo')}\n\n${trans('askMe')}`,
+      suggestions: [transKey('templeHours'), transKey('teamMembers'), transKey('upcomingEvents'), transKey('donationInfo'), transKey('contactInfo')]
     };
   };
 
-  const sendMessage = (text) => {
+  const sendMessage = async (text) => {
     if (!text || !text.trim()) return;
+    const trimmed = text.trim();
+    const userTempId = `temp-user-${Date.now()}`;
 
     const userMessage = {
-      id: Date.now(),
-      text: text.trim(),
+      id: userTempId,
+      text: trimmed,
       sender: 'user',
       timestamp: new Date().toISOString(),
     };
@@ -461,10 +815,26 @@ export const ChatbotProvider = ({ children }) => {
     setInputValue('');
     setIsTyping(true);
 
-    setTimeout(() => {
-      const response = generateResponse(text.trim());
+    // Persist user message to the database
+    if (isAuthenticated()) {
+      try {
+        const res = await api.post('/chatbot/messages', { sender: 'user', text: trimmed, language: lang });
+        const saved = res.data?.data;
+        if (saved?._id) {
+          setMessages(prev => prev.map(m => m.id === userTempId
+            ? { ...m, id: saved._id, timestamp: saved.createdAt || m.timestamp }
+            : m));
+        }
+      } catch (error) {
+        console.error('Error saving user message:', error);
+      }
+    }
+
+    setTimeout(async () => {
+      const response = generateResponse(trimmed);
+      const botTempId = `temp-bot-${Date.now()}`;
       const botMessage = {
-        id: Date.now() + 1,
+        id: botTempId,
         text: response.text,
         sender: 'bot',
         timestamp: new Date().toISOString(),
@@ -474,6 +844,21 @@ export const ChatbotProvider = ({ children }) => {
       if (response.suggestions) {
         setSuggestions(response.suggestions);
       }
+
+      // Persist bot message to the database
+      if (isAuthenticated()) {
+        try {
+          const res = await api.post('/chatbot/messages', { sender: 'bot', text: response.text, language: lang });
+          const saved = res.data?.data;
+          if (saved?._id) {
+            setMessages(prev => prev.map(m => m.id === botTempId
+              ? { ...m, id: saved._id, timestamp: saved.createdAt || m.timestamp }
+              : m));
+          }
+        } catch (error) {
+          console.error('Error saving bot message:', error);
+        }
+      }
     }, 500 + Math.random() * 500);
   };
 
@@ -482,7 +867,7 @@ export const ChatbotProvider = ({ children }) => {
     const greeting = getTranslation('greeting');
     setMessages([
       {
-        id: 1,
+        id: 'greeting',
         text: greeting,
         sender: 'bot',
         timestamp: new Date().toISOString(),
@@ -498,7 +883,12 @@ export const ChatbotProvider = ({ children }) => {
       getTranslation('upcomingEvents'),
       getTranslation('contactInfo')
     ]);
-  }, [getTranslation]);
+    if (isAuthenticated()) {
+      api.delete('/chatbot/messages').catch((error) => {
+        console.error('Error clearing chat messages:', error);
+      });
+    }
+  }, [getTranslation, isAuthenticated]);
 
   const toggleChat = () => {
     setIsOpen(!isOpen);

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
@@ -8,7 +9,7 @@ import {
   Eye, Activity, ArrowUp, ArrowDown, DollarSign, UserPlus,
   TrendingUp, Calendar, Clock, BookOpen, Image, MessageCircle,
   Home, Settings, Bell, Shield, Award, Star, Heart, MapPin,
-  Globe, Monitor, Smartphone, Tablet
+  Globe, Monitor, Smartphone, Tablet, ChevronRight
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -16,8 +17,16 @@ import {
   AreaChart, Area, ComposedChart
 } from 'recharts';
 
+// Format a coordinate to a readable value (e.g. 27.7172°)
+const formatCoord = (val) => {
+  const n = Number(val);
+  if (Number.isNaN(n)) return '—';
+  return n.toFixed(4);
+};
+
 const AdminOverview = ({ settings, users, events, donations, bookings, t, lang }) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [visitorStats, setVisitorStats] = useState(null);
   const [recentActivities, setRecentActivities] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -76,6 +85,12 @@ const AdminOverview = ({ settings, users, events, donations, bookings, t, lang }
   const totalDonors = (settings?.donate?.baseCount || 0) + (donations?.length || 0);
   const totalDonationAmount = donations?.reduce((sum, d) => sum + (d.amount || 0), 0) || 0;
 
+  // Real visitor change between the last 7 days and the previous 7 days
+  const daily = visitorStats?.dailyStats || [];
+  const last7 = daily.slice(-7).reduce((sum, d) => sum + (d.count || 0), 0);
+  const prev7 = daily.slice(-14, -7).reduce((sum, d) => sum + (d.count || 0), 0);
+  const visitorChange = prev7 > 0 ? Math.round(((last7 - prev7) / prev7) * 100) : null;
+
   // Prepare chart data
   const barData = visitorStats?.dailyStats?.slice(-14).map(d => ({
     date: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
@@ -117,8 +132,7 @@ const AdminOverview = ({ settings, users, events, donations, bookings, t, lang }
       value: users?.length || 0,
       bgColor: 'bg-blue-50',
       iconColor: 'text-blue-600',
-      change: '+12%',
-      trend: 'up'
+      path: '/admin/users',
     },
     { 
       icon: Eye, 
@@ -126,8 +140,9 @@ const AdminOverview = ({ settings, users, events, donations, bookings, t, lang }
       value: visitorStats?.totalVisitors || 0,
       bgColor: 'bg-purple-50',
       iconColor: 'text-purple-600',
-      change: '+8%',
-      trend: 'up'
+      change: visitorChange !== null ? `${visitorChange >= 0 ? '+' : ''}${visitorChange}%` : null,
+      trend: visitorChange !== null && visitorChange >= 0 ? 'up' : 'down',
+      path: '/admin/visitors',
     },
     { 
       icon: Gift, 
@@ -135,8 +150,7 @@ const AdminOverview = ({ settings, users, events, donations, bookings, t, lang }
       value: totalDonors,
       bgColor: 'bg-green-50',
       iconColor: 'text-green-600',
-      change: '+5%',
-      trend: 'up'
+      path: '/admin/donations',
     },
     { 
       icon: CalendarDays, 
@@ -144,8 +158,7 @@ const AdminOverview = ({ settings, users, events, donations, bookings, t, lang }
       value: events?.length || 0,
       bgColor: 'bg-amber-50',
       iconColor: 'text-amber-600',
-      change: '+3%',
-      trend: 'up'
+      path: '/admin/events',
     },
     { 
       icon: ClipboardList, 
@@ -153,8 +166,7 @@ const AdminOverview = ({ settings, users, events, donations, bookings, t, lang }
       value: bookings?.length || 0,
       bgColor: 'bg-indigo-50',
       iconColor: 'text-indigo-600',
-      change: '+6%',
-      trend: 'up'
+      path: '/admin/bookings',
     },
     { 
       icon: BookOpen, 
@@ -162,8 +174,7 @@ const AdminOverview = ({ settings, users, events, donations, bookings, t, lang }
       value: blogStats.total,
       bgColor: 'bg-rose-50',
       iconColor: 'text-rose-600',
-      change: '+2%',
-      trend: 'up'
+      path: '/admin/blogs',
     },
   ];
 
@@ -237,7 +248,8 @@ const AdminOverview = ({ settings, users, events, donations, bookings, t, lang }
           return (
             <div 
               key={index} 
-              className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow group"
+              onClick={() => stat.path && navigate(stat.path)}
+              className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md hover:border-[#7A0000]/20 hover:-translate-y-0.5 transition-all duration-200 group cursor-pointer"
             >
               <div className="flex items-start justify-between">
                 <div>
@@ -255,6 +267,9 @@ const AdminOverview = ({ settings, users, events, donations, bookings, t, lang }
                 <div className={`p-2 rounded-lg ${stat.bgColor} group-hover:scale-110 transition-transform`}>
                   <Icon size={16} className={stat.iconColor} />
                 </div>
+              </div>
+              <div className="mt-2 flex items-center gap-1 text-[10px] font-semibold text-[#7A0000] opacity-0 group-hover:opacity-100 transition-opacity">
+                View details <ChevronRight size={12} />
               </div>
             </div>
           );
@@ -397,14 +412,21 @@ const AdminOverview = ({ settings, users, events, donations, bookings, t, lang }
             <div className="space-y-2 max-h-[200px] overflow-y-auto">
               {locationData.slice(0, 6).map((location, index) => (
                 <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                  <div className="flex items-center gap-2">
-                    <MapPin size={14} className="text-[#7A0000]" />
-                    <span className="text-sm text-ink-soft">
-                      {location.country}
-                      {location.city && location.city !== 'Unknown' && `, ${location.city}`}
-                    </span>
+                  <div className="flex flex-col min-w-0">
+                    <div className="flex items-center gap-2">
+                      <MapPin size={14} className="text-[#7A0000] flex-shrink-0" />
+                      <span className="text-sm text-ink-soft truncate">
+                        {location.country}
+                        {location.city && location.city !== 'Unknown' && `, ${location.city}`}
+                      </span>
+                    </div>
+                    {location.locations && location.locations.length > 0 && (
+                      <span className="text-[11px] text-ink-soft/70 ml-6 font-mono">
+                        {formatCoord(location.locations[0].lat)}°, {formatCoord(location.locations[0].lng)}°
+                      </span>
+                    )}
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
                     <span className="text-xs text-ink-soft">{location.count} visits</span>
                     <span className="text-xs font-semibold text-[#7A0000]">
                       {location.uniqueVisitors} visitors
@@ -463,7 +485,7 @@ const AdminOverview = ({ settings, users, events, donations, bookings, t, lang }
       {/* Bottom Row - Quick Stats Cards */}
       <div className="grid md:grid-cols-4 gap-4">
         {/* Blog Stats */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+        <div onClick={() => navigate('/admin/blogs')} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md hover:border-[#7A0000]/20 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer">
           <h4 className="text-sm font-serif font-semibold text-ink mb-3 flex items-center gap-2">
             <BookOpen size={16} className="text-rose-500" />
             Blog Posts
@@ -485,7 +507,7 @@ const AdminOverview = ({ settings, users, events, donations, bookings, t, lang }
         </div>
 
         {/* Contact Stats */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+        <div onClick={() => navigate('/admin/contact')} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md hover:border-[#7A0000]/20 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer">
           <h4 className="text-sm font-serif font-semibold text-ink mb-3 flex items-center gap-2">
             <MessageCircle size={16} className="text-blue-500" />
             Contact Messages
@@ -507,7 +529,7 @@ const AdminOverview = ({ settings, users, events, donations, bookings, t, lang }
         </div>
 
         {/* Donation Stats */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+        <div onClick={() => navigate('/admin/donations')} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md hover:border-[#7A0000]/20 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer">
           <h4 className="text-sm font-serif font-semibold text-ink mb-3 flex items-center gap-2">
             <Gift size={16} className="text-green-500" />
             Donations
@@ -529,7 +551,7 @@ const AdminOverview = ({ settings, users, events, donations, bookings, t, lang }
         </div>
 
         {/* Booking Stats */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+        <div onClick={() => navigate('/admin/bookings')} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md hover:border-[#7A0000]/20 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer">
           <h4 className="text-sm font-serif font-semibold text-ink mb-3 flex items-center gap-2">
             <ClipboardList size={16} className="text-indigo-500" />
             Bookings

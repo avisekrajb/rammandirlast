@@ -30,6 +30,8 @@ const CloudPhotoPage = () => {
   const [error, setError] = useState(null);
   const [deletingIds, setDeletingIds] = useState([]);
   const [forceRefresh, setForceRefresh] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 24;
 
   const fetched = useRef(false);
 
@@ -84,6 +86,7 @@ const CloudPhotoPage = () => {
         setNextCursor(response.data.nextCursor);
         setHasMore(response.data.hasMore);
         setTotalCount(response.data.total);
+        setCurrentPage(prev => cursor ? prev : 1);
         
         if (response.data.message) {
           showToast(response.data.message, 'warning');
@@ -140,6 +143,7 @@ const CloudPhotoPage = () => {
     if (searchQuery.trim()) {
       setLoading(true);
       setError(null);
+      setCurrentPage(1);
       api.get(`/admin/cloud/search?q=${encodeURIComponent(searchQuery)}&type=${filterType}`)
         .then(response => {
           if (response.data.success) {
@@ -167,13 +171,28 @@ const CloudPhotoPage = () => {
     setFilterType(type);
     setResources([]);
     setSelectedIds([]);
+    setCurrentPage(1);
     fetchResources(null, '', type);
   };
 
-  const handleLoadMore = () => {
-    if (hasMore && nextCursor) {
-      fetchResources(nextCursor);
-    }
+  // Numbered pagination
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1);
+  const getPageNumbers = () => {
+    if (totalPages <= 7) return pageNumbers;
+    const pages = new Set([1, totalPages, currentPage - 1, currentPage, currentPage + 1]);
+    return [...pages].filter(p => p >= 1 && p <= totalPages).sort((a, b) => a - b);
+  };
+  const displayResources = resources.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
+
+  const goToPage = (page) => {
+    const target = Math.min(Math.max(1, page), totalPages);
+    setCurrentPage(target);
+    const el = document.getElementById('cloud-resources-top');
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   const handleSelect = (id) => {
@@ -378,6 +397,7 @@ const CloudPhotoPage = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
+      <div id="cloud-resources-top" className="scroll-mt-4" />
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
@@ -566,7 +586,7 @@ const CloudPhotoPage = () => {
         </div>
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {resources.map((resource) => {
+          {displayResources.map((resource) => {
             const isSelected = selectedIds.includes(resource.id);
             const isVideo = resource.type === 'video';
             const isDeleting = deletingIds.includes(resource.id);
@@ -694,7 +714,7 @@ const CloudPhotoPage = () => {
               </tr>
             </thead>
             <tbody>
-              {resources.map((resource) => {
+              {displayResources.map((resource) => {
                 const isSelected = selectedIds.includes(resource.id);
                 const isVideo = resource.type === 'video';
                 const isDeleting = deletingIds.includes(resource.id);
@@ -770,17 +790,51 @@ const CloudPhotoPage = () => {
         </div>
       )}
 
-      {/* Load More */}
-      {hasMore && resources.length > 0 && (
-        <div className="text-center mt-6">
-          <button
-            onClick={handleLoadMore}
-            disabled={loading}
-            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl border-2 border-vermilion text-vermilion font-semibold text-sm hover:bg-vermilion hover:text-white transition-all disabled:opacity-50"
-          >
-            {loading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-            Load More ({resources.length} of {totalCount})
-          </button>
+      {/* Pagination */}
+      {resources.length > 0 && totalPages > 1 && (
+        <div className="flex flex-col items-center justify-center gap-3 mt-8">
+          <div className="flex items-center gap-1 flex-wrap justify-center">
+            <button
+              onClick={() => goToPage(currentPage - 1)}
+              disabled={currentPage <= 1}
+              className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-gray-200 text-sm font-medium text-ink-soft hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              aria-label="Previous page"
+            >
+              <ChevronLeft size={16} />
+              Prev
+            </button>
+
+            {getPageNumbers().map((page, idx, arr) => (
+              <React.Fragment key={page}>
+                {idx > 0 && page - arr[idx - 1] > 1 && (
+                  <span className="px-1 text-ink-soft/50">…</span>
+                )}
+                <button
+                  onClick={() => goToPage(page)}
+                  className={`min-w-[40px] px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
+                    currentPage === page
+                      ? 'bg-vermilion text-white shadow-md shadow-vermilion/25'
+                      : 'border border-gray-200 text-ink-soft hover:bg-gray-50'
+                  }`}
+                >
+                  {page}
+                </button>
+              </React.Fragment>
+            ))}
+
+            <button
+              onClick={() => goToPage(currentPage + 1)}
+              disabled={currentPage >= totalPages}
+              className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-gray-200 text-sm font-medium text-ink-soft hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              aria-label="Next page"
+            >
+              Next
+              <ChevronRight size={16} />
+            </button>
+          </div>
+          <p className="text-xs text-ink-soft">
+            Page {currentPage} of {totalPages} · {resources.length} of {totalCount} resources
+          </p>
         </div>
       )}
 

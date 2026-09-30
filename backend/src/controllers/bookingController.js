@@ -1,6 +1,7 @@
 const Booking = require('../models/Booking');
 const User = require('../models/User');
 const { sendBookingConfirmation } = require('../services/emailService');
+const { createNotification } = require('./notificationController');
 
 // @desc    Create booking
 // @route   POST /api/bookings
@@ -31,6 +32,14 @@ exports.createBooking = async (req, res) => {
       console.error('Email sending error:', emailError);
       // Don't fail the request if email fails
     }
+
+    // Notify admins about new booking
+    await createNotification(
+      'booking',
+      'New Puja Booking',
+      `${booking.name} booked a ${booking.type} puja`,
+      { id: booking._id, name: booking.name, email: booking.email, type: booking.type, date: booking.date, status: booking.status, createdAt: booking.createdAt }
+    );
 
     res.status(201).json({
       success: true,

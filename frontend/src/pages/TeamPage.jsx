@@ -1,6 +1,5 @@
 // pages/TeamPage.jsx - Updated with Founder/Patron hero section (no icons, no view profile button)
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { motion } from 'framer-motion';
 import api from '../services/api';
@@ -8,11 +7,10 @@ import OmLoader from '../components/common/OmLoader';
 
 const TeamPage = () => {
   const { t, lang } = useLanguage();
-  const navigate = useNavigate();
   const [team, setTeam] = useState([]);
+  const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedRole, setSelectedRole] = useState('all');
 
   const roleHierarchy = {
     founder: { 
@@ -61,8 +59,12 @@ const TeamPage = () => {
   const fetchTeam = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/admin/team');
-      setTeam(response.data);
+      const [teamRes, settingsRes] = await Promise.all([
+        api.get('/admin/team'),
+        api.get('/admin/settings').catch(() => null),
+      ]);
+      setTeam(teamRes.data);
+      setSettings(settingsRes?.data || null);
     } catch (error) {
       console.error('Error fetching team:', error);
       setError('Failed to load team members');
@@ -81,6 +83,9 @@ const TeamPage = () => {
     return roleHierarchy[roleType]?.label?.[lang] || roleType;
   };
 
+  // Fallback shown when a founder has no role text saved on the record
+  const founderRoleLabel = roleHierarchy.founder.label;
+
   // Separate founder from other members
   const founderMembers = team
     .filter(member => member.enabled !== false && member.roleType === 'founder')
@@ -88,7 +93,6 @@ const TeamPage = () => {
 
   const otherMembers = team
     .filter(member => member.enabled !== false && member.roleType !== 'founder')
-    .filter(member => selectedRole === 'all' || member.roleType === selectedRole)
     .sort((a, b) => {
       const orderA = roleHierarchy[a.roleType]?.order ?? 99;
       const orderB = roleHierarchy[b.roleType]?.order ?? 99;
@@ -96,18 +100,19 @@ const TeamPage = () => {
       return (a.order || 0) - (b.order || 0);
     });
 
-  const groupedByRole = otherMembers.reduce((acc, member) => {
-    const role = member.roleType || 'member';
-    if (!acc[role]) acc[role] = [];
-    acc[role].push(member);
-    return acc;
-  }, {});
-
-  const uniqueRoles = [...new Set(team.map(m => m.roleType))].filter(Boolean);
-
-  const handleMemberClick = (member) => {
-    navigate(`/templeteams/${member._id}`);
+  // ===== committee content from Admin → Team =====
+  const getLocalized = (obj) => {
+    if (!obj) return '';
+    if (typeof obj === 'string') return obj;
+    return obj[lang] || obj.en || '';
   };
+
+  const teamContent = (settings?.teamContent || [])
+    .filter((s) => s && s.enabled !== false)
+    .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+  const pageTitle =
+    getLocalized(settings?.teamPageTitle) || t.teamTitle || 'Our Team';
 
   if (loading) {
     return (
@@ -143,7 +148,7 @@ const TeamPage = () => {
           className="text-center mb-12"
         >
           <h1 className="text-4xl md:text-5xl font-serif font-bold text-[#7A0000]">
-            {t.teamTitle || 'Our Team'}
+            {pageTitle}
           </h1>
           <div className="w-20 h-1 bg-[#7A0000] mx-auto mt-4 rounded-full" />
           <p className="text-gray-600 mt-4 max-w-2xl mx-auto">
@@ -151,254 +156,195 @@ const TeamPage = () => {
           </p>
         </motion.div>
 
-        {/* ===== FOUNDER / PATRON HERO SECTION ===== */}
-        {founderMembers.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.2 }}
-            className="mb-16"
-          >
-            {founderMembers.map((founder, index) => {
-              const founderName = getLocalizedText(founder.name);
-              const founderRole = getLocalizedText(founder.role);
-              const founderBio = getLocalizedText(founder.bio);
-              const founderTitle = roleHierarchy.founder?.label?.[lang] || 'Founder / Patron';
+        {/* ===== COMMITTEE CONTENT (from Admin → Team) ===== */}
+        {teamContent.map((section, sIndex) => {
+          const secTitle = getLocalized(section.title);
+          const listTitleText = getLocalized(section.listTitle);
+          const paragraphs = Object.keys(section.paragraphs || {})
+            .map((pKey) => getLocalized(section.paragraphs[pKey]))
+            .filter(Boolean);
+          const points = (section.points || []).map(getLocalized).filter(Boolean);
+          if (!secTitle && paragraphs.length === 0 && points.length === 0) return null;
 
-              return (
-                <div key={founder._id} className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#7A0000] via-[#8B0000] to-[#5C0000] shadow-2xl">
-                  {/* Decorative pattern overlay */}
-                  <div className="absolute inset-0 opacity-5" style={{
-                    backgroundImage: `radial-gradient(circle at 20% 50%, rgba(255,215,0,0.1) 0%, transparent 50%), 
-                                    radial-gradient(circle at 80% 50%, rgba(255,215,0,0.05) 0%, transparent 50%)`
-                  }} />
-                  
-                  {/* Gold accent lines */}
-                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-amber-400/60 to-transparent" />
-                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-amber-400/60 to-transparent" />
+          return (
+            <section key={section.key || sIndex} className={sIndex === 0 ? '' : 'mt-14'}>
+              {secTitle && (
+                <h2 className="font-serif text-xl sm:text-2xl font-extrabold text-[#7A0000] tracking-tight mb-3">
+                  {secTitle}
+                </h2>
+              )}
+              {paragraphs.map((text, i) => (
+                <p key={i} className="text-[#4A4A50] leading-relaxed text-base text-justify mt-3">
+                  {text}
+                </p>
+              ))}
+              {listTitleText && (
+                <p className="font-semibold text-[#7A0000] mt-4 mb-2">{listTitleText}</p>
+              )}
+              {points.length > 0 && (
+                <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-2 mt-3">
+                  {points.map((point, i) => (
+                    <li key={i} className="flex items-start gap-2.5">
+                      <span
+                        className="shrink-0 mt-2 w-1.5 h-1.5 rounded-full"
+                        style={{ background: 'linear-gradient(135deg, #E8A93D, #C1440E)' }}
+                      />
+                      <span className="text-[#4A4A50] leading-relaxed text-base">{point}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
 
-                  <div className="relative z-10 grid md:grid-cols-2 gap-8 p-8 md:p-12 lg:p-16 items-center">
-                    {/* Left - Photo */}
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ duration: 0.6, delay: 0.3 }}
-                      className="flex justify-center md:justify-start"
-                    >
-                      <div className="relative">
-                        {/* Glowing ring */}
-                        <div className="absolute -inset-4 rounded-full bg-amber-400/20 blur-2xl animate-pulse" />
-                        <div className="relative w-56 h-56 sm:w-72 sm:h-72 md:w-80 md:h-80 lg:w-96 lg:h-96 rounded-full overflow-hidden border-4 border-amber-400/40 shadow-2xl shadow-amber-500/20">
-                          {founder.photo ? (
-                            <img
-                              src={founder.photo}
-                              alt={founderName}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-[#7A0000]/30 text-amber-400/30 text-6xl font-serif">
-                              🕉️
+              {section.showMembers && (
+                <div className="mt-8">
+                  {founderMembers.length > 0 && (
+                    <div className="mb-12">
+                      {founderMembers.map((founder) => {
+                        const founderName = getLocalizedText(founder.name);
+                        return (
+                          <div
+                            key={founder._id}
+                            className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#7A0000] via-[#8B0000] to-[#5C0000] shadow-2xl"
+                          >
+                            <div className="relative z-10 p-8 md:p-10 flex flex-col items-center text-center gap-6">
+                              <div>
+                                <div className="text-amber-200 text-xs font-medium tracking-wider uppercase">
+                                  {getLocalizedText(founder.role) || getLocalizedText(founderRoleLabel)}
+                                </div>
+                                <h3 className="font-serif text-2xl md:text-3xl font-bold text-white leading-tight mt-1">
+                                  {founderName || 'Unknown'}
+                                </h3>
+                                {getLocalizedText(founder.bio) && (
+                                  <p className="text-white/70 text-sm sm:text-base leading-relaxed mt-2">
+                                    {getLocalizedText(founder.bio)}
+                                  </p>
+                                )}
+                              </div>
                             </div>
-                          )}
-                        </div>
-                      </div>
-                    </motion.div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
-                    {/* Right - Info (Name, Role, Bio ONLY - No View Profile button) */}
-                    <motion.div
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.6, delay: 0.4 }}
-                      className="text-center md:text-left space-y-4"
-                    >
-                      <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-400/20 border border-amber-400/30 text-amber-200 text-xs font-medium tracking-wider uppercase">
-                        {founderTitle}
-                      </div>
-                      
-                      <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-tight">
-                        {founderName || 'Unknown'}
-                      </h2>
-                      
-                      {founderRole && (
-                        <p className="text-amber-300/80 text-lg sm:text-xl font-medium">
-                          {founderRole}
-                        </p>
-                      )}
-                      
-                      {founderBio && (
-                        <p className="text-white/70 text-base sm:text-lg leading-relaxed max-w-lg mx-auto md:mx-0">
-                          {founderBio}
-                        </p>
-                      )}
+                  {otherMembers.length > 0 ? (
+                    <div className="snake-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                      {otherMembers.map((member) => {
+                        const memberName = getLocalizedText(member.name);
+                        const memberRole = getLocalizedText(member.role);
+                        const roleLabel = memberRole || getRoleLabel(member.roleType);
 
-                      {/* Contact info - visible but no view profile button */}
-                      <div className="flex flex-wrap items-center gap-4 pt-2">
-                        {founder.email && (
-                          <a
-                            href={`mailto:${founder.email}`}
-                            className="text-amber-200/80 hover:text-amber-200 transition-colors text-sm"
-                            onClick={(e) => e.stopPropagation()}
+                        return (
+                          <div
+                            key={member._id}
+                            className="snake-card group relative bg-white rounded-2xl p-[3px] shadow-sm hover:shadow-2xl hover:shadow-[#7A0000]/10 hover:-translate-y-1 transition-all duration-300"
                           >
-                            {founder.email}
-                          </a>
-                        )}
-                        {founder.email && founder.phone && (
-                          <span className="w-px h-4 bg-amber-200/20" />
-                        )}
-                        {founder.phone && (
-                          <a
-                            href={`tel:${founder.phone}`}
-                            className="text-amber-200/80 hover:text-amber-200 transition-colors text-sm"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {founder.phone}
-                          </a>
-                        )}
-                      </div>
-                    </motion.div>
-                  </div>
+                            <div className="relative h-full bg-white rounded-[13px] p-5 sm:p-6 flex flex-col items-center text-center overflow-hidden">
+                              <div className="absolute inset-0 bg-gradient-to-br from-[#7A0000]/10 via-transparent to-[#C1440E]/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+
+                              {/* Optional details sit at the very top, and the
+                                  name/role block stays centred in what is left */}
+                              {(member.age || member.email || member.phone) && (
+                                <div className="relative w-full pb-4 mb-4 border-b border-gray-100 space-y-1">
+                                  {member.age ? (
+                                    <p className="text-xs text-gray-400">
+                                      {t.age || 'Age'}: {member.age}
+                                    </p>
+                                  ) : null}
+                                  {member.email && (
+                                    <a
+                                      href={`mailto:${member.email}`}
+                                      className="block text-xs text-gray-400 hover:text-[#7A0000] transition-colors truncate"
+                                    >
+                                      {member.email}
+                                    </a>
+                                  )}
+                                  {member.phone && (
+                                    <a
+                                      href={`tel:${member.phone}`}
+                                      className="block text-xs text-gray-400 hover:text-[#7A0000] transition-colors truncate"
+                                    >
+                                      {member.phone}
+                                    </a>
+                                  )}
+                                </div>
+                              )}
+
+                              <div className="relative flex-1 flex flex-col items-center justify-center">
+                                <h3 className="font-serif font-bold text-gray-800 text-lg leading-snug group-hover:text-[#7A0000] transition-colors duration-200">
+                                  {memberName || 'Unknown'}
+                                </h3>
+
+                                {roleLabel && (
+                                  <span className="mt-2 inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-[#7A0000]/5 text-[#7A0000] group-hover:bg-[#7A0000] group-hover:text-white transition-colors duration-200">
+                                    {roleLabel}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center py-10">
+                      <div className="text-6xl text-gray-300 mb-3 font-serif">🕉️</div>
+                      <p className="text-gray-500">No committee members found</p>
+                    </div>
+                  )}
                 </div>
-              );
-            })}
-          </motion.div>
-        )}
+              )}
+            </section>
+          );
+        })}
 
-        {/* ===== FILTER BUTTONS ===== */}
-        {uniqueRoles.filter(r => r !== 'founder').length > 0 && (
-          <div className="flex flex-wrap items-center justify-center gap-2 mb-10">
-            <button
-              onClick={() => setSelectedRole('all')}
-              className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${
-                selectedRole === 'all'
-                  ? 'bg-[#7A0000] text-white shadow-lg shadow-[#7A0000]/20'
-                  : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-              }`}
-            >
-              {t.allMembers || 'All Members'}
-            </button>
-            {uniqueRoles.filter(r => r !== 'founder').map(role => {
-              const isSelected = selectedRole === role;
-              return (
-                <button
-                  key={role}
-                  onClick={() => setSelectedRole(role)}
-                  className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${
-                    isSelected
-                      ? 'bg-[#7A0000] text-white shadow-lg shadow-[#7A0000]/20'
-                      : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-                  }`}
-                >
-                  {getRoleLabel(role)}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* ===== OTHER MEMBERS GRID ===== */}
-        {Object.entries(groupedByRole).length === 0 ? (
-          <div className="text-center py-12">
-            <div className="text-6xl text-gray-300 mb-3 font-serif">🕉️</div>
-            <p className="text-gray-500">No other team members found</p>
-          </div>
-        ) : (
-          <div className="space-y-10">
-            {Object.entries(groupedByRole).map(([role, members]) => {
-              const roleLabel = getRoleLabel(role);
-              
-              return (
-                <motion.div
-                  key={role}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4 }}
-                  className="border-b border-gray-200 pb-8 last:border-b-0"
-                >
-                  <div className="mb-6">
-                    <h2 className="text-2xl font-serif font-bold text-[#7A0000]">
-                      {roleLabel}
-                    </h2>
-                    <div className="w-16 h-0.5 bg-[#7A0000]/30 mt-2 rounded-full" />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                    {members.map((member, index) => {
-                      const memberName = getLocalizedText(member.name);
-                      const memberRole = getLocalizedText(member.role);
-                      const memberBio = getLocalizedText(member.bio);
-                      
-                      return (
-                        <motion.div
-                          key={member._id}
-                          onClick={() => handleMemberClick(member)}
-                          initial={{ opacity: 0, scale: 0.95 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          transition={{ delay: index * 0.05 }}
-                          className="group bg-white rounded-xl border border-gray-100 overflow-hidden hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer"
-                        >
-                          <div className="relative aspect-[4/3] bg-gradient-to-br from-[#7A0000]/5 to-[#7A0000]/10 overflow-hidden">
-                            {member.photo ? (
-                              <img
-                                src={member.photo}
-                                alt={memberName}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-5xl text-gray-300 font-serif">
-                                🕉️
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="p-4">
-                            <h3 className="font-serif font-bold text-[#7A0000] text-lg">
-                              {memberName || 'Unknown'}
-                            </h3>
-                            <p className="text-sm text-gray-600 font-medium mt-0.5">
-                              {memberRole || ''}
-                            </p>
-                            {memberBio && (
-                              <p className="text-sm text-gray-500 mt-2 line-clamp-2">
-                                {memberBio}
-                              </p>
-                            )}
-                            
-                            <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-100">
-                              {member.email && (
-                                <a
-                                  href={`mailto:${member.email}`}
-                                  className="text-xs text-gray-500 hover:text-[#7A0000] transition-colors truncate"
-                                  title={member.email}
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  {member.email}
-                                </a>
-                              )}
-                              {member.phone && (
-                                <a
-                                  href={`tel:${member.phone}`}
-                                  className="text-xs text-gray-500 hover:text-[#7A0000] transition-colors"
-                                  title={member.phone}
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  {member.phone}
-                                </a>
-                              )}
-                              <div className="ml-auto text-gray-300 group-hover:text-[#7A0000] transition-colors">
-                                →
-                              </div>
-                            </div>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
-        )}
       </div>
+
+      <style>{`
+        @property --snake-angle {
+          syntax: '<angle>';
+          initial-value: 0deg;
+          inherits: false;
+        }
+        .snake-card {
+          border-radius: 1rem;
+          transition: box-shadow 0.3s ease, transform 0.3s ease;
+        }
+        .snake-card::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          padding: 3px;
+          background: conic-gradient(
+            from var(--snake-angle),
+            transparent 0deg 240deg,
+            #7A0000 265deg,
+            #C1440E 300deg,
+            #E7B54A 330deg,
+            #7A0000 360deg
+          );
+          -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          -webkit-mask-composite: xor;
+          mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask-composite: exclude;
+          animation: snake-crawl 3s linear infinite;
+          opacity: 0.55;
+          transition: opacity 0.25s ease;
+          pointer-events: none;
+          z-index: 0;
+        }
+        .snake-card:hover::before {
+          opacity: 1;
+        }
+        @keyframes snake-crawl {
+          to { --snake-angle: 360deg; }
+        }
+        .snake-card > * {
+          position: relative;
+          z-index: 1;
+        }
+      `}</style>
     </div>
   );
 };

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Heart, Sparkles, Award } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { PLACEHOLDER_IMAGE, handleImageError } from '../utils/imageFallback';
 
 const RamPage = () => {
   const { t, lang } = useLanguage();
@@ -92,9 +93,9 @@ const RamPage = () => {
                         src="https://res.cloudinary.com/dibusz4ag/image/upload/v1/temple/ram.jpg"
                         alt="Jai Shree Ram"
                         className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.src = 'https://via.placeholder.com/200/7A1F2B/FFFFFF?text=🕉';
-                        }}
+                           onError={(e) => {
+                             handleImageError(e, PLACEHOLDER_IMAGE);
+                           }}
                       />
                       
                       {/* Glowing Rings Animation */}

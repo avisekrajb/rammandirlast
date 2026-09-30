@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { X, ArrowRight, QrCode, Phone, MapPin, Heart, Globe } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -17,6 +17,7 @@ const NoticeModal = () => {
   const [loading, setLoading] = useState(true);
   const [displayLang, setDisplayLang] = useState('en');
   const [langMenuOpen, setLangMenuOpen] = useState(false);
+  const [noticeIndex, setNoticeIndex] = useState(0);
 
   // Language options
   const languages = [
@@ -39,6 +40,7 @@ const NoticeModal = () => {
         setSettings({
           notice: {
             enabled: true,
+            photo: '',
             title: { 
               ne: 'हार्दिक अनुरोध', 
               en: 'Heartfelt Request',
@@ -135,13 +137,34 @@ const NoticeModal = () => {
   // Check if notice should be shown - using sessionStorage
   useEffect(() => {
     if (loading) return;
-    
-    // Check if dismissed in current session (tab)
-    const dismissed = sessionStorage.getItem(STORAGE_KEY);
-    const isNoticeEnabled = settings?.notice?.enabled !== false;
-    
-    // Show if not dismissed AND enabled
-    if (!dismissed && isNoticeEnabled) {
+
+    // Build the list of enabled notices (new `notices` array, or legacy single `notice`)
+    const enabled = Array.isArray(settings?.notices) && settings.notices.length > 0
+      ? settings.notices.filter(n => n && n.enabled !== false)
+      : settings?.notice?.enabled !== false && settings?.notice
+        ? [settings.notice]
+        : [];
+
+    if (enabled.length === 0) return;
+
+    // Per-notice dismissal stored as a JSON array of notice ids
+    let dismissedIds = [];
+    try {
+      dismissedIds = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '[]');
+    } catch (e) {
+      dismissedIds = [];
+    }
+
+    // Fall back to the legacy single-notice dismissal flag
+    const legacyDismissed = sessionStorage.getItem(STORAGE_KEY) === '1';
+
+    const firstUnseenIndex = enabled.findIndex(n => {
+      if (legacyDismissed && enabled.length === 1) return false;
+      return !dismissedIds.includes(n.id);
+    });
+
+    if (firstUnseenIndex >= 0) {
+      setNoticeIndex(firstUnseenIndex);
       setOpen(true);
       // Default to English
       setDisplayLang('en');
@@ -160,12 +183,67 @@ const NoticeModal = () => {
     }
   }, [lang, open]);
 
+  const getDismissedIds = useCallback(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '[]');
+    } catch (e) {
+      return [];
+    }
+  }, []);
+
+  const allNotices = useMemo(() => {
+    const raw = Array.isArray(settings?.notices) && settings.notices.length > 0
+      ? settings.notices
+      : settings?.notice
+        ? [settings.notice]
+        : [];
+    return raw.filter(n => n && n.enabled !== false);
+  }, [settings]);
+
+  const dismissNotice = useCallback((id) => {
+    if (!id) {
+      sessionStorage.setItem(STORAGE_KEY, '1');
+      return;
+    }
+    let dismissedIds = [];
+    try {
+      dismissedIds = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '[]');
+    } catch (e) {
+      dismissedIds = [];
+    }
+    if (!dismissedIds.includes(id)) {
+      dismissedIds.push(id);
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(dismissedIds));
+    }
+  }, []);
+
+  const notice = allNotices[noticeIndex] || {};
+  const qrPhoto = settings?.donate?.qrPhoto || null;
+
   const handleClose = () => {
+    dismissNotice(notice.id);
     setOpen(false);
     setLangMenuOpen(false);
-    // Store in sessionStorage - only for this browser session/tab
-    sessionStorage.setItem(STORAGE_KEY, '1');
   };
+
+  const moveToNextNotice = useCallback(() => {
+    if (allNotices[noticeIndex]) dismissNotice(allNotices[noticeIndex].id);
+    const currentDismissed = getDismissedIds();
+    const next = allNotices.find((n, i) => i > noticeIndex && !currentDismissed.includes(n.id));
+    if (next) {
+      const idx = allNotices.indexOf(next);
+      setNoticeIndex(idx);
+    } else {
+      setOpen(false);
+      setLangMenuOpen(false);
+    }
+  }, [allNotices, noticeIndex, dismissNotice, getDismissedIds]);
+
+  const moveToPrevNotice = useCallback(() => {
+    if (noticeIndex > 0) {
+      setNoticeIndex(noticeIndex - 1);
+    }
+  }, [noticeIndex]);
 
   const handleDonateClick = () => {
     handleClose();
@@ -179,9 +257,6 @@ const NoticeModal = () => {
     setLang(code);
   };
 
-  const notice = settings?.notice || {};
-  const qrPhoto = settings?.donate?.qrPhoto || null;
-  
   const getText = (obj) => {
     if (!obj) return '';
     if (typeof obj === 'string') return obj;
@@ -197,9 +272,6 @@ const NoticeModal = () => {
 
   // Don't show if not open
   if (!open) return null;
-
-  // Get current language label
-  const currentLangLabel = languages.find(l => l.code === displayLang)?.label || 'English';
 
   return (
     <AnimatePresence>
@@ -308,6 +380,30 @@ const NoticeModal = () => {
             {/* Top decorative border */}
             <div className="h-1.5 w-full bg-gradient-to-r from-red-800 via-amber-600 to-red-800 rounded-t-2xl" />
 
+            {/* Notice navigation (multiple notices) */}
+            {allNotices.length > 1 && (
+              <div className="flex items-center justify-between px-4 sm:px-6 pt-3 sm:pt-4">
+                <button
+                  onClick={moveToPrevNotice}
+                  disabled={noticeIndex <= 0}
+                  className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-semibold text-red-800 hover:text-red-950 disabled:opacity-40 disabled:cursor-not-allowed transition-colors bg-transparent border-0"
+                >
+                  <span aria-hidden>←</span> Previous
+                </button>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] sm:text-[11px] font-bold text-red-800 bg-red-50 rounded-full px-2.5 py-1">
+                    {noticeIndex + 1} / {allNotices.length}
+                  </span>
+                </div>
+                <button
+                  onClick={moveToNextNotice}
+                  className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-semibold text-red-800 hover:text-red-950 transition-colors bg-transparent border-0"
+                >
+                  {noticeIndex < allNotices.length - 1 ? 'Next' : 'Finish'} <span aria-hidden>→</span>
+                </button>
+              </div>
+            )}
+
             <div className="px-4 sm:px-8 py-4 sm:py-8">
               {/* Language indicator - mobile */}
               <div className="md:hidden flex justify-end mb-2">
@@ -337,6 +433,17 @@ const NoticeModal = () => {
                   {getText(notice.banner) || "Let's participate in installing the 'Lift'."}
                 </p>
               </div>
+
+              {/* Notice Photo */}
+              {notice.photo && (
+                <div className="mb-4 sm:mb-5 rounded-xl overflow-hidden border border-red-200 shadow-md">
+                  <img
+                    src={notice.photo}
+                    alt={getText(notice.title) || 'Notice'}
+                    className="w-full max-h-72 sm:max-h-96 object-contain bg-white"
+                  />
+                </div>
+              )}
 
               {/* Content - hide lift illustrations on mobile */}
               <div className="flex gap-3 sm:gap-6">

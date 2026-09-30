@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
 import { ArrowRight, X, Youtube, Play, Clock, Calendar } from 'lucide-react';
+import { handleImageError } from '../utils/imageFallback';
 
 const PER_PAGE = 6;
 
@@ -106,9 +107,9 @@ const FeaturedVideo = ({ video, lang, onPlay }) => {
               src={`https://img.youtube.com/vi/${video.ytId}/maxresdefault.jpg`}
               alt={titleText}
               className="w-full h-full object-cover"
-              onError={(e) => {
-                e.target.src = `https://img.youtube.com/vi/${video.ytId}/hqdefault.jpg`;
-              }}
+                 onError={(e) => {
+                   handleImageError(e, `https://img.youtube.com/vi/${video.ytId}/hqdefault.jpg`);
+                 }}
             />
             <div className="absolute inset-0 bg-black/30 flex items-center justify-center group cursor-pointer hover:bg-black/40 transition-all">
               <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-all hover:scale-110">
@@ -197,7 +198,7 @@ const VideosPage = () => {
   };
 
   return (
-    <div className="min-h-screen" style={{ background: 'linear-gradient(180deg, #faf8f5 0%, #ffffff 50%, #faf8f5 100%)' }}>
+    <div className="min-h-screen" style={{ background: '#ffffff' }}>
       {/* Header */}
       <div className="pt-28 pb-8 text-center px-6">
         <motion.div

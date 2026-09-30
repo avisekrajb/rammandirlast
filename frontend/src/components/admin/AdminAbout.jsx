@@ -126,6 +126,14 @@ const AdminAbout = () => {
       key: `section_${Date.now()}`,
       title: { en: 'New Section', ne: 'नयाँ खण्ड', hi: 'नया खंड', zh: '新部分', ta: 'புதிய பகுதி' },
       body: { en: 'Section description...', ne: 'खण्ड विवरण...', hi: 'खंड विवरण...', zh: '部分描述...', ta: 'பகுதி விளக்கம்...' },
+      paragraphs: {
+        p1: { en: '', ne: '', hi: '', zh: '', ta: '' },
+        p2: { en: '', ne: '', hi: '', zh: '', ta: '' },
+        p3: { en: '', ne: '', hi: '', zh: '', ta: '' },
+        p4: { en: '', ne: '', hi: '', zh: '', ta: '' }
+      },
+      listTitle: { en: '', ne: '', hi: '', zh: '', ta: '' },
+      points: [],
       image: '',
       order: aboutData?.sections?.length || 0,
       enabled: true
@@ -160,10 +168,77 @@ const AdminAbout = () => {
     setAboutData({
       ...aboutData,
       sections: aboutData.sections.map(s => 
-        s.key === key ? { ...s, [field]: setLocalized(s[field], value) } : s
+        s.key === key ? { ...s, [field]: setLocalized(s[field], value) } : s 
       )
     });
   };
+
+  const updateSectionParagraph = (key, paraKey, value) => {
+    setAboutData({
+      ...aboutData,
+      sections: aboutData.sections.map(s => {
+        if (s.key !== key) return s;
+        const next = {
+          ...s,
+          paragraphs: { ...(s.paragraphs || {}), [paraKey]: setLocalized(s.paragraphs?.[paraKey], value) }
+        };
+        // keep the legacy single-paragraph field in sync with paragraph 1
+        if (paraKey === 'p1') next.body = next.paragraphs.p1;
+        return next;
+      })
+    });
+  };
+
+  const addSectionPoint = (key) => {
+    setAboutData({
+      ...aboutData,
+      sections: aboutData.sections.map(s =>
+        s.key === key
+          ? { ...s, points: [...(s.points || []), { en: '', ne: '', hi: '', zh: '', ta: '' }] }
+          : s
+      )
+    });
+  };
+
+  const updateSectionPoint = (key, index, value) => {
+    setAboutData({
+      ...aboutData,
+      sections: aboutData.sections.map(s =>
+        s.key === key
+          ? {
+              ...s,
+              points: (s.points || []).map((p, i) => (i === index ? setLocalized(p, value) : p))
+            }
+          : s
+      )
+    });
+  };
+
+  const removeSectionPoint = (key, index) => {
+    setAboutData({
+      ...aboutData,
+      sections: aboutData.sections.map(s =>
+        s.key === key
+          ? { ...s, points: (s.points || []).filter((_, i) => i !== index) }
+          : s
+      )
+    });
+  };
+
+  const moveSectionPoint = (key, index, dir) => {
+    setAboutData({
+      ...aboutData,
+      sections: aboutData.sections.map(s => {
+        if (s.key !== key) return s;
+        const points = [...(s.points || [])];
+        const target = index + dir;
+        if (target < 0 || target >= points.length) return s;
+        [points[index], points[target]] = [points[target], points[index]];
+        return { ...s, points };
+      })
+    });
+  };
+
 
   const toggleSectionEnabled = (key) => {
     setAboutData({
@@ -277,7 +352,7 @@ const AdminAbout = () => {
             ...a.paragraphs, 
             [paraKey]: setLocalized(a.paragraphs[paraKey], value) 
           } 
-        } : a
+        } : a 
       )
     });
   };
@@ -556,6 +631,106 @@ const AdminAbout = () => {
                         className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm resize-none"
                         placeholder="Section description..."
                       />
+                    </div>
+
+                    {/* Section Paragraphs */}
+                    <div className="space-y-3 pt-3 border-t border-gray-100">
+                      <div>
+                        <label className="text-xs font-bold text-ink block mb-1.5">
+                          Paragraphs ({langLabels[activeLang]})
+                        </label>
+                        <p className="text-[11px] text-ink-soft mb-2">
+                          These are shown on the page. Paragraph 1 is also used as the
+                          fallback Description.
+                        </p>
+                        {['p1', 'p2', 'p3', 'p4'].map((pKey) => (
+                          <div key={pKey} className="mb-2">
+                            <label className="text-xs text-ink-soft block mb-0.5">
+                              {pKey.toUpperCase()}
+                            </label>
+                            <textarea
+                              rows={2}
+                              value={getLocalized(section.paragraphs?.[pKey])}
+                              onChange={(e) => updateSectionParagraph(section.key, pKey, e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm resize-none"
+                              placeholder={`Paragraph ${pKey}...`}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Section Bullet List */}
+                    <div className="space-y-3 pt-3 border-t border-gray-100">
+                      <div>
+                        <label className="text-xs font-bold text-ink block mb-1.5">
+                          List Heading (optional) ({langLabels[activeLang]})
+                        </label>
+                        <input
+                          type="text"
+                          value={getLocalized(section.listTitle)}
+                          onChange={(e) => updateSectionLocalized(section.key, 'listTitle', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
+                          placeholder="e.g. Main religious services include:"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-ink">Bullet Points</label>
+                        <button
+                          type="button"
+                          onClick={() => addSectionPoint(section.key)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-vermilion/10 text-vermilion text-[11px] font-semibold hover:bg-vermilion/20 transition-all"
+                        >
+                          <Plus size={12} /> Add Point
+                        </button>
+                      </div>
+
+                      {(section.points || []).length === 0 ? (
+                        <p className="text-[11px] text-ink-soft">No bullet points yet.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {section.points.map((point, pIndex) => (
+                            <div key={pIndex} className="flex items-start gap-1.5">
+                              <div className="flex-1">
+                                <input
+                                  type="text"
+                                  value={getLocalized(point)}
+                                  onChange={(e) => updateSectionPoint(section.key, pIndex, e.target.value)}
+                                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
+                                  placeholder={`Point ${pIndex + 1} (${langLabels[activeLang]})`}
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => moveSectionPoint(section.key, pIndex, -1)}
+                                disabled={pIndex === 0}
+                                className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"
+                                title="Move up"
+                              >
+                                <MoveUp size={13} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => moveSectionPoint(section.key, pIndex, 1)}
+                                disabled={pIndex === section.points.length - 1}
+                                className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"
+                                title="Move down"
+                              >
+                                <MoveDown size={13} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeSectionPoint(section.key, pIndex)}
+                                className="p-1.5 rounded hover:bg-red-100 text-red-500"
+                                title="Remove"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

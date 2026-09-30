@@ -54,6 +54,10 @@ const userSchema = new mongoose.Schema({
     enum: ['user', 'admin', 'superadmin'],
     default: 'user',
   },
+  active: {
+    type: Boolean,
+    default: true,
+  },
   isGoogleUser: {
     type: Boolean,
     default: false,

@@ -22,10 +22,12 @@ import AdminGallery from '../components/admin/AdminGallery';
 import AdminDonations from '../components/admin/AdminDonations';
 import AdminBookings from '../components/admin/AdminBookings';
 import AdminNotice from '../components/admin/AdminNotice';
+import AdminDailyAarti from '../components/admin/AdminDailyAarti';
 import AdminBlogs from '../components/admin/AdminBlogs';
 import AdminHome from '../components/admin/AdminHome';
 import AdminFooter from '../components/admin/AdminFooter';
 import AdminSocial from '../components/admin/AdminSocial'; // <-- Import AdminSocial
+import AdminFacebookVideos from '../components/admin/AdminFacebookVideos'; // <-- Import AdminFacebookVideos
 import AdminNotifications from './AdminNotifications';
 import AdminSettings from './AdminSettings';
 import CloudPhotoPage from './CloudPhotoPage';
@@ -33,16 +35,16 @@ import AdminContact from '../components/admin/AdminContact';
 import AdminVisitor from '../components/admin/AdminVisitor';
 import AdminBackup from '../components/admin/AdminBackup';
 
-import { Menu, Settings, Bell } from 'lucide-react';
+import { Menu, Settings, Bell, Globe, CheckCircle } from 'lucide-react';
 
 const AdminPage = () => {
-  const { t, lang } = useLanguage();
+  const { t, lang, setLang } = useLanguage();
   const { user } = useAuth();
-  const isSuperAdmin = user?.role === 'superadmin';
   const { showToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [langOpen, setLangOpen] = useState(false);
   const [settings, setSettings] = useState(null);
   const [users, setUsers] = useState([]);
   const [events, setEvents] = useState([]);
@@ -127,7 +129,6 @@ const AdminPage = () => {
     const path = location.pathname.split('/admin/')[1];
     if (!path) return 'Overview';
     if (path === 'cloud') return 'Cloud Storage';
-    if (path === 'cloudgallery') return 'Cloud Gallery';
     if (path === 'notifications') return 'Notifications';
     if (path === 'settings') return 'Settings';
     if (path === 'footer') return 'Footer Settings';
@@ -162,6 +163,47 @@ const AdminPage = () => {
           </div>
           
           <div className="flex items-center gap-3">
+            {/* Language switcher (mini) */}
+            <div className="relative">
+              <button
+                onClick={() => setLangOpen(!langOpen)}
+                className="p-2 rounded-lg hover:bg-gray-100 transition-colors relative"
+                title="Change language"
+              >
+                <Globe size={18} className="text-ink-soft" />
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[#7A0000] rounded-full text-white text-[8px] font-bold flex items-center justify-center">
+                  {lang.toUpperCase()}
+                </span>
+              </button>
+              {langOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setLangOpen(false)} />
+                  <div className="absolute right-0 top-11 z-50 w-44 bg-white rounded-xl shadow-xl border border-gray-100 py-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
+                    {[
+                      { code: 'en', label: 'English', flag: '🇬🇧' },
+                      { code: 'ne', label: 'नेपाली', flag: '🇳🇵' },
+                      { code: 'hi', label: 'हिन्दी', flag: '🇮🇳' },
+                      { code: 'zh', label: '中文', flag: '🇨🇳' },
+                      { code: 'ta', label: 'தமிழ்', flag: '🇱🇰' },
+                    ].map((l) => (
+                      <button
+                        key={l.code}
+                        onClick={() => {
+                          setLang(l.code);
+                          setLangOpen(false);
+                        }}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-gray-50 transition-colors ${lang === l.code ? 'font-semibold text-[#7A0000]' : 'text-ink'}`}
+                      >
+                        <span className="text-base">{l.flag}</span>
+                        <span className="flex-1 text-left">{l.code.toUpperCase()}</span>
+                        {lang === l.code && <CheckCircle size={14} className="text-[#7A0000]" />}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
             <button
               onClick={() => navigate('/admin/notifications')}
               className="p-2 rounded-lg hover:bg-gray-100 transition-colors relative"
@@ -187,23 +229,6 @@ const AdminPage = () => {
         </header>
 
         <div className="flex-1 p-6 overflow-y-auto content-scroll">
-          {isSuperAdmin ? (
-            <Routes>
-              {/* Superadmin dashboard: Overview, Visitors, Activity Logs & Create Admin only */}
-              <Route index element={<AdminOverview 
-                settings={settings} users={users} events={events} 
-                donations={donations} bookings={bookings} 
-                t={t} lang={lang} 
-              />} />
-              <Route path="overview" element={<AdminOverview 
-                settings={settings} users={users} events={events} 
-                donations={donations} bookings={bookings} 
-                t={t} lang={lang} 
-              />} />
-              <Route path="visitors" element={<AdminVisitor t={t} />} />
-              <Route path="settings" element={<AdminSettings />} />
-            </Routes>
-          ) : (
           <Routes>
             {/* Overview */}
             <Route index element={<AdminOverview 
@@ -265,6 +290,10 @@ const AdminPage = () => {
             {/* Events & Gallery */}
             <Route path="events" element={<AdminEvents 
               events={events} setEvents={setEvents} t={t} 
+              settings={settings} updateSettings={updateSettings}
+            />} />
+            <Route path="events/aarti" element={<AdminDailyAarti 
+              settings={settings} updateSettings={updateSettings} t={t} 
             />} />
             <Route path="gallery" element={<AdminGallery 
               gallery={gallery} setGallery={setGallery} 
@@ -301,7 +330,6 @@ const AdminPage = () => {
 
             {/* Cloud Storage */}
             <Route path="cloud" element={<CloudPhotoPage />} />
-            <Route path="cloudgallery" element={<CloudPhotoPage />} />
 
             {/* Notifications & Settings */}
             <Route path="notifications" element={<AdminNotifications />} />
@@ -313,8 +341,14 @@ const AdminPage = () => {
               updateSettings={updateSettings} 
               t={t} 
             />} />
+
+            {/* Facebook Video Embeds */}
+            <Route path="facebook-video" element={<AdminFacebookVideos 
+              settings={settings} 
+              updateSettings={updateSettings} 
+              t={t} 
+            />} />
           </Routes>
-          )}
         </div>
       </div>
 

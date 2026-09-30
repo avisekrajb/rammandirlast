@@ -1,13 +1,18 @@
 import React from 'react';
+import useEnabledLanguages from '../../hooks/useEnabledLanguages';
 
 const LanguageSwitcher = ({ active, onChange, t }) => {
-  const languages = [
+  const enabled = useEnabledLanguages();
+
+  const allLanguages = [
     { code: 'en', label: t?.langEnglish || 'English' },
     { code: 'ne', label: t?.langNepali || 'नेपाली' },
     { code: 'hi', label: t?.langHindi || 'हिन्दी' },
     { code: 'zh', label: t?.langChinese || '中文' },
     { code: 'ta', label: t?.langTamil || 'தமிழ்' },
   ];
+
+  const languages = allLanguages.filter((l) => enabled.includes(l.code));
 
   return (
     <div className="flex gap-1.5 mb-4 bg-panel p-1 rounded-xl w-fit flex-wrap">

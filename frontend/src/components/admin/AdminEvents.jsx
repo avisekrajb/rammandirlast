@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Plus, Pencil, Trash2, Save, X, Upload, Calendar, 
   Image, Eye, Heart, Share2, Users, Search, 
-  Check, XCircle, ChevronDown, Loader2, BarChart3,
+  Check, XCircle, ChevronDown, ChevronUp, Loader2, BarChart3,
   TrendingUp, Eye as EyeIcon, Clock
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
@@ -10,7 +10,7 @@ import LanguageSwitcher from '../common/LanguageSwitcher';
 import api from '../../services/api';
 import OmLoader from '../../components/common/OmLoader';
 
-const AdminEvents = ({ events, setEvents, t }) => {
+const AdminEvents = ({ events, setEvents, t, settings, updateSettings }) => {
   const { showToast } = useToast();
   const [editing, setEditing] = useState(null);
   const [activeLang, setActiveLang] = useState('en');
@@ -24,7 +24,62 @@ const AdminEvents = ({ events, setEvents, t }) => {
   const [engagementStats, setEngagementStats] = useState(null);
   const [showStats, setShowStats] = useState(false);
   const [filterUpcoming, setFilterUpcoming] = useState('all');
+  const [viewMode, setViewMode] = useState('grid');
   const fileInputRef = useRef(null);
+
+  // /events page headings (AdminSettings.eventsPageText)
+  const [pageText, setPageText] = useState([]);
+  const [textLang, setTextLang] = useState('ne');
+  const [savingText, setSavingText] = useState(false);
+
+  useEffect(() => {
+    if (Array.isArray(settings?.eventsPageText)) {
+      setPageText(settings.eventsPageText);
+    }
+  }, [settings]);
+
+  const emptyLocRow = () => ({ en: '', ne: '', hi: '', zh: '', ta: '' });
+
+  const addTextRow = () =>
+    setPageText((prev) => [
+      ...prev,
+      { key: `custom_${Date.now()}`, label: 'Custom text', text: emptyLocRow(), order: prev.length, enabled: true }
+    ]);
+
+  const patchTextRow = (index, fn) =>
+    setPageText((prev) => prev.map((r, i) => (i === index ? fn(r) : r)));
+
+  const setTextValue = (index, value) =>
+    patchTextRow(index, (r) => ({ ...r, text: { ...(r.text || {}), [textLang]: value } }));
+
+  const removeTextRow = (index) => {
+    if (!window.confirm('Remove this text row?')) return;
+    setPageText((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const moveTextRow = (index, dir) =>
+    setPageText((prev) => {
+      const next = [...prev];
+      const target = index + dir;
+      if (target < 0 || target >= next.length) return prev;
+      [next[index], next[target]] = [next[target], next[index]];
+      return next.map((r, i) => ({ ...r, order: i }));
+    });
+
+  const savePageText = async () => {
+    setSavingText(true);
+    try {
+      const payload = { eventsPageText: pageText.map((r, i) => ({ ...r, order: i })) };
+      await api.put('/admin/settings', payload);
+      if (updateSettings) updateSettings((prev) => ({ ...prev, ...payload }));
+      showToast('Events page text saved', 'success');
+    } catch (error) {
+      console.error('Error saving events page text:', error);
+      showToast(error.response?.data?.message || 'Failed to save events page text', 'error');
+    } finally {
+      setSavingText(false);
+    }
+  };
 
   // Fetch engagement stats
   useEffect(() => {
@@ -43,15 +98,91 @@ const AdminEvents = ({ events, setEvents, t }) => {
     date: '',
     photo: null,
     upcoming: true,
+    order: events.length,
+    homeSlot: 0,
+    yearText: '',
     title: { en: '', ne: '', hi: '', zh: '', ta: '' },
     desc: { en: '', ne: '', hi: '', zh: '', ta: '' },
     dateNepali: { en: '', ne: '', hi: '', zh: '', ta: '' },
     greg: { en: '', ne: '', hi: '', zh: '', ta: '' },
+    period: { en: '', ne: '', hi: '', zh: '', ta: '' },
+    paragraphs: [],
+    listTitle: { en: '', ne: '', hi: '', zh: '', ta: '' },
+    points: [],
     interestedCount: 0,
     views: 0,
     shareCount: 0,
     interestedBy: [],
   });
+
+  // paragraphs is a free-length list; older records stored a fixed { p1..p4 } object
+  const normalizeParagraphs = (raw) => {
+    if (Array.isArray(raw)) return raw.map((p) => ({ ...(p || {}) }));
+    if (raw && typeof raw === 'object') {
+      return Object.keys(raw)
+        .filter((k) => /^p\d+$/i.test(k))
+        .sort((a, b) => parseInt(a.slice(1), 10) - parseInt(b.slice(1), 10))
+        .map((k) => ({ ...(raw[k] || {}) }));
+    }
+    return [];
+  };
+
+  const openEvent = (e) =>
+    setEditing({ ...e, homeSlot: e.homeSlot || 0, paragraphs: normalizeParagraphs(e.paragraphs), points: e.points || [] });
+
+  const setParagraph = (index, value) => {
+    setEditing((prev) => {
+      const paragraphs = normalizeParagraphs(prev.paragraphs);
+      while (paragraphs.length <= index) paragraphs.push({ en: '', ne: '', hi: '', zh: '', ta: '' });
+      paragraphs[index] = { ...(paragraphs[index] || {}), [activeLang]: value };
+      return { ...prev, paragraphs };
+    });
+  };
+
+  const addParagraph = () =>
+    setEditing((prev) => ({
+      ...prev,
+      paragraphs: [...normalizeParagraphs(prev.paragraphs), { en: '', ne: '', hi: '', zh: '', ta: '' }]
+    }));
+
+  const removeParagraph = (index) =>
+    setEditing((prev) => ({
+      ...prev,
+      paragraphs: normalizeParagraphs(prev.paragraphs).filter((_, i) => i !== index)
+    }));
+
+  const moveParagraph = (index, dir) =>
+    setEditing((prev) => {
+      const paragraphs = normalizeParagraphs(prev.paragraphs);
+      const target = index + dir;
+      if (target < 0 || target >= paragraphs.length) return prev;
+      [paragraphs[index], paragraphs[target]] = [paragraphs[target], paragraphs[index]];
+      return { ...prev, paragraphs };
+    });
+
+  const addPoint = () =>
+    setEditing((prev) => ({
+      ...prev,
+      points: [...(prev.points || []), { en: '', ne: '', hi: '', zh: '', ta: '' }]
+    }));
+
+  const setPoint = (index, value) =>
+    setEditing((prev) => ({
+      ...prev,
+      points: (prev.points || []).map((p, i) => (i === index ? { ...(p || {}), [activeLang]: value } : p))
+    }));
+
+  const removePoint = (index) =>
+    setEditing((prev) => ({ ...prev, points: (prev.points || []).filter((_, i) => i !== index) }));
+
+  const movePoint = (index, dir) =>
+    setEditing((prev) => {
+      const points = [...(prev.points || [])];
+      const target = index + dir;
+      if (target < 0 || target >= points.length) return prev;
+      [points[index], points[target]] = [points[target], points[index]];
+      return { ...prev, points };
+    });
 
   const handleSave = async () => {
     // Validate required fields
@@ -72,11 +203,12 @@ const AdminEvents = ({ events, setEvents, t }) => {
     try {
       if (editing._id) {
         const response = await api.put(`/admin/events/${editing._id}`, editing);
-        setEvents(events.map(e => e._id === editing._id ? response.data : e));
+        // The controller replies with a { success, data, message } envelope.
+        setEvents(events.map(e => e._id === editing._id ? response.data.data : e));
         showToast('Event updated successfully', 'success');
       } else {
         const response = await api.post('/admin/events', editing);
-        setEvents([...events, response.data]);
+        setEvents([...events, response.data.data]);
         showToast('Event created successfully', 'success');
       }
       setEditing(null);
@@ -120,7 +252,13 @@ const AdminEvents = ({ events, setEvents, t }) => {
     setUploading(true);
     const formData = new FormData();
     formData.append('image', file);
-    formData.append('eventId', editing._id || 'new');
+    // Only send eventId for an event that already exists. Sending the literal
+    // string 'new' for an unsaved event made the backend call findById('new'),
+    // which throws BSONError. The photo URL is kept in the form and persisted by
+    // the create/update call instead.
+    if (editing._id) {
+      formData.append('eventId', editing._id);
+    }
 
     try {
       const response = await api.post('/admin/upload/event', formData, {
@@ -158,6 +296,20 @@ const AdminEvents = ({ events, setEvents, t }) => {
     return obj[activeLang] || obj.en || '';
   };
 
+  // Which other events already claim each home slot, so the editor can warn
+  // before two events end up fighting over the same position.
+  const slotConflicts = useMemo(() => {
+    const map = {};
+    for (const e of events) {
+      const slot = e.homeSlot || 0;
+      if (slot < 1) continue;
+      map[e._id] = events
+        .filter((o) => o._id !== e._id && (o.homeSlot || 0) === slot)
+        .map((o) => getLocalizedText(o.title) || 'Untitled');
+    }
+    return map;
+  }, [events, activeLang]);
+
   // Filter events
   const filteredEvents = events.filter(e => {
     const title = e.title?.en?.toLowerCase() || '';
@@ -177,7 +329,10 @@ const AdminEvents = ({ events, setEvents, t }) => {
 
   // Sort events by date (newest first)
   const sortedEvents = [...filteredEvents].sort((a, b) => {
-    return new Date(b.date) - new Date(a.date);
+    const oa = a.order ?? 999;
+    const ob = b.order ?? 999;
+    if (oa !== ob) return oa - ob;
+    return new Date(a.date) - new Date(b.date);
   });
 
   const getStatusBadge = (upcoming) => {
@@ -185,6 +340,18 @@ const AdminEvents = ({ events, setEvents, t }) => {
       return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700"><Check size={12} /> Upcoming</span>;
     }
     return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600"><Clock size={12} /> Past</span>;
+  };
+
+  // Shows which home page position (if any) this event occupies.
+  const getHomeSlotBadge = (slot) => {
+    if (!slot || slot < 1) {
+      return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-gray-100 text-gray-500">Not on home</span>;
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-vermilion text-white">
+        Home #{slot}
+      </span>
+    );
   };
 
   if (editing) {
@@ -297,7 +464,160 @@ const AdminEvents = ({ events, setEvents, t }) => {
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-bold text-ink block mb-1.5">Period / Recurrence</label>
+              <input
+                type="text"
+                value={editing.period?.[activeLang] || ''}
+                onChange={(e) => setEditing({ ...editing, period: { ...(editing.period || {}), [activeLang]: e.target.value } })}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm bg-gray-50 hover:bg-white transition-colors"
+                placeholder="e.g. प्रत्येक शनिबार"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-ink block mb-1.5">Year Label</label>
+              <input
+                type="text"
+                value={editing.yearText || ''}
+                onChange={(e) => setEditing({ ...editing, yearText: e.target.value })}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm bg-gray-50 hover:bg-white transition-colors"
+                placeholder="e.g. २०७६–२०८० (leave blank if none)"
+              />
+            </div>
+          </div>
+
+          {/* Paragraphs */}
+          <div className="pt-4 border-t border-gray-100">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-bold text-ink">Paragraphs</label>
+              <button
+                type="button"
+                onClick={addParagraph}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-vermilion/10 text-vermilion text-[11px] font-semibold hover:bg-vermilion/20 transition-all"
+              >
+                <Plus size={12} /> Add Paragraph
+              </button>
+            </div>
+            <p className="text-[11px] text-ink-soft mb-2.5">
+              Add as many as you need. Empty ones are skipped on the public page.
+            </p>
+            {normalizeParagraphs(editing.paragraphs).length === 0 ? (
+              <p className="text-[11px] text-ink-soft">No paragraphs yet.</p>
+            ) : (
+              normalizeParagraphs(editing.paragraphs).map((para, pi) => (
+                <div key={pi} className="mb-2">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="text-[11px] font-mono text-ink-soft w-4 shrink-0">{pi + 1}</span>
+                    <span className="text-xs text-ink-soft flex-1">Paragraph {pi + 1}</span>
+                    <button
+                      type="button"
+                      onClick={() => moveParagraph(pi, -1)}
+                      disabled={pi === 0}
+                      className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"
+                      title="Move up"
+                    >
+                      <ChevronUp size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveParagraph(pi, 1)}
+                      disabled={pi === normalizeParagraphs(editing.paragraphs).length - 1}
+                      className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"
+                      title="Move down"
+                    >
+                      <ChevronDown size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeParagraph(pi)}
+                      className="p-1.5 rounded hover:bg-red-100 text-red-500"
+                      title="Remove"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                  <textarea
+                    rows={2}
+                    value={(para || {})[activeLang] || ''}
+                    onChange={(e) => setParagraph(pi, e.target.value)}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm bg-gray-50 hover:bg-white transition-colors resize-none"
+                    placeholder={`Paragraph ${pi + 1}...`}
+                  />
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* List heading + bullet points */}
+          <div className="pt-4 border-t border-gray-100">
+            <label className="text-xs font-bold text-ink block mb-1.5">List Heading (optional)</label>
+            <input
+              type="text"
+              value={editing.listTitle?.[activeLang] || ''}
+              onChange={(e) => setEditing({ ...editing, listTitle: { ...(editing.listTitle || {}), [activeLang]: e.target.value } })}
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm bg-gray-50 hover:bg-white transition-colors"
+              placeholder="e.g. मुख्य धार्मिक अनुष्ठानहरू"
+            />
+
+            <div className="flex items-center justify-between mt-4 mb-2">
+              <label className="text-xs font-bold text-ink">
+                Bullet Points ({(editing.points || []).length})
+              </label>
+              <button
+                type="button"
+                onClick={addPoint}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-vermilion/10 text-vermilion text-[11px] font-semibold hover:bg-vermilion/20 transition-all"
+              >
+                <Plus size={12} /> Add Point
+              </button>
+            </div>
+
+            {(editing.points || []).length === 0 ? (
+              <p className="text-[11px] text-ink-soft">No bullet points.</p>
+            ) : (
+              (editing.points || []).map((point, pi) => (
+                <div key={pi} className="flex items-center gap-1.5 mb-1.5">
+                  <span className="text-[11px] font-mono text-ink-soft w-4 shrink-0">{pi + 1}</span>
+                  <input
+                    type="text"
+                    value={(point || {})[activeLang] || ''}
+                    onChange={(e) => setPoint(pi, e.target.value)}
+                    className="flex-1 min-w-0 px-4 py-2.5 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm bg-gray-50 hover:bg-white transition-colors"
+                    placeholder={`Point ${pi + 1}...`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => movePoint(pi, -1)}
+                    disabled={pi === 0}
+                    className="p-2 rounded hover:bg-gray-100 disabled:opacity-30"
+                    title="Move up"
+                  >
+                    <ChevronUp size={13} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => movePoint(pi, 1)}
+                    disabled={pi === editing.points.length - 1}
+                    className="p-2 rounded hover:bg-gray-100 disabled:opacity-30"
+                    title="Move down"
+                  >
+                    <ChevronDown size={13} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removePoint(pi)}
+                    className="p-2 rounded hover:bg-red-100 text-red-500"
+                    title="Remove"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-4">
             <label className="flex items-center gap-2 text-sm font-medium text-ink">
               <input
                 type="checkbox"
@@ -307,7 +627,33 @@ const AdminEvents = ({ events, setEvents, t }) => {
               />
               Upcoming Event
             </label>
+
+            <label className="flex items-center gap-2 text-sm font-medium text-ink">
+              <span className="whitespace-nowrap">Home Page</span>
+              <select
+                value={String(editing.homeSlot || 0)}
+                onChange={(e) => setEditing({ ...editing, homeSlot: Number(e.target.value) })}
+                className="px-2.5 py-1.5 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm bg-gray-50 hover:bg-white transition-colors"
+              >
+                <option value="0">Not on home page</option>
+                <option value="1">Position 1</option>
+                <option value="2">Position 2</option>
+                <option value="3">Position 3</option>
+                <option value="4">Position 4</option>
+              </select>
+            </label>
           </div>
+
+          {(editing.homeSlot || 0) > 0 && (
+            <p className="text-[11px] leading-relaxed text-ink-soft bg-vermilion/5 border border-vermilion/20 rounded-lg px-3 py-2">
+              This event will show on the home page as number <strong>{editing.homeSlot}</strong> of 4.
+              {slotConflicts[editing._id]?.length > 0 && (
+                <span className="block text-vermilion font-semibold mt-1">
+                  Position {editing.homeSlot} is also used by: {slotConflicts[editing._id].join(', ')}
+                </span>
+              )}
+            </p>
+          )}
 
           <button
             onClick={handleSave}
@@ -442,6 +788,25 @@ const AdminEvents = ({ events, setEvents, t }) => {
               <option value="upcoming">Upcoming</option>
               <option value="past">Past</option>
             </select>
+            {/* View mode */}
+            <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`px-3 py-2 text-xs font-semibold transition-colors ${
+                  viewMode === 'grid' ? 'bg-vermilion text-white' : 'bg-gray-50 text-ink-soft hover:bg-white'
+                }`}
+              >
+                Cards
+              </button>
+              <button
+                onClick={() => setViewMode('table')}
+                className={`px-3 py-2 text-xs font-semibold transition-colors ${
+                  viewMode === 'table' ? 'bg-vermilion text-white' : 'bg-gray-50 text-ink-soft hover:bg-white'
+                }`}
+              >
+                Table
+              </button>
+            </div>
             <button
               onClick={() => setEditing(blank())}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-vermilion text-white text-sm font-semibold hover:bg-[#a83a0c] transition-all whitespace-nowrap"
@@ -451,11 +816,97 @@ const AdminEvents = ({ events, setEvents, t }) => {
           </div>
         </div>
 
-        {/* Events Grid */}
+        {/* Events Grid / Table */}
         {sortedEvents?.length === 0 ? (
           <div className="text-center py-12">
             <Calendar size={48} className="mx-auto text-gray-300 mb-3" />
             <p className="text-ink-soft">{searchTerm ? 'No events found matching your search' : 'No events added yet'}</p>
+          </div>
+        ) : viewMode === 'table' ? (
+          <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+            <table className="w-full text-sm table-fixed">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-gray-50 text-[11px] uppercase tracking-wider text-gray-500">
+                  <th className="w-8 text-center font-bold py-2.5">#</th>
+                  <th className="w-12 text-center font-bold py-2.5">Photo</th>
+                  <th className="text-left font-bold py-2.5 px-2">Title</th>
+                  <th className="hidden lg:table-cell w-40 text-left font-bold py-2.5 px-2">Period</th>
+                  <th className="hidden md:table-cell w-20 text-left font-bold py-2.5 px-2">Year</th>
+                  <th className="w-12 text-center font-bold py-2.5">Paras</th>
+                  <th className="w-12 text-center font-bold py-2.5">Points</th>
+                  <th className="hidden xl:table-cell w-16 text-center font-bold py-2.5">Status</th>
+                  <th className="hidden lg:table-cell w-24 text-center font-bold py-2.5">Home</th>
+                  <th className="w-28 text-center font-bold py-2.5">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedEvents.map((event, i) => {
+                  const tText = getLocalizedText(event.title);
+                  const paras = normalizeParagraphs(event.paragraphs).filter(
+                    (p) => (p?.[activeLang] || p?.en || p?.ne || '').trim()
+                  ).length;
+                  const pts = (event.points || []).filter(
+                    (p) => (p?.[activeLang] || p?.en || p?.ne || '').trim()
+                  ).length;
+                  return (
+                    <tr key={event._id} className="border-t border-gray-100 hover:bg-gray-50 transition-colors">
+                      <td className="py-2 text-center text-xs font-mono text-gray-400">{i + 1}</td>
+                      <td className="py-2">
+                        <div className="w-8 h-8 rounded-lg overflow-hidden bg-gray-100 mx-auto">
+                          {event.photo ? (
+                            <img src={event.photo} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-300">
+                              <Image size={14} />
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td
+                        className="py-2 px-2 cursor-pointer"
+                        onClick={() => openEvent(event)}
+                      >
+                        <div className="font-medium text-gray-800 truncate">{tText || 'Untitled Event'}</div>
+                        <div className="text-[11px] text-gray-400 truncate">{event.date || ''}</div>
+                      </td>
+                      <td className="py-2 px-2 hidden lg:table-cell text-xs text-gray-500">
+                        <div className="truncate">{getLocalizedText(event.period) || '—'}</div>
+                      </td>
+                      <td className="py-2 px-2 hidden md:table-cell text-xs text-gray-500">{event.yearText || '—'}</td>
+                      <td className="py-2 text-center text-xs text-gray-500">{paras || '—'}</td>
+                      <td className="py-2 text-center text-xs text-gray-500">{pts || '—'}</td>
+                      <td className="py-2 hidden xl:table-cell text-center">{getStatusBadge(event.upcoming)}</td>
+                      <td className="py-2 hidden lg:table-cell text-center">{getHomeSlotBadge(event.homeSlot)}</td>
+                      <td className="py-2">
+                        <div className="flex items-center justify-center gap-0.5">
+                          <button
+                            onClick={() => openEvent(event)}
+                            className="p-1.5 rounded hover:bg-gray-100"
+                            title="Edit"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleViewInterested(event._id)}
+                            className="p-1.5 rounded hover:bg-gray-100"
+                            title="View Interested Users"
+                          >
+                            <Users size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(event._id)}
+                            className="p-1.5 rounded hover:bg-red-100 text-red-500"
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4 max-h-[600px] overflow-y-auto scroll-smooth">
@@ -483,8 +934,9 @@ const AdminEvents = ({ events, setEvents, t }) => {
                     )}
                     
                     {/* Status Badge */}
-                    <div className="absolute top-2 left-2">
+                    <div className="absolute top-2 left-2 flex flex-col gap-1 items-start">
                       {getStatusBadge(event.upcoming)}
+                      {(event.homeSlot || 0) > 0 && getHomeSlotBadge(event.homeSlot)}
                     </div>
 
                     {/* Engagement badges */}
@@ -506,7 +958,7 @@ const AdminEvents = ({ events, setEvents, t }) => {
                     {/* Actions on hover */}
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                       <button
-                        onClick={() => setEditing(event)}
+                        onClick={() => openEvent(event)}
                         className="p-2 rounded-lg bg-white/20 hover:bg-white/30 text-white transition-all"
                         title="Edit"
                       >
@@ -617,6 +1069,163 @@ const AdminEvents = ({ events, setEvents, t }) => {
           </div>
         </div>
       )}
+
+      {/* Events Page Text — table form */}
+      <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+        <div className="px-6 py-4 bg-gradient-to-r from-vermilion/10 to-vermilion/5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h4 className="text-gray-700 font-semibold flex items-center gap-2">
+              <Pencil size={18} className="text-vermilion" />
+              Events Page Text
+            </h4>
+            <p className="text-xs text-gray-400">
+              Every heading and note on the public events page. The key decides
+              where the row is printed; rows with an unknown key are saved but not shown.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={addTextRow}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-vermilion text-white text-xs font-semibold hover:bg-[#a83a0c] transition-all"
+            >
+              <Plus size={14} /> Add Row
+            </button>
+            <button
+              onClick={savePageText}
+              disabled={savingText}
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-vermilion text-white text-xs font-semibold hover:bg-[#a83a0c] transition-all disabled:opacity-50"
+            >
+              {savingText ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save size={14} /> Save Text
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        <div className="p-6">
+          <div className="flex gap-1.5 mb-4 flex-wrap">
+            {['ne', 'en', 'hi', 'zh', 'ta'].map((l) => (
+              <button
+                key={l}
+                onClick={() => setTextLang(l)}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all ${
+                  textLang === l
+                    ? 'bg-vermilion text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-vermilion/10'
+                }`}
+              >
+                {l === 'ne' ? 'नेपाली' : l.toUpperCase()}
+              </button>
+            ))}
+          </div>
+
+          {pageText.length === 0 ? (
+            <p className="text-sm text-gray-400 py-6 text-center">No text rows yet.</p>
+          ) : (
+            <div className="border border-gray-200 rounded-lg overflow-x-auto">
+              <table className="w-full text-sm min-w-[720px]">
+                <thead className="bg-gray-50 text-[11px] uppercase tracking-wider text-gray-500">
+                  <tr>
+                    <th className="w-8 text-center font-bold py-2.5">#</th>
+                    <th className="w-44 text-left font-bold py-2.5 px-2">Key</th>
+                    <th className="text-left font-bold py-2.5 px-2">Text ({textLang.toUpperCase()})</th>
+                    <th className="w-16 text-center font-bold py-2.5">Show</th>
+                    <th className="w-28 text-center font-bold py-2.5">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageText.map((row, i) => (
+                    <tr key={row.key || i} className="border-t border-gray-100 hover:bg-gray-50 transition-colors">
+                      <td className="py-2 text-center text-xs font-mono text-gray-400">{i + 1}</td>
+                      <td className="py-2 px-2">
+                        <input
+                          type="text"
+                          value={row.key || ''}
+                          onChange={(e) => patchTextRow(i, (r) => ({ ...r, key: e.target.value }))}
+                          className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-[11px] font-mono"
+                          placeholder="page-title"
+                        />
+                        <input
+                          type="text"
+                          value={row.label || ''}
+                          onChange={(e) => patchTextRow(i, (r) => ({ ...r, label: e.target.value }))}
+                          className="w-full px-2.5 py-1 mt-1 border border-gray-100 rounded-lg focus:border-vermilion focus:outline-none text-[10px] text-gray-500"
+                          placeholder="hint for admins"
+                        />
+                      </td>
+                      <td className="py-2 px-2">
+                        <textarea
+                          rows={2}
+                          value={(row.text || {})[textLang] || ''}
+                          onChange={(e) => setTextValue(i, e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm resize-none"
+                          placeholder="Text shown on the events page..."
+                        />
+                      </td>
+                      <td className="py-2 text-center">
+                        <button
+                          onClick={() => patchTextRow(i, (r) => ({ ...r, enabled: r.enabled === false }))}
+                          className={`inline-flex items-center justify-center w-7 h-7 rounded-md transition-colors ${
+                            row.enabled === false
+                              ? 'bg-gray-100 text-gray-300 hover:bg-gray-200'
+                              : 'bg-vermilion/15 text-vermilion'
+                          }`}
+                          title={row.enabled === false ? 'Hidden on the page' : 'Visible on the page'}
+                        >
+                          {row.enabled === false ? <XCircle size={14} /> : <Check size={14} />}
+                        </button>
+                      </td>
+                      <td className="py-2">
+                        <div className="flex items-center justify-center gap-0.5">
+                          <button
+                            onClick={() => moveTextRow(i, -1)}
+                            disabled={i === 0}
+                            className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"
+                            title="Move up"
+                          >
+                            <ChevronDown size={14} className="rotate-180" />
+                          </button>
+                          <button
+                            onClick={() => moveTextRow(i, 1)}
+                            disabled={i === pageText.length - 1}
+                            className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"
+                            title="Move down"
+                          >
+                            <ChevronDown size={14} />
+                          </button>
+                          <button
+                            onClick={() => removeTextRow(i)}
+                            className="p-1.5 rounded hover:bg-red-100 text-red-500"
+                            title="Remove"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <p className="mt-3 text-[11px] text-gray-400 leading-relaxed">
+            Built-in keys: <span className="font-mono">page-title</span>,{' '}
+            <span className="font-mono">page-subtitle</span>,{' '}
+            <span className="font-mono">festivals-title</span>,{' '}
+            <span className="font-mono">programs-title</span>,{' '}
+            <span className="font-mono">footer-note</span>. Clear a row's text to
+            fall back to the built-in wording.
+          </p>
+        </div>
+      </div>
     </div>
   );
 };

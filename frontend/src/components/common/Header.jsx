@@ -3,11 +3,13 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
+import useEnabledLanguages from '../../hooks/useEnabledLanguages';
 import {
   Home, Info, ScrollText, CalendarDays, ImageIcon, Hand, Gift, Phone,
-  Globe, User, LogOut, Menu, X, ChevronDown, MapPin, Sun, BadgeCheck,
-  CircleDot, LayoutDashboard, ClipboardList, ChevronRight, Plus, Users, BookOpen
-} from 'lucide-react';
+    Globe, User, LogOut, Menu, X, ChevronDown, MapPin, BadgeCheck,
+    CircleDot, LayoutDashboard, ClipboardList, ChevronRight, Plus, Users, BookOpen, Languages
+  } from 'lucide-react';
+  import TempleIcon from './TempleIcon';
 
 const Header = ({ onLogout, setAuthModal }) => {
   const { t, lang, setLang } = useLanguage();
@@ -19,9 +21,27 @@ const Header = ({ onLogout, setAuthModal }) => {
   const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [aboutDropdownOpen, setAboutDropdownOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [settings, setSettings] = useState(null);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const headerRef = useRef(null);
+  const [isHeaderHidden, setIsHeaderHidden] = useState(false);
+  const lastScrollYRef = useRef(0);
+
+  // Hide header on scroll down (sliding up), show on scroll up (sliding down)
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollY = window.scrollY;
+      if (scrollY > lastScrollYRef.current && scrollY > 120) {
+        setIsHeaderHidden(true);
+      } else {
+        setIsHeaderHidden(false);
+      }
+      lastScrollYRef.current = scrollY;
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Fetch admin settings for logo
   useEffect(() => {
@@ -58,6 +78,9 @@ const Header = ({ onLogout, setAuthModal }) => {
     { code: 'ta', label: t.langTamil || 'தமிழ்' },
   ];
 
+  const enabledLanguages = useEnabledLanguages();
+  const visibleLanguages = languages.filter((l) => enabledLanguages.includes(l.code));
+
   const isActive = (path) => location.pathname === path;
 
   useEffect(() => {
@@ -66,6 +89,7 @@ const Header = ({ onLogout, setAuthModal }) => {
         setLangMenuOpen(false);
         setProfileMenuOpen(false);
         setAboutDropdownOpen(false);
+        setMoreMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -81,6 +105,7 @@ const Header = ({ onLogout, setAuthModal }) => {
     setAboutDropdownOpen(false);
     setLangMenuOpen(false);
     setProfileMenuOpen(false);
+    setMoreMenuOpen(false);
     
     if (isProtected && !user) {
       setAuthModal('login');
@@ -119,12 +144,12 @@ const Header = ({ onLogout, setAuthModal }) => {
   
   // Logo styling from admin settings with MODERN CONSTRAINTS
   const logoSize = logoSettings.size || 'w-12 h-12';
-  const logoShape = logoSettings.shape || 'rounded-xl';
+  const logoShape = logoSettings.shape || 'rounded-full';
   const logoBgColor = logoSettings.bgColor || 'from-vermilion to-maroon-deep';
   const showText = logoSettings.showText !== false;
   const textColor = logoSettings.textColor || 'text-maroon';
   // INCREASED TEXT SIZE - Responsive with bigger mobile size
-  const textSize = logoSettings.textSize || 'text-[11px] sm:text-xs md:text-sm lg:text-base';
+  const textSize = logoSettings.textSize || 'text-[13px] sm:text-sm md:text-base lg:text-lg';
   const fontWeight = logoSettings.fontWeight || 'font-bold';
   const showLocation = logoSettings.showLocation !== false;
 
@@ -162,35 +187,35 @@ const Header = ({ onLogout, setAuthModal }) => {
 
   return (
     <>
-      <header className="rt-header" ref={headerRef}>
-        <div className="w-full max-w-7xl mx-auto flex items-center justify-between px-3 sm:px-4 md:px-6 h-16 sm:h-[72px] md:h-[76px]">
+      <header className={`rt-header ${isHeaderHidden ? 'rt-header-hidden' : ''}`} ref={headerRef}>
+        <div className="w-full max-w-7xl mx-auto flex items-center justify-between px-3 sm:px-4 md:px-6 h-[76px] sm:h-[84px] md:h-[88px]">
           {/* Logo - Using settings from admin with text wrapping and size constraints */}
           <button 
             onClick={() => handleNavClick('/', false)} 
             className="flex items-center gap-2 sm:gap-3 bg-transparent border-0 p-0 text-left group flex-shrink-0 min-w-0"
           >
-            <div className={`${logoSize} ${logoShape} bg-gradient-to-br ${logoBgColor} text-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-lg shadow-vermilion/20 group-hover:shadow-xl group-hover:shadow-vermilion/30 transition-all duration-300 group-hover:scale-105 ${logoMaxWidth}`}>
+            <div className={`${logoSize} ${logoShape} max-lg:rounded-full bg-gradient-to-br ${logoBgColor} text-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-lg shadow-vermilion/20 group-hover:shadow-xl group-hover:shadow-vermilion/30 transition-all duration-300 group-hover:scale-105 ${logoMaxWidth}`}>
               {logoPhoto ? (
                 <img src={logoPhoto} alt="Logo" className="w-full h-full object-cover" />
               ) : (
-                <Sun size={20} strokeWidth={2.2} className="text-white/90" />
+                <TempleIcon size={20} className="text-white/95" />
               )}
             </div>
             {showText && (
-              <div className="flex flex-col leading-tight min-w-0 max-w-[140px] sm:max-w-[180px] md:max-w-[220px] lg:max-w-[260px]">
-                {/* Temple Name with BR tag for wrapping - INCREASED SIZE */}
-                <span className={`font-serif ${textSize} ${fontWeight} ${textColor} group-hover:text-[#8a2430] transition-colors duration-300 leading-tight`}>
+              <div className="flex flex-col leading-tight min-w-0 max-w-[170px] sm:max-w-[220px] md:max-w-[280px] lg:max-w-[340px]">
+                {/* Temple Name - each part on its own line, truncated so long
+                    names (e.g. Tamil) never wrap to a 3rd line and stretch the header */}
+                <span className={`block truncate font-serif ${textSize} ${fontWeight} ${textColor} group-hover:text-[#8a2430] transition-colors duration-300 leading-tight`}>
                   {logoFirstPart}
-                  {logoSecondPart && (
-                    <>
-                      <br />
-                      {logoSecondPart}
-                    </>
-                  )}
                 </span>
+                {logoSecondPart && (
+                  <span className={`block truncate font-serif ${textSize} ${fontWeight} ${textColor} group-hover:text-[#8a2430] transition-colors duration-300 leading-tight`}>
+                    {logoSecondPart}
+                  </span>
+                )}
                 {showLocation && (
-                  <span className="text-[8px] sm:text-[9px] md:text-[10px] text-ink-soft flex items-center gap-1 truncate mt-0.5">
-                    <MapPin size={9} className="text-vermilion flex-shrink-0" /> 
+                  <span className="text-[10px] sm:text-[11px] md:text-xs text-ink-soft flex items-center gap-1 truncate mt-0.5">
+                    <MapPin size={11} className="text-vermilion flex-shrink-0" /> 
                     <span className="truncate">{t.templeSub || 'Gaushala, Kathmandu'}</span>
                   </span>
                 )}
@@ -212,7 +237,7 @@ const Header = ({ onLogout, setAuthModal }) => {
                           : 'text-ink-soft hover:text-maroon hover:bg-maroon/10'
                       }`}
                     >
-                      <span className="truncate max-w-[60px] xl:max-w-full">{item.label}</span>
+                      <span className="truncate max-w-[90px] xl:max-w-full">{item.label}</span>
                       <ChevronDown size={12} className={`transition-transform duration-200 ${aboutDropdownOpen ? 'rotate-180' : ''}`} />
                     </button>
                     {aboutDropdownOpen && (
@@ -240,7 +265,7 @@ const Header = ({ onLogout, setAuthModal }) => {
                 <button
                   key={item.key}
                   onClick={() => handleNavClick(item.key, item.protected)}
-                  className={`px-2.5 xl:px-3.5 py-1.5 xl:py-2 rounded-full text-xs xl:text-sm font-semibold transition-all duration-200 whitespace-nowrap ${
+                  className={`px-2.5 xl:px-3.5 py-1.5 xl:py-2 rounded-full text-xs xl:text-sm font-semibold transition-all duration-200 truncate max-w-[80px] xl:max-w-none ${
                     isActive(item.key) 
                       ? 'bg-maroon text-white shadow-sm shadow-maroon/20' 
                       : 'text-ink-soft hover:text-maroon hover:bg-maroon/10'
@@ -250,6 +275,43 @@ const Header = ({ onLogout, setAuthModal }) => {
                 </button>
               );
             })}
+
+            {/* More - right side of the Contact button (desktop only) */}
+            <div className="relative hidden lg:block">
+              <button
+                onClick={() => setMoreMenuOpen(!moreMenuOpen)}
+                className={`flex items-center gap-1 px-2.5 xl:px-3.5 py-1.5 xl:py-2 rounded-full text-xs xl:text-sm font-semibold transition-all duration-200 truncate max-w-[80px] xl:max-w-none ${
+                  moreMenuOpen
+                    ? 'bg-maroon text-white shadow-sm shadow-maroon/20'
+                    : 'text-ink-soft hover:text-maroon hover:bg-maroon/10'
+                }`}
+              >
+                <span>{t.more || 'More'}</span>
+                <ChevronDown size={12} className={`transition-transform duration-200 ${moreMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {moreMenuOpen && (
+                <div className="absolute right-0 top-full mt-1.5 bg-white border border-line rounded-xl shadow-lg min-w-[220px] p-1.5 z-50 animate-fadeIn">
+                  <button
+                    onClick={() => handleNavClick('/unicode-converter', false)}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium hover:bg-panel transition-colors duration-200"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <Languages size={16} className="text-vermilion" /> {t.unicodeConverter || 'Unicode Converter'}
+                    </span>
+                    <ChevronRight size={14} className="text-ink-soft" />
+                  </button>
+                  <button
+                    onClick={() => handleNavClick('/calendar', false)}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium hover:bg-panel transition-colors duration-200"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <CalendarDays size={16} className="text-vermilion" /> {t.calendarTitle || 'Calendar'}
+                    </span>
+                    <ChevronRight size={14} className="text-ink-soft" />
+                  </button>
+                </div>
+              )}
+            </div>
           </nav>
 
           {/* Right Actions */}
@@ -266,7 +328,7 @@ const Header = ({ onLogout, setAuthModal }) => {
               </button>
               {langMenuOpen && (
                 <div className="absolute right-0 top-full mt-1.5 bg-white border border-line rounded-xl shadow-lg min-w-[160px] p-1.5 z-50 animate-fadeIn">
-                  {languages.map((l) => (
+                  {visibleLanguages.map((l) => (
                     <button
                       key={l.code}
                       onClick={() => handleLangSelect(l.code)}
@@ -416,9 +478,9 @@ const Header = ({ onLogout, setAuthModal }) => {
 
         {/* Mobile Navigation */}
         <div className={`lg:hidden overflow-hidden transition-all duration-300 ease-in-out bg-white ${
-          mobileNavOpen ? 'max-h-[calc(100vh-80px)] border-t border-line shadow-lg' : 'max-h-0'
+          mobileNavOpen ? 'max-h-[calc(100vh-96px)] border-t border-line shadow-lg' : 'max-h-0'
         }`}>
-          <div className="py-2 px-4 overflow-y-auto max-h-[calc(100vh-160px)]">
+          <div className="py-2 px-4 overflow-y-auto max-h-[calc(100vh-176px)]">
             {navItems.map((item) => {
               const Icon = item.icon;
               return (

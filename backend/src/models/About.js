@@ -28,7 +28,18 @@ const aboutSchema = new mongoose.Schema({
   sections: [{
     key: { type: String, required: true },
     title: { type: localizedStringSchema, required: true },
+    // Opening paragraph (kept in sync with paragraphs.p1 for older readers)
     body: { type: localizedStringSchema, required: true },
+    paragraphs: {
+      p1: { type: localizedStringSchema, default: () => ({}) },
+      p2: { type: localizedStringSchema, default: () => ({}) },
+      p3: { type: localizedStringSchema, default: () => ({}) },
+      p4: { type: localizedStringSchema, default: () => ({}) }
+    },
+    // Optional heading shown above the bullet list
+    listTitle: { type: localizedStringSchema, default: () => ({}) },
+    // Optional bullet points rendered under the paragraphs
+    points: { type: [localizedStringSchema], default: () => [] },
     image: { type: String, default: '' },
     order: { type: Number, default: 0 },
     enabled: { type: Boolean, default: true }

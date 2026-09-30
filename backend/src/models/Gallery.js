@@ -16,6 +16,20 @@ const gallerySchema = new mongoose.Schema({
     zh: { type: String, default: '' },
     ta: { type: String, default: '' },
   },
+  title: {
+    en: { type: String, default: '' },
+    ne: { type: String, default: '' },
+    hi: { type: String, default: '' },
+    zh: { type: String, default: '' },
+    ta: { type: String, default: '' },
+  },
+  description: {
+    en: { type: String, default: '' },
+    ne: { type: String, default: '' },
+    hi: { type: String, default: '' },
+    zh: { type: String, default: '' },
+    ta: { type: String, default: '' },
+  },
   type: {
     type: String,
     enum: ['photo', 'video'],

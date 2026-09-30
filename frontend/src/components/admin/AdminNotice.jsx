@@ -1,430 +1,457 @@
 import React, { useState } from 'react';
-import { Save, Eye, EyeOff, Edit, X, QrCode, Upload } from 'lucide-react';
+import { Save, Eye, EyeOff, Edit, X, Plus, Trash2, Image as ImageIcon, ChevronUp, ChevronDown } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import LanguageSwitcher from '../common/LanguageSwitcher';
 import api from '../../services/api';
 import OmLoader from '../../components/common/OmLoader';
 
+const LANGS = ['en', 'ne', 'hi', 'zh', 'ta'];
+
+const emptyLocalized = () => ({
+  en: '',
+  ne: '',
+  hi: '',
+  zh: '',
+  ta: '',
+});
+
+const emptyNotice = () => ({
+  id: `n${Date.now()}${Math.random().toString(36).slice(2, 7)}`,
+  enabled: true,
+  photo: '',
+  title: emptyLocalized(),
+  banner: emptyLocalized(),
+  body: emptyLocalized(),
+  cost: emptyLocalized(),
+  donors: emptyLocalized(),
+  applicant: emptyLocalized(),
+  committee: emptyLocalized(),
+  location: emptyLocalized(),
+  contactNo: emptyLocalized(),
+  contactDetails: emptyLocalized(),
+  qrLabel: emptyLocalized(),
+  donateBtn: emptyLocalized(),
+});
+
+// Normalize a (possibly legacy/partial) notice object into the full shape
+const normalizeNotice = (n) => {
+  const target = { ...emptyNotice(), ...(n || {}) };
+  LANGS.forEach((l) => {
+    ['title', 'banner', 'body', 'cost', 'donors', 'applicant', 'committee', 'location', 'contactNo', 'contactDetails', 'qrLabel', 'donateBtn'].forEach((field) => {
+      const cur = target[field];
+      target[field] = { ...emptyLocalized(), ...(typeof cur === 'string' ? { en: cur } : cur || {}) };
+    });
+  });
+  if (!target.id) target.id = `n${Date.now()}`;
+  return target;
+};
+
+const getText = (obj, lang) => {
+  if (!obj) return '';
+  if (typeof obj === 'string') return obj;
+  return obj[lang] || obj.en || '';
+};
+
+const setText = (obj, lang, value) => ({
+  ...obj,
+  [lang]: value,
+});
+
 const AdminNotice = ({ settings, updateSettings, t }) => {
   const { showToast } = useToast();
+
+  // Seed notices: prefer settings.notices array, otherwise wrap the legacy single notice
+  const seedNotices = () => {
+    if (Array.isArray(settings?.notices) && settings.notices.length > 0) {
+      return settings.notices.map(normalizeNotice);
+    }
+    if (settings?.notice) {
+      return [normalizeNotice(settings.notice)];
+    }
+    return [normalizeNotice(emptyNotice())];
+  };
+
+  const [notices, setNotices] = useState(seedNotices);
+  const [editingIndex, setEditingIndex] = useState(null); // null = not editing modal
+  const [isNew, setIsNew] = useState(false);
   const [activeLang, setActiveLang] = useState('en');
-  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(null);
   const [uploading, setUploading] = useState(false);
-  
-  // Initialize notice state with settings or defaults
-  const [notice, setNotice] = useState(settings?.notice || {
-    enabled: true,
-    title: { 
-      en: 'Heartfelt Request', 
-      ne: 'हार्दिक अनुरोध', 
-      hi: 'हार्दिक अनुरोध', 
-      zh: '诚挚请求', 
-      ta: 'மனமார்ந்த வேண்டுகோள்' 
-    },
-    banner: { 
-      en: "Let's participate in installing the 'Lift'.", 
-      ne: "'लिफ्ट' राख्ने कार्यमा सहभागी बनौं ।", 
-      hi: "'लिफ्ट' रखने कार्य में सहभागी बनें ।", 
-      zh: "让我们参与安装'电梯'。", 
-      ta: "'லிஃப்ட்' அமைப்பதில் பங்கேற்போம்." 
-    },
-    body: { 
-      en: 'To make it easier for the elderly and differently-abled to visit and move around at the Shree Ramchandra Temple, we are installing a lift on the eastern side of the temple that can accommodate up to 8 people. The work is expected to be completed within 6 months.',
-      ne: 'भगवान् श्रीरामचन्द्रको मन्दिरमा वृद्ध-वृद्धा एवं विकलाङ्गहरूलाई दर्शन एवं आउ-जाउ गर्न सजिलो होस् भनी मन्दिरको ठिक पूर्वपट्टि ८ जनासम्म अटाउने लिफ्टको स्थापना ६ महीनाभित्र सक्ने गरी कार्य अगाडि बढिरहेको सन्दर्भमा यहाँहरूको सहयोगको अपेक्षासाथ यो सूचना जनसमक्ष जारी गरिएको छ ।',
-      hi: 'श्रीरामचन्द्र मंदिर में बुजुर्गों और दिव्यांगों को दर्शन और आने-जाने में सुविधा हो, इसके लिए मंदिर के ठीक पूर्व की ओर 8 लोगों तक की क्षमता वाली लिफ्ट स्थापित की जा रही है, जो 6 महीने के भीतर पूरी हो जाएगी।',
-      zh: '为了方便老年人和残障人士在室利罗摩钱德拉神庙参观和活动，我们正在神庙东侧安装一部可容纳8人的电梯，预计在6个月内完工。',
-      ta: 'ஸ்ரீ ராமச்சந்திர கோயிலில் முதியவர்கள் மற்றும் ஊனமுற்றோர் எளிதில் வந்து செல்லும் வகையில், கோயிலின் கிழக்குப் பக்கத்தில் 8 பேர் பயணிக்கும் வகையில் உள்ள லிஃப்ட் அமைக்கும் பணி 6 மாதங்களில் முடிக்க திட்டமிடப்பட்டுள்ளது.'
-    },
-    cost: { 
-      en: 'The estimated cost for the lift structure is approximately Rs. 55,00,000/- (Fifty-five lakh).',
-      ne: 'लिफ्टसहितको संरचनाको लागि करिब रु. ५५,००,०००/- (पचपन्न लाख) पर्ने अनुमान गरिएको छ ।',
-      hi: 'लिफ्ट सहित की संरचना के लिए लगभग रु. ५५,००,०००/- (पचपन्न लाख) खर्च होने का अनुमान है।',
-      zh: '电梯结构的估计成本约为550万卢比。',
-      ta: 'லிஃப்ட் கட்டமைப்பிற்கான மதிப்பீடு ரூ. 55,00,000/- (ஐம்பத்தி ஐந்து லட்சம்) ஆகும்.'
-    },
-    donors: { 
-      en: 'The names of generous donors contributing Rs. 15,000/- (Fifteen thousand) and above will be prominently engraved on a stone plaque on the left side of the lift entrance.',
-      ne: 'यस कार्यमा रु. १५,०००/- (पन्ध्र हजार) देखि माथि सहयोग गर्ने उदारमना दाताहरूको नाम लिफ्टको प्रवेशद्वारको वायाँपट्टि आकर्षक रूपले शिलापत्रमा उत्कीर्ण गरी राखिने जानकारी गराउँदछौं ।',
-      hi: 'इस कार्य में रु. १५,०००/- (पंद्रह हजार) से अधिक सहयोग करने वाले उदार दाताओं के नाम लिफ्ट के प्रवेश द्वार के बाईं ओर आकर्षक रूप से शिलापत्र पर उत्कीर्ण किए जाएंगे।',
-      zh: '捐赠15,000卢比及以上的慷慨捐助者姓名将刻在电梯入口左侧的石碑上。',
-      ta: 'ரூ. 15,000/- (பதினைந்து ஆயிரம்) மற்றும் அதற்கு மேல் நன்கொடை அளிக்கும் தாராள மனம் கொண்ட தானியர்களின் பெயர்கள் லிஃப்ட் நுழைவாயிலின் இடது பக்கத்தில் கல்வெட்டில் பொறிக்கப்படும்.'
-    },
-    applicant: { 
-      en: 'Applicant', 
-      ne: 'प्रार्थी', 
-      hi: 'प्रार्थी', 
-      zh: '申请人', 
-      ta: 'விண்ணப்பதாரர்' 
-    },
-    committee: { 
-      en: 'Shree Ramchandra Temple Renovation & Development Committee',
-      ne: 'श्रीरामचन्द्रमन्दिर जीर्णोद्धार एवं संवर्द्धन समिति',
-      hi: 'श्रीरामचन्द्र मंदिर जीर्णोद्धार एवं संवर्द्धन समिति',
-      zh: '室利罗摩钱德拉神庙修缮与发展委员会',
-      ta: 'ஸ்ரீ ராமச்சந்திர கோயில் புனரமைப்பு மற்றும் மேம்பாட்டுக் குழு'
-    },
-    location: { 
-      en: 'Battisputali, Kathmandu, Nepal', 
-      ne: 'बत्तीसपुतली, काठमाडौं, नेपाल', 
-      hi: 'बत्तीसपुतली, काठमाडौं, नेपाल', 
-      zh: '尼泊尔加德满都巴提斯普塔利', 
-      ta: 'பட்டீஸ்புதாலி, காத்மாண்டு, நேபாளம்' 
-    },
-    contactNo: { 
-      en: 'Contact No.', 
-      ne: 'सम्पर्क नं.', 
-      hi: 'सम्पर्क नं.', 
-      zh: '联系电话', 
-      ta: 'தொடர்பு எண்' 
-    },
-    contactDetails: { 
-      en: '01-4598526, 9851154432', 
-      ne: '01-4598526, 9851154432', 
-      hi: '01-4598526, 9851154432', 
-      zh: '01-4598526, 9851154432', 
-      ta: '01-4598526, 9851154432' 
-    },
-    qrLabel: { 
-      en: 'QR Code', 
-      ne: 'क्यू आर कोड', 
-      hi: 'क्यू आर कोड', 
-      zh: '二维码', 
-      ta: 'கியூ ஆர் குறியீடு' 
-    },
-    donateBtn: { 
-      en: 'Donate Now', 
-      ne: 'सहयोग गर्नुहोस्', 
-      hi: 'सहयोग करें', 
-      zh: '立即捐赠', 
-      ta: 'தானம் செய்யுங்கள்' 
-    },
-  });
 
-  // QR Code state
-  const [qrPhoto, setQrPhoto] = useState(settings?.donate?.qrPhoto || null);
-
-  const handleSave = async () => {
-    try {
-      // Save notice settings
-      await updateSettings({ notice });
-      
-      // Save QR photo if changed
-      if (qrPhoto !== settings?.donate?.qrPhoto) {
-        await updateSettings({ donate: { ...settings?.donate, qrPhoto } });
-      }
-      
-      showToast('Notice settings saved successfully', 'success');
-      setEditing(false);
-    } catch (error) {
-      console.error('Save notice error:', error);
-      showToast(error.response?.data?.message || 'Failed to save notice settings', 'error');
-    }
+  const openAddModal = () => {
+    const n = emptyNotice();
+    setDraft(n);
+    setEditingIndex(null);
+    setIsNew(true);
   };
 
-  const handleToggle = async () => {
-    const newEnabled = !notice.enabled;
-    setNotice({ ...notice, enabled: newEnabled });
-    try {
-      await updateSettings({ notice: { ...notice, enabled: newEnabled } });
-      showToast(newEnabled ? 'Notice enabled' : 'Notice disabled', 'success');
-    } catch (error) {
-      console.error('Toggle notice error:', error);
-      showToast('Failed to update notice status', 'error');
-      setNotice({ ...notice, enabled: !newEnabled });
-    }
+  const openEditModal = (index) => {
+    setDraft({ ...normalizeNotice(notices[index]) });
+    setEditingIndex(index);
+    setIsNew(false);
   };
 
-  const handleQrUpload = async (e) => {
+  const closeModal = () => {
+    setDraft(null);
+    setEditingIndex(null);
+    setIsNew(false);
+  };
+
+  const updateDraftField = (field, value) => {
+    setDraft((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const updateDraftLocalized = (field, value) => {
+    setDraft((prev) => ({ ...prev, [field]: setText(prev[field] || emptyLocalized(), activeLang, value) }));
+  };
+
+  const handlePhotoUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     if (!file.type.startsWith('image/')) {
       showToast('Please upload an image file', 'error');
       return;
     }
-
-    if (file.size > 5 * 1024 * 1024) {
-      showToast('Image must be less than 5MB', 'error');
+    if (file.size > 8 * 1024 * 1024) {
+      showToast('Image must be less than 8MB', 'error');
       return;
     }
-
     setUploading(true);
     const formData = new FormData();
     formData.append('image', file);
-
     try {
-      const response = await api.post('/admin/upload/qr', formData, {
+      const response = await api.post('/admin/upload/notice', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      setQrPhoto(response.data.url);
-      showToast('QR Code uploaded successfully', 'success');
+      updateDraftField('photo', response.data.url);
+      showToast('Notice photo uploaded successfully', 'success');
     } catch (error) {
       console.error('Upload error:', error);
-      showToast(error.response?.data?.message || 'Failed to upload QR Code', 'error');
+      showToast(error.response?.data?.message || 'Failed to upload notice photo', 'error');
     } finally {
       setUploading(false);
     }
     e.target.value = '';
   };
 
-  const handleRemoveQr = async () => {
-    if (!window.confirm('Remove QR Code?')) return;
-    setQrPhoto(null);
+  const saveNotices = async (next) => {
     try {
-      await updateSettings({ donate: { ...settings?.donate, qrPhoto: null } });
-      showToast('QR Code removed', 'success');
+      await updateSettings({ notices: next.map(normalizeNotice) });
+      setNotices(next.map(normalizeNotice));
+      showToast('Notice settings saved successfully', 'success');
     } catch (error) {
-      console.error('Remove QR error:', error);
-      showToast('Failed to remove QR Code', 'error');
+      console.error('Save notice error:', error);
+      showToast(error.response?.data?.message || 'Failed to save notice settings', 'error');
+      throw error;
     }
   };
 
-  const getCurrentValue = (obj) => {
-    if (!obj) return '';
-    return obj[activeLang] || obj.en || '';
+  const handleSaveModal = async () => {
+    if (!draft) return;
+    if (!getText(draft.title, 'en').trim()) {
+      showToast('Title (English) is required', 'error');
+      return;
+    }
+    const normalized = normalizeNotice(draft);
+    let next;
+    if (editingIndex !== null) {
+      next = notices.map((n, i) => (i === editingIndex ? normalized : n));
+    } else {
+      next = [...notices, normalized];
+    }
+    await saveNotices(next);
+    closeModal();
   };
 
-  const updateField = (field, value) => {
-    setNotice({
-      ...notice,
-      [field]: {
-        ...notice[field],
-        [activeLang]: value,
-      },
-    });
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this notice?')) return;
+    const next = notices.filter((n) => n.id !== id);
+    if (next.length === 0) {
+      next.push(normalizeNotice(emptyNotice()));
+    }
+    await saveNotices(next);
   };
+
+  const handleToggle = async (id) => {
+    const next = notices.map((n) => (n.id === id ? { ...n, enabled: !n.enabled } : n));
+    setNotices(next);
+    try {
+      await updateSettings({ notices: next.map(normalizeNotice) });
+    } catch (error) {
+      setNotices(notices);
+      showToast('Failed to update notice status', 'error');
+    }
+  };
+
+  const moveNotice = (index, dir) => {
+    const next = [...notices];
+    const target = index + dir;
+    if (target < 0 || target >= next.length) return;
+    [next[index], next[target]] = [next[target], next[index]];
+    setNotices(next);
+    void saveNotices(next);
+  };
+
+  const renderLocalizedInput = (field, placeholder, textarea = false, rows = 2) =>
+    textarea ? (
+      <textarea
+        rows={rows}
+        value={getText(draft[field], activeLang)}
+        onChange={(e) => updateDraftLocalized(field, e.target.value)}
+        placeholder={placeholder}
+        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm resize-none"
+      />
+    ) : (
+      <input
+        type="text"
+        value={getText(draft[field], activeLang)}
+        onChange={(e) => updateDraftLocalized(field, e.target.value)}
+        placeholder={placeholder}
+        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
+      />
+    );
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
       <div className="flex items-center justify-between mb-4">
         <div>
           <h4 className="text-base font-serif font-semibold text-ink">Notice Modal</h4>
-          <p className="text-xs text-ink-soft mt-0.5">Manage the notice that appears on website load</p>
+          <p className="text-xs text-ink-soft mt-0.5">Manage notices shown on website load ({notices.length} notice{notices.length === 1 ? '' : 's'})</p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className={`text-xs font-bold px-2 py-1 rounded-full ${notice.enabled ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
-            {notice.enabled ? 'Active' : 'Disabled'}
-          </span>
-          <button
-            onClick={handleToggle}
-            className={`p-2 rounded-lg transition-all ${
-              notice.enabled ? 'bg-green-50 text-green-600 hover:bg-green-100' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
-            }`}
-          >
-            {notice.enabled ? <Eye size={18} /> : <EyeOff size={18} />}
-          </button>
-          <button
-            onClick={() => setEditing(!editing)}
-            className="p-2 rounded-lg bg-vermilion/10 text-vermilion hover:bg-vermilion/20 transition-all"
-          >
-            {editing ? <X size={18} /> : <Edit size={18} />}
-          </button>
-        </div>
+        <button
+          onClick={openAddModal}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-vermilion text-white font-semibold text-sm hover:bg-[#a83a0c] transition-all"
+        >
+          <Plus size={16} /> Add New Notice
+        </button>
       </div>
 
-      {editing ? (
-        <div className="space-y-4">
-          {/* QR Code Upload Section */}
-          <div>
-            <label className="text-xs font-bold text-ink block mb-1.5">QR Code Image</label>
+      {/* Notices List */}
+      <div className="space-y-3">
+        {notices.map((item, index) => (
             <div
-              className="relative border-2 border-dashed border-gray-300 rounded-xl overflow-hidden h-32 flex items-center justify-center cursor-pointer bg-gray-50 hover:border-vermilion transition-colors"
+              key={item.id}
+              className={`border rounded-xl p-4 transition-all ${
+                item.enabled ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50 opacity-75'
+              }`}
             >
-              <input 
-                type="file" 
-                accept="image/*" 
-                onChange={handleQrUpload} 
-                className="hidden" 
-                id="qr-upload" 
-              />
-              <label htmlFor="qr-upload" className="absolute inset-0 flex items-center justify-center cursor-pointer">
-                {qrPhoto ? (
-                  <img src={qrPhoto} alt="QR" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="flex flex-col items-center gap-1.5 text-ink-soft">
-                    <QrCode size={32} />
-                    <span className="text-sm font-medium">Click to upload QR Code</span>
-                    <span className="text-xs text-ink-soft/60">JPG, PNG, WEBP • Max 5MB</span>
+              <div className="flex items-start gap-4">
+                {item.photo && (
+                  <img
+                    src={item.photo}
+                    alt={getText(item.title, 'en') || 'Notice'}
+                    className="w-16 h-16 rounded-lg object-cover border border-gray-200 flex-shrink-0"
+                  />
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h5 className="text-sm font-semibold text-ink truncate">
+                      {getText(item.title, 'en') || 'Untitled Notice'}
+                    </h5>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      item.enabled ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      {item.enabled ? 'Active' : 'Disabled'}
+                    </span>
                   </div>
-                )}
-              </label>
-              {uploading && (
-                <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                  <OmLoader size="md" color="white" />
+                  {getText(item.banner, 'en') && (
+                    <p className="text-xs text-ink-soft truncate mt-0.5">{getText(item.banner, 'en')}</p>
+                  )}
                 </div>
-              )}
-              {qrPhoto && !uploading && (
-                <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs font-bold py-1.5 flex items-center justify-center gap-1.5">
-                  <Upload size={13} /> Click to change QR Code
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button
+                    onClick={() => moveNotice(index, -1)}
+                    disabled={index === 0}
+                    className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-30"
+                    title="Move up"
+                  >
+                    <ChevronUp size={16} className="text-ink-soft" />
+                  </button>
+                  <button
+                    onClick={() => moveNotice(index, 1)}
+                    disabled={index === notices.length - 1}
+                    className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-30"
+                    title="Move down"
+                  >
+                    <ChevronDown size={16} className="text-ink-soft" />
+                  </button>
+                  <button
+                    onClick={() => handleToggle(item.id)}
+                    className={`p-1.5 rounded-lg transition-all ${
+                      item.enabled ? 'bg-green-50 text-green-600 hover:bg-green-100' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+                    }`}
+                    title={item.enabled ? 'Disable' : 'Enable'}
+                  >
+                    {item.enabled ? <Eye size={16} /> : <EyeOff size={16} />}
+                  </button>
+                  <button
+                    onClick={() => openEditModal(index)}
+                    className="p-1.5 rounded-lg bg-vermilion/10 text-vermilion hover:bg-vermilion/20 transition-all"
+                    title="Edit"
+                  >
+                    <Edit size={16} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(item.id)}
+                    className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-all"
+                    title="Delete"
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 </div>
-              )}
-            </div>
-            {qrPhoto && (
-              <button
-                onClick={handleRemoveQr}
-                className="mt-2 text-xs text-red-500 hover:text-red-600 transition-colors bg-transparent border-0"
-              >
-                Remove QR Code
-              </button>
-            )}
-          </div>
-
-          {/* Language Switcher */}
-          <div className="flex items-center gap-4">
-            <LanguageSwitcher active={activeLang} onChange={setActiveLang} t={t} />
-          </div>
-
-          {/* All Notice Fields */}
-          <div>
-            <label className="text-xs font-bold text-ink block mb-1.5">Title</label>
-            <input
-              type="text"
-              value={getCurrentValue(notice.title)}
-              onChange={(e) => updateField('title', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-bold text-ink block mb-1.5">Banner Text</label>
-            <input
-              type="text"
-              value={getCurrentValue(notice.banner)}
-              onChange={(e) => updateField('banner', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-bold text-ink block mb-1.5">Body</label>
-            <textarea
-              rows={4}
-              value={getCurrentValue(notice.body)}
-              onChange={(e) => updateField('body', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm resize-none"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-bold text-ink block mb-1.5">Cost Information</label>
-            <textarea
-              rows={2}
-              value={getCurrentValue(notice.cost)}
-              onChange={(e) => updateField('cost', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm resize-none"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-bold text-ink block mb-1.5">Donor Information</label>
-            <textarea
-              rows={2}
-              value={getCurrentValue(notice.donors)}
-              onChange={(e) => updateField('donors', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm resize-none"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-bold text-ink block mb-1.5">Applicant</label>
-              <input
-                type="text"
-                value={getCurrentValue(notice.applicant)}
-                onChange={(e) => updateField('applicant', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-ink block mb-1.5">Committee</label>
-              <input
-                type="text"
-                value={getCurrentValue(notice.committee)}
-                onChange={(e) => updateField('committee', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-bold text-ink block mb-1.5">Location</label>
-              <input
-                type="text"
-                value={getCurrentValue(notice.location)}
-                onChange={(e) => updateField('location', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-ink block mb-1.5">Contact Details</label>
-              <input
-                type="text"
-                value={getCurrentValue(notice.contactDetails)}
-                onChange={(e) => updateField('contactDetails', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-bold text-ink block mb-1.5">QR Label</label>
-              <input
-                type="text"
-                value={getCurrentValue(notice.qrLabel)}
-                onChange={(e) => updateField('qrLabel', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-ink block mb-1.5">Donate Button Text</label>
-              <input
-                type="text"
-                value={getCurrentValue(notice.donateBtn)}
-                onChange={(e) => updateField('donateBtn', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
-              />
-            </div>
-          </div>
-
-          <button
-            onClick={handleSave}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-vermilion text-white font-semibold text-sm hover:bg-[#a83a0c] transition-all"
-          >
-            <Save size={15} /> Save Notice
-          </button>
-        </div>
-      ) : (
-        <div className="p-4 bg-gray-50 rounded-xl">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-            <div>
-              <span className="text-xs text-ink-soft">Title</span>
-              <p className="font-medium">{getCurrentValue(notice.title)}</p>
-            </div>
-            <div>
-              <span className="text-xs text-ink-soft">Status</span>
-              <p className={`font-medium ${notice.enabled ? 'text-green-600' : 'text-gray-500'}`}>
-                {notice.enabled ? 'Active' : 'Disabled'}
-              </p>
-            </div>
-            <div className="sm:col-span-2">
-              <span className="text-xs text-ink-soft">Banner</span>
-              <p className="font-medium">{getCurrentValue(notice.banner)}</p>
-            </div>
-            <div className="sm:col-span-2">
-              <span className="text-xs text-ink-soft">QR Code</span>
-              <div className="flex items-center gap-2 mt-1">
-                {qrPhoto ? (
-                  <img src={qrPhoto} alt="QR" className="w-12 h-12 rounded object-cover border border-gray-200" />
-                ) : (
-                  <span className="text-ink-soft text-xs">No QR Code uploaded</span>
-                )}
               </div>
             </div>
-            <div className="sm:col-span-2">
-              <span className="text-xs text-ink-soft">Contact</span>
-              <p className="font-medium">{getCurrentValue(notice.contactDetails)}</p>
+          ))}
+      </div>
+
+      {/* Add / Edit Notice Modal */}
+      {draft && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[92vh] overflow-y-auto shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-white rounded-t-2xl">
+              <div>
+                <h3 className="text-lg font-serif font-semibold text-ink">
+                  {isNew ? 'Add New Notice' : 'Edit Notice'}
+                </h3>
+                <p className="text-xs text-ink-soft mt-0.5">Fill in the notice details below</p>
+              </div>
+              <button
+                onClick={closeModal}
+                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Enabled + Photo */}
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={draft.enabled}
+                    onChange={(e) => updateDraftField('enabled', e.target.checked)}
+                    className="w-4 h-4 accent-vermilion"
+                  />
+                  <span className="text-sm font-medium text-ink">Enable this notice</span>
+                </label>
+
+                <div className="flex items-center gap-2">
+                  <div
+                    className="relative border-2 border-dashed border-gray-300 rounded-xl overflow-hidden w-24 h-24 flex items-center justify-center cursor-pointer bg-gray-50 hover:border-vermilion transition-colors"
+                  >
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhotoUpload}
+                      className="hidden"
+                      id="notice-photo-upload"
+                    />
+                    <label htmlFor="notice-photo-upload" className="absolute inset-0 flex items-center justify-center cursor-pointer">
+                      {draft.photo ? (
+                        <img src={draft.photo} alt="Notice" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="flex flex-col items-center gap-1 text-ink-soft">
+                          <ImageIcon size={20} />
+                          <span className="text-[10px] font-medium">Upload photo</span>
+                        </div>
+                      )}
+                    </label>
+                    {uploading && (
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                        <OmLoader size="sm" color="white" />
+                      </div>
+                    )}
+                  </div>
+                  {draft.photo && (
+                    <button
+                      onClick={() => updateDraftField('photo', '')}
+                      className="text-xs text-red-500 hover:text-red-600 transition-colors bg-transparent border-0"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Language Switcher */}
+              <div className="flex items-center gap-4">
+                <LanguageSwitcher active={activeLang} onChange={setActiveLang} t={t} />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-ink block mb-1.5">Title *</label>
+                {renderLocalizedInput('title', 'Notice title', false)}
+              </div>
+              <div>
+                <label className="text-xs font-bold text-ink block mb-1.5">Banner Text</label>
+                {renderLocalizedInput('banner', 'Short banner line', false)}
+              </div>
+              <div>
+                <label className="text-xs font-bold text-ink block mb-1.5">Body</label>
+                {renderLocalizedInput('body', 'Full notice body', true, 4)}
+              </div>
+              <div>
+                <label className="text-xs font-bold text-ink block mb-1.5">Cost Information</label>
+                {renderLocalizedInput('cost', 'Estimated cost details', true, 2)}
+              </div>
+              <div>
+                <label className="text-xs font-bold text-ink block mb-1.5">Donor Information</label>
+                {renderLocalizedInput('donors', 'Donor plaque details', true, 2)}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-ink block mb-1.5">Applicant</label>
+                  {renderLocalizedInput('applicant', 'Applicant', false)}
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-ink block mb-1.5">Committee</label>
+                  {renderLocalizedInput('committee', 'Committee name', false)}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-ink block mb-1.5">Location</label>
+                  {renderLocalizedInput('location', 'Location', false)}
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-ink block mb-1.5">Contact Details</label>
+                  {renderLocalizedInput('contactDetails', 'Phone numbers', false)}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-ink block mb-1.5">Contact No. Label</label>
+                  {renderLocalizedInput('contactNo', 'Contact No.', false)}
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-ink block mb-1.5">QR Label</label>
+                  {renderLocalizedInput('qrLabel', 'QR Code', false)}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-ink block mb-1.5">Donate Button Text</label>
+                {renderLocalizedInput('donateBtn', 'Donate Now', false)}
+              </div>
+
+              <div className="flex gap-3 pt-2 border-t border-gray-100">
+                <button
+                  onClick={handleSaveModal}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-vermilion text-white font-semibold text-sm hover:bg-[#a83a0c] transition-all"
+                >
+                  <Save size={15} /> {isNew ? 'Add Notice' : 'Save Changes'}
+                </button>
+                <button
+                  onClick={closeModal}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-gray-200 text-ink-soft font-semibold text-sm hover:bg-gray-50 transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>

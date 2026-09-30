@@ -8,10 +8,21 @@ const Team = require('../models/Team');
 const Gallery = require('../models/Gallery');
 const Event = require('../models/Event');
 const Contact = require('../models/Contact');
+const AdminLog = require('../models/AdminLog');
 const cloudinary = require('../config/cloudinary');
 const { sendTeamWelcomeEmail } = require('../services/emailService');
+const { PUJA_TYPES, DEFAULT_EVENTS_PAGE_TEXT } = require('../data/templeContent');
+const { DEFAULT_HISTORY } = require('../data/templeHistory');
+const { DEFAULT_BOOKING_CONTENT } = require('../data/templeBooking');
+const { DONATE_PAGE_TITLE, DONATE_INTRO, DEFAULT_DONATE_CONTENT } = require('../data/templeDonate');
+const {
+  TEAM_PAGE_TITLE,
+  DEFAULT_TEAM_MEMBERS,
+  DEFAULT_TEAM_CONTENT,
+} = require('../data/templeTeam');
 
 // ============ ADMIN ACTIVITY LOGGING ============
+// In-memory fallback cache; persistent source of truth is the AdminLog collection.
 let adminActivityLogs = [];
 
 // @desc    Get admin activity logs
@@ -19,8 +30,18 @@ let adminActivityLogs = [];
 // @access  Private/Admin
 exports.getAdminActivity = async (req, res) => {
   try {
-    const logs = adminActivityLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-    res.json(logs);
+    const { limit = 100, search = '' } = req.query;
+    const q = {};
+    if (search) {
+      const rx = new RegExp(search, 'i');
+      q.$or = [{ action: rx }, { 'user.name': rx }, { 'user.email': rx }];
+    }
+    const logs = await AdminLog.find(q)
+      .sort({ createdAt: -1 })
+      .limit(Math.min(Number(limit) || 100, 500))
+      .lean();
+    const mapped = logs.map(toFrontendLog);
+    res.json(mapped);
   } catch (error) {
     console.error('Get admin activity error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -33,24 +54,23 @@ exports.getAdminActivity = async (req, res) => {
 exports.addAdminLog = async (req, res) => {
   try {
     const { action, details } = req.body;
-    const log = {
+    const log = await AdminLog.create({
       action: action || 'Admin action',
       details: details || {},
-      timestamp: new Date().toISOString(),
-      user: { 
-        name: req.user.name || 'Admin', 
+      user: {
+        name: req.user.name || 'Admin',
         email: req.user.email || 'admin@temple.com',
-        id: req.user.id
+        id: req.user.id,
       },
       adminId: req.user.id,
-    };
-    
-    adminActivityLogs.push(log);
+    });
+
+    adminActivityLogs.push({ ...log.toObject(), timestamp: log.createdAt });
     if (adminActivityLogs.length > 1000) {
       adminActivityLogs = adminActivityLogs.slice(-1000);
     }
-    
-    res.json({ success: true, data: log });
+
+    res.json({ success: true, data: toFrontendLog(log.toObject()) });
   } catch (error) {
     console.error('Add admin log error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -62,10 +82,27 @@ exports.addAdminLog = async (req, res) => {
 // @access  Private/Admin
 exports.clearAdminLogs = async (req, res) => {
   try {
+    await AdminLog.deleteMany({});
     adminActivityLogs = [];
     res.json({ success: true, message: 'Logs cleared' });
   } catch (error) {
     console.error('Clear logs error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Delete a single admin activity log
+// @route   DELETE /api/admin/activity/:id
+// @access  Private/Admin
+exports.deleteAdminLog = async (req, res) => {
+  try {
+    const deleted = await AdminLog.findByIdAndDelete(req.params.id);
+    if (!deleted) {
+      return res.status(404).json({ message: 'Log not found' });
+    }
+    res.json({ success: true, message: 'Log deleted' });
+  } catch (error) {
+    console.error('Delete log error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -82,20 +119,32 @@ exports.getAdminLogStats = async (req, res) => {
     const monthAgo = new Date(today);
     monthAgo.setMonth(monthAgo.getMonth() - 1);
 
+    const [total, todayCount, thisWeek, thisMonth] = await Promise.all([
+      AdminLog.countDocuments(),
+      AdminLog.countDocuments({ createdAt: { $gte: today } }),
+      AdminLog.countDocuments({ createdAt: { $gte: weekAgo } }),
+      AdminLog.countDocuments({ createdAt: { $gte: monthAgo } }),
+    ]);
+
     res.json({
       success: true,
-      data: {
-        total: adminActivityLogs.length,
-        today: adminActivityLogs.filter(l => new Date(l.timestamp) >= today).length,
-        thisWeek: adminActivityLogs.filter(l => new Date(l.timestamp) >= weekAgo).length,
-        thisMonth: adminActivityLogs.filter(l => new Date(l.timestamp) >= monthAgo).length,
-      }
+      data: { total, today: todayCount, thisWeek, thisMonth },
     });
   } catch (error) {
     console.error('Get stats error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
+
+// Map a persisted log doc to the shape the frontend expects
+const toFrontendLog = (log) => ({
+  _id: log._id,
+  action: log.action,
+  details: log.details || {},
+  timestamp: (log.createdAt || new Date()).toISOString(),
+  user: log.user || { name: 'Admin', email: '', id: log.adminId },
+  adminId: log.adminId,
+});
 
 // Helper function to log admin activity
 const logAdminActivity = (adminId, action, details = {}) => {
@@ -110,12 +159,23 @@ const logAdminActivity = (adminId, action, details = {}) => {
   if (adminActivityLogs.length > 100) {
     adminActivityLogs = adminActivityLogs.slice(-100);
   }
-  // Enrich with the real admin name/email (fire-and-forget)
+
+  // Persist to the AdminLog collection (fire-and-forget)
+  let name = 'Admin';
+  let email = '';
   User.findById(adminId).select('name email').lean()
     .then((u) => {
       if (u) {
+        name = u.name;
+        email = u.email;
         log.user = { id: adminId, name: u.name, email: u.email };
       }
+      return AdminLog.create({
+        adminId,
+        action,
+        details,
+        user: { id: adminId, name, email },
+      }).catch((e) => console.error('AdminLog persist error:', e.message));
     })
     .catch(() => {});
 };
@@ -135,6 +195,63 @@ const getDateKey = (date) => {
 exports.getSettings = async (req, res) => {
   try {
     const settings = await AdminSettings.getSettings();
+
+    /*
+     * Keep the booking form in sync with the ceremonies the temple complex can
+     * host ("मन्दिर परिसरमा आयोजना गर्न सकिने कार्यक्रम"). Missing entries are
+     * appended; anything the admin added, renamed or removed is preserved.
+     */
+    const missing = PUJA_TYPES.filter((t) => !(settings.pujaTypes || []).includes(t));
+    if (missing.length > 0) {
+      settings.pujaTypes = [...(settings.pujaTypes || []), ...missing];
+      await settings.save();
+      console.log(`Settings: added ${missing.length} puja type(s)`);
+    }
+
+    // Publish the "पूजा तथा धार्मिक कार्यक्रम बुकिङ" content once. Any section the
+    // admin has since added or edited is kept.
+    if (!settings.bookingContent || settings.bookingContent.length === 0) {
+      settings.bookingContent = DEFAULT_BOOKING_CONTENT;
+      await settings.save();
+      console.log(`Settings: published ${DEFAULT_BOOKING_CONTENT.length} booking content section(s)`);
+    }
+
+    // Publish the "कार्यसमिति तथा सदस्यहरू" content once.
+    if (!settings.teamContent || settings.teamContent.length === 0) {
+      settings.teamContent = DEFAULT_TEAM_CONTENT;
+      await settings.save();
+      console.log(`Settings: published ${DEFAULT_TEAM_CONTENT.length} team content section(s)`);
+    }
+    if (!settings.teamPageTitle || (!settings.teamPageTitle.ne && !settings.teamPageTitle.en)) {
+      settings.teamPageTitle = TEAM_PAGE_TITLE;
+      await settings.save();
+      console.log('Settings: published team page title');
+    }
+
+    // Publish the "दान तथा सहयोग" content once.
+    if (!settings.donateContent || settings.donateContent.length === 0) {
+      settings.donateContent = DEFAULT_DONATE_CONTENT;
+      await settings.save();
+      console.log(`Settings: published ${DEFAULT_DONATE_CONTENT.length} donate content section(s)`);
+    }
+    if (!settings.donatePageTitle || (!settings.donatePageTitle.ne && !settings.donatePageTitle.en)) {
+      settings.donatePageTitle = DONATE_PAGE_TITLE;
+      await settings.save();
+      console.log('Settings: published donate page title');
+    }
+    if (!settings.donateIntro || (!settings.donateIntro.ne && !settings.donateIntro.en)) {
+      settings.donateIntro = DONATE_INTRO;
+      await settings.save();
+      console.log('Settings: published donate page intro');
+    }
+
+    // Publish the /events page headings once.
+    if (!settings.eventsPageText || settings.eventsPageText.length === 0) {
+      settings.eventsPageText = DEFAULT_EVENTS_PAGE_TEXT;
+      await settings.save();
+      console.log(`Settings: published ${DEFAULT_EVENTS_PAGE_TEXT.length} events page text row(s)`);
+    }
+
     res.json(settings);
   } catch (error) {
     console.error('Get settings error:', error);
@@ -157,6 +274,75 @@ exports.updateSettings = async (req, res) => {
 };
 
 // ============ SOCIAL LINKS MANAGEMENT ============
+
+// @desc    Resolve a Facebook share/short URL to its canonical embeddable URL
+// @route   POST /api/admin/facebook/resolve
+// @access  Public (used by frontend to build embeddable video URLs)
+// Facebook share links (/share/v/, /share/r/, fb.watch) 302-redirect to the
+// canonical reel/video URL, and the plugins/video.php embed cannot follow that
+// redirect, so we resolve it server-side first.
+exports.resolveFacebookUrl = async (req, res) => {
+  try {
+    const rawInput = req.body?.url;
+    if (!rawInput || typeof rawInput !== 'string') {
+      return res.status(400).json({ success: false, message: 'url is required' });
+    }
+
+    // If a full embed <iframe> code was pasted, extract its src/href.
+    let value = rawInput.trim();
+    if (/<iframe/i.test(value)) {
+      const srcMatch = value.match(/src=["']([^"']+)["']/i);
+      const src = srcMatch ? srcMatch[1] : value;
+      const hrefMatch = src.match(/[?&]href=([^&]+)/i);
+      if (hrefMatch) {
+        try { value = decodeURIComponent(hrefMatch[1]); }
+        catch (e) { value = hrefMatch[1]; }
+      } else if (!src.includes('plugins/video.php')) {
+        value = src;
+      }
+    }
+
+    // Only follow redirects for Facebook share/short links; leave direct
+    // canonical URLs (facebook.com/.../videos/..., /reel/..., /watch) untouched.
+    const isShareLike = /facebook\.com\/share\//i.test(value) || /(^|\.)fb\.watch\/|facebook\.com\/reel\/|facebook\.com\/reels\//i.test(value) || /facebook\.com\/watch\//i.test(value);
+    let canonical = value;
+
+    if (isShareLike) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 12000);
+        const res = await fetch(value, {
+          redirect: 'follow',
+          signal: controller.signal,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+          },
+        });
+        clearTimeout(timeout);
+        if (res.url) {
+          canonical = res.url;
+          // Strip tracking params that make the URL non-canonical
+          try {
+            const u = new URL(canonical);
+            u.hash = '';
+            for (const key of ['rdid', 'share_url', 'mibextid', 'ref', 'utm_source', 'utm_medium', 'utm_campaign']) {
+              u.searchParams.delete(key);
+            }
+            canonical = u.toString();
+          } catch (e) { /* keep as-is */ }
+        }
+      } catch (err) {
+        console.error('Resolve facebook url error:', err.message);
+        // fall through — keep original value
+      }
+    }
+
+    res.json({ success: true, url: canonical });
+  } catch (error) {
+    console.error('Resolve facebook url error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
 
 // @desc    Get social links (public)
 // @route   GET /api/admin/social
@@ -385,6 +571,35 @@ exports.uploadQRPhoto = async (req, res) => {
   }
 };
 
+// @desc    Upload notice modal photo
+// @route   POST /api/admin/upload/notice
+// @access  Private/Admin
+exports.uploadNoticePhoto = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No image uploaded' });
+    }
+    const settings = await AdminSettings.getSettings();
+
+    if (settings.notice.photo) {
+      try {
+        const publicId = settings.notice.photo.split('/').pop().split('.')[0];
+        await cloudinary.uploader.destroy(`temple/notice/${publicId}`);
+      } catch (error) {
+        console.log('Old notice photo deletion skipped:', error.message);
+      }
+    }
+
+    settings.notice.photo = req.file.path;
+    await settings.save();
+    logAdminActivity(req.user.id, 'Notice Photo Updated', { url: req.file.path });
+    res.json({ url: req.file.path });
+  } catch (error) {
+    console.error('Upload notice photo error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 exports.uploadTeamPhoto = async (req, res) => {
   try {
     if (!req.file) {
@@ -430,17 +645,16 @@ exports.uploadHistoryPhoto = async (req, res) => {
     }
     
     const { historyId } = req.body;
-    if (!historyId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'History ID is required' 
-      });
-    }
     
-    if (!mongoose.Types.ObjectId.isValid(historyId)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Invalid History ID format' 
+    // A brand new history entry has no _id yet, so the photo cannot be attached
+    // to a record at this point. Return the uploaded URL and let the create call
+    // persist it with the rest of the entry, instead of rejecting the upload.
+    if (!mongoose.isValidObjectId(historyId)) {
+      return res.json({
+        success: true,
+        url: req.file.path,
+        attached: false,
+        message: 'Photo uploaded. It will be saved with the history entry.',
       });
     }
     
@@ -490,10 +704,18 @@ exports.uploadEventPhoto = async (req, res) => {
     }
     
     const { eventId } = req.body;
-    if (!eventId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Event ID is required' 
+    
+    // A brand new event has no _id yet, so there is no record to attach the
+    // photo to. The admin form simply omits eventId in that case. Return the
+    // uploaded URL and let the create call persist it with the rest of the
+    // event. Guarding on isValidObjectId also stops the literal string 'new'
+    // (sent by older admin builds) from reaching findById and throwing BSONError.
+    if (!mongoose.isValidObjectId(eventId)) {
+      return res.json({
+        success: true,
+        url: req.file.path,
+        attached: false,
+        message: 'Photo uploaded. It will be saved with the event.',
       });
     }
     
@@ -754,8 +976,45 @@ exports.deleteDonation = async (req, res) => {
 };
 
 // ============ HISTORY ============
+/**
+ * Publishes the recorded temple history once. Existing entries are hidden
+ * (never deleted, so their photos stay available) and can be re-enabled from
+ * Admin → History at any time.
+ */
+let historySeedPromise = null;
+
+const ensureSeedHistory = async () => {
+  if (!historySeedPromise) {
+    historySeedPromise = (async () => {
+      try {
+        const already = await History.findOne({ seedKey: 'history-01' });
+        if (already) return;
+
+        const legacy = await History.find({ seedKey: { $in: ['', null] } });
+        for (const item of DEFAULT_HISTORY) {
+          const exists = await History.findOne({ seedKey: item.seedKey });
+          if (!exists) await History.create(item);
+        }
+        if (legacy.length > 0) {
+          await History.updateMany(
+            { _id: { $in: legacy.map((d) => d._id) } },
+            { $set: { enabled: false } }
+          );
+          console.log(`History: hid ${legacy.length} previous entry/entries`);
+        }
+        console.log(`History: published ${DEFAULT_HISTORY.length} sections`);
+      } catch (error) {
+        console.error('Seed history error:', error.message);
+        historySeedPromise = null; // allow a retry
+      }
+    })();
+  }
+  return historySeedPromise;
+};
+
 exports.getHistory = async (req, res) => {
   try {
+    await ensureSeedHistory();
     const history = await History.find().sort({ order: 1, createdAt: 1 });
     res.json(history);
   } catch (error) {
@@ -818,8 +1077,39 @@ exports.deleteHistory = async (req, res) => {
 };
 
 // ============ TEAM ============
+
+/**
+ * Publishes the committee members once, identified by `seedKey`. Any member
+ * already added from the admin panel is left untouched.
+ */
+let teamSeedPromise = null;
+
+const ensureSeedTeam = async () => {
+  if (!teamSeedPromise) {
+    teamSeedPromise = (async () => {
+      try {
+        let created = 0;
+        for (const member of DEFAULT_TEAM_MEMBERS) {
+          const exists = await Team.findOne({ seedKey: member.seedKey });
+          if (exists) continue;
+          await Team.create({ ...member, photo: null, bio: E_LOCALIZED, email: '', phone: '' });
+          created += 1;
+        }
+        if (created > 0) console.log(`Team: seeded ${created} committee member(s)`);
+      } catch (error) {
+        console.error('Seed team error:', error.message);
+        teamSeedPromise = null; // allow a retry
+      }
+    })();
+  }
+  return teamSeedPromise;
+};
+
+const E_LOCALIZED = { en: '', ne: '', hi: '', zh: '', ta: '' };
+
 exports.getTeam = async (req, res) => {
   try {
+    await ensureSeedTeam();
     const team = await Team.find().sort({ order: 1, createdAt: 1 });
     res.json(team);
   } catch (error) {
@@ -1091,6 +1381,8 @@ exports.addGalleryPhoto = async (req, res) => {
     const galleryItem = await Gallery.create({
       photo: req.file.path,
       cap: data.cap || { en: 'Temple Photo' },
+      title: data.title || { en: '' },
+      description: data.description || { en: '' },
       type: 'photo',
       hue: data.hue || '#7A1F2B',
       category: data.category || 'general',
@@ -1191,6 +1483,8 @@ exports.addGalleryVideo = async (req, res) => {
     const video = await Gallery.create({
       ...videoData,
       cap,
+      title: req.body.title || { en: '' },
+      description: req.body.description || { en: '' },
       type: 'video',
       hue: req.body.hue || '#1a1a2e',
       category: req.body.category || 'videos',
@@ -1305,7 +1599,7 @@ exports.getGalleryItem = async (req, res) => {
 exports.updateGalleryItem = async (req, res) => {
   try {
     const { id } = req.params;
-    const { cap, category, hue, url } = req.body;
+    const { cap, category, hue, url, title, description } = req.body;
     
     const item = await Gallery.findById(id);
     if (!item) {
@@ -1319,6 +1613,8 @@ exports.updateGalleryItem = async (req, res) => {
     if (category) item.category = category;
     if (hue) item.hue = hue;
     if (url) item.url = url;
+    if (title) item.title = title;
+    if (description) item.description = description;
     
     await item.save();
     logAdminActivity(req.user.id, 'Gallery Item Updated', { 

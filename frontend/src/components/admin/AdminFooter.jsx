@@ -24,7 +24,7 @@ const AdminFooter = ({ settings, updateSettings, t }) => {
   const [footerSettings, setFooterSettings] = useState(settings?.footer || {
     enabled: true,
     bgType: 'color',
-    bgColor: '#f8f5f0',
+    bgColor: '#ffffff',
     bgImage: null,
     bgVideo: null,
     logoShape: 'circle',

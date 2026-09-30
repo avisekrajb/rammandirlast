@@ -7,12 +7,14 @@ const {
   // Settings
   getSettings,
   updateSettings,
+  resolveFacebookUrl,
   
   // Uploads
   uploadHeroVideo,
   uploadLogo,
   uploadAboutPhoto,
   uploadQRPhoto,
+  uploadNoticePhoto,
   uploadTeamPhoto,
   uploadHistoryPhoto,
   uploadHistoryBanner,
@@ -127,6 +129,9 @@ const {
 
 // Settings - public for frontend
 router.get('/settings', getSettings);
+
+// Resolve Facebook share/short links to canonical embeddable URLs (public)
+router.post('/facebook/resolve', resolveFacebookUrl);
 
 // Social Links - public for frontend
 router.get('/social', getSocialLinks);
@@ -265,6 +270,7 @@ router.post('/upload/hero', upload.single('video'), uploadHeroVideo);
 router.post('/upload/logo', upload.single('image'), uploadLogo);
 router.post('/upload/about', upload.single('image'), uploadAboutPhoto);
 router.post('/upload/qr', upload.single('image'), uploadQRPhoto);
+router.post('/upload/notice', upload.single('image'), uploadNoticePhoto);
 router.post('/upload/team', upload.single('image'), uploadTeamPhoto);
 router.post('/upload/event', upload.single('image'), uploadEventPhoto);
 router.post('/upload/gallery', upload.single('image'), uploadGalleryPhoto);

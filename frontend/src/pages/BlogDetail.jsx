@@ -81,7 +81,7 @@ const BlogDetail = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(180deg, #faf8f5 0%, #ffffff 50%, #faf8f5 100%)' }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#ffffff' }}>
         <div className="text-center">
           <OmLoader size="lg" color="vermilion" className="mx-auto mb-4" />
           <p className="text-ink-soft text-sm">Loading blog...</p>
@@ -92,7 +92,7 @@ const BlogDetail = () => {
 
   if (error || !blog) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(180deg, #faf8f5 0%, #ffffff 50%, #faf8f5 100%)' }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#ffffff' }}>
         <div className="text-center max-w-md mx-auto px-6">
           <BookOpen size={64} className="mx-auto text-ink-soft/20 mb-4" />
           <h2 className="text-2xl font-serif font-semibold text-ink mb-2">Blog Not Found</h2>
@@ -114,7 +114,7 @@ const BlogDetail = () => {
   const excerptText = getLocalizedText(blog.excerpt);
 
   return (
-    <div className="min-h-screen" style={{ background: 'linear-gradient(180deg, #faf8f5 0%, #ffffff 50%, #faf8f5 100%)' }}>
+    <div className="min-h-screen" style={{ background: '#ffffff' }}>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12">
         {/* Back Button */}
         <button

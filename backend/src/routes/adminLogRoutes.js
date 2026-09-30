@@ -6,6 +6,7 @@ const {
   getAdminActivity,
   addAdminLog,
   clearAdminLogs,
+  deleteAdminLog,
   getAdminLogStats,
 } = require('../controllers/adminController');
 
@@ -21,6 +22,11 @@ router.get('/', protect, admin, getAdminActivity);
 // @route   POST /api/admin/activity/log
 // @access  Private/Admin
 router.post('/log', protect, admin, addAdminLog);
+
+// @desc    Delete a single admin activity log
+// @route   DELETE /api/admin/activity/:id
+// @access  Private/Admin
+router.delete('/:id', protect, admin, deleteAdminLog);
 
 // @desc    Clear admin activity logs
 // @route   DELETE /api/admin/activity

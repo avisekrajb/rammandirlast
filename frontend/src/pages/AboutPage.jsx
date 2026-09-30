@@ -2,7 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
 import api from '../services/api';
+import { handleImageError } from '../utils/imageFallback';
 import OmLoader from '../components/common/OmLoader';
+import FacebookVideoSection from '../components/common/FacebookVideoSection';
 
 const getLocalizedText = (obj, lang) => {
   if (!obj) return '';
@@ -37,7 +39,7 @@ function AboutHero({ hero }) {
         aria-hidden
         style={{ scale: imgScale }}
         className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none origin-center"
-        onError={(e) => { e.target.src = '/aboutusphoto.jpeg'; }}
+           onError={(e) => { handleImageError(e, '/aboutusphoto.jpeg'); }}
       />
       <motion.div className="absolute inset-0" style={{ background: "rgba(0,0,0,1)", opacity: overlayOp }} />
       <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.08) 45%, transparent 70%)" }} />
@@ -73,10 +75,10 @@ function AboutHero({ hero }) {
 
 // ===== INTRO TEXT COMPONENT - VISIBLE BELOW HERO =====
 function IntroText({ introText }) {
-  const { lang } = useLanguage();
-  
+  const { t, lang } = useLanguage();
+
   const text = getLocalizedText(introText, lang);
-  
+
   if (!text) {
     return null;
   }
@@ -90,19 +92,21 @@ function IntroText({ introText }) {
     >
       <div className="max-w-4xl mx-auto text-center">
         <div className="flex items-center justify-center gap-4 mb-6">
-          <div className="h-px w-16 bg-gradient-to-r from-transparent to-maroon/20" />
-          <span className="text-xs uppercase tracking-widest text-maroon/40 font-serif">Introduction</span>
-          <div className="h-px w-16 bg-gradient-to-l from-transparent to-maroon/20" />
+          <div className="h-px w-16 bg-gradient-to-r from-transparent to-maroon/50" />
+          <span className="text-xs font-bold uppercase tracking-[0.2em] text-maroon/80 font-serif">
+            {t.aboutIntroduction || 'Introduction'}
+          </span>
+          <div className="h-px w-16 bg-gradient-to-l from-transparent to-maroon/50" />
         </div>
-        
+
         <p className="font-serif text-base sm:text-lg md:text-xl lg:text-2xl leading-relaxed text-gray-700 max-w-3xl mx-auto text-justify">
           {text}
         </p>
-        
+
         <div className="mt-8 flex justify-center items-center gap-3">
-          <div className="h-px w-8 bg-gradient-to-r from-transparent to-maroon/30" />
-          <div className="w-1.5 h-1.5 rounded-full bg-maroon/30" />
-          <div className="h-px w-8 bg-gradient-to-l from-transparent to-maroon/30" />
+          <div className="h-px w-8 bg-gradient-to-r from-transparent to-maroon/40" />
+          <div className="w-1.5 h-1.5 rounded-full bg-maroon/50" />
+          <div className="h-px w-8 bg-gradient-to-l from-transparent to-maroon/40" />
         </div>
       </div>
     </motion.div>
@@ -114,8 +118,23 @@ function AboutSection({ section, index }) {
   const { lang } = useLanguage();
   const isEven = index % 2 === 0;
   const titleText = getLocalizedText(section.title, lang) || 'Section Title';
-  const bodyText = getLocalizedText(section.body, lang) || 'Section description...';
   const defaultImages = ['/1.jpg', '/2.jpg', '/3.jpg'];
+
+  // Prefer the structured paragraphs; fall back to the single `body` field.
+  const paragraphs = section.paragraphs
+    ? Object.keys(section.paragraphs)
+        .map((pKey) => getLocalizedText(section.paragraphs[pKey], lang))
+        .filter(Boolean)
+    : [];
+  if (paragraphs.length === 0) {
+    const bodyText = getLocalizedText(section.body, lang);
+    if (bodyText) paragraphs.push(bodyText);
+  }
+
+  const listTitleText = getLocalizedText(section.listTitle, lang);
+  const points = Array.isArray(section.points)
+    ? section.points.map((p) => getLocalizedText(p, lang)).filter(Boolean)
+    : [];
 
   return (
     <motion.div
@@ -131,14 +150,40 @@ function AboutSection({ section, index }) {
           alt={titleText}
           loading="lazy"
           className="w-full h-80 object-cover"
-          onError={(e) => { e.target.src = defaultImages[index % defaultImages.length]; }}
+            onError={(e) => { handleImageError(e, defaultImages[index % defaultImages.length]); }}
         />
       </div>
       <div className="flex flex-col justify-center">
-        <h2 className="font-serif text-2xl sm:text-3xl mb-4" style={{ color: "#7A0000" }}>
+        <h2 className="font-serif text-2xl sm:text-3xl font-bold mb-4" style={{ color: "#7A0000" }}>
           {titleText}
         </h2>
-        <p className="text-mute leading-relaxed text-base sm:text-lg text-justify">{bodyText}</p>
+
+        {paragraphs.map((text, i) => (
+          <p key={i} className="text-mute leading-relaxed text-base sm:text-lg text-justify mb-4 last:mb-0">
+            {text}
+          </p>
+        ))}
+
+        {points.length > 0 && (
+          <div className="mt-5">
+            {listTitleText && (
+              <p className="font-semibold text-base sm:text-lg mb-3" style={{ color: "#7A1F2B" }}>
+                {listTitleText}
+              </p>
+            )}
+            <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-2">
+              {points.map((point, i) => (
+                <li key={i} className="flex items-start gap-2.5">
+                  <span
+                    className="shrink-0 mt-2 w-1.5 h-1.5 rounded-full"
+                    style={{ background: "linear-gradient(135deg, #E8A93D, #C1440E)" }}
+                  />
+                  <span className="text-base sm:text-lg text-mute leading-relaxed">{point}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     </motion.div>
   );
@@ -146,7 +191,7 @@ function AboutSection({ section, index }) {
 
 // ===== ACTIVITIES COMPONENT =====
 function ActivitiesSection({ activities }) {
-  const { lang } = useLanguage();
+  const { t, lang } = useLanguage();
 
   if (!activities || activities.length === 0) return null;
 
@@ -159,7 +204,7 @@ function ActivitiesSection({ activities }) {
           <div className="h-px flex-1 bg-gradient-to-l from-transparent to-amber-300" />
         </div>
         <h2 className="font-serif text-3xl sm:text-4xl" style={{ color: "#1a0a00" }}>
-          Activities & Programs
+          {t.activitiesPrograms || 'Activities & Programs'}
         </h2>
       </div>
 
@@ -177,14 +222,14 @@ function ActivitiesSection({ activities }) {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-60px" }}
               transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1], delay: 0.05 }}
-              className={`py-12 px-6 sm:px-10 lg:px-16 ${isEven ? "" : "bg-[#faf7f4]"} rounded-xl ${index > 0 ? "mt-6" : ""}`}
+              className={`py-12 px-6 sm:px-10 lg:px-16 ${isEven ? "" : "bg-gray-50"} rounded-xl ${index > 0 ? "mt-6" : ""}`}
             >
               <div className="max-w-5xl mx-auto">
                 <div className="flex items-baseline gap-4 mb-4">
                   <span className="text-xs tracking-widest text-mute shrink-0" style={{ fontFamily: "serif", minWidth: "2.5rem" }}>
                     {String(index + 1).padStart(2, "0")}
                   </span>
-                  <h3 className="font-serif text-2xl sm:text-3xl lg:text-4xl leading-tight" style={{ color: "#520505" }}>
+                  <h3 className="font-serif text-2xl sm:text-3xl lg:text-4xl leading-tight" style={{ color: "#7A1F2B" }}>
                     {titleText}
                   </h3>
                 </div>
@@ -232,7 +277,7 @@ function BannerText({ bannerText }) {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-      className="bg-gradient-to-r from-amber-50 via-white to-amber-50 py-12 px-6 border-y border-amber-200/30"
+      className="bg-gray-50 py-12 px-6 border-y border-gray-100"
     >
       <div className="max-w-4xl mx-auto text-center">
         <p className="font-serif text-lg sm:text-xl md:text-2xl leading-relaxed text-gray-700 italic text-justify">
@@ -250,18 +295,21 @@ function BannerText({ bannerText }) {
 
 // ===== MAIN ABOUT PAGE =====
 const AboutPage = () => {
-  const { lang } = useLanguage();
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [aboutData, setAboutData] = useState(null);
+  const [settings, setSettings] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const response = await api.get('/about');
-        setAboutData(response.data.data);
-        console.log('About Data:', response.data.data);
-        console.log('Intro Text:', response.data.data?.introText);
+        const [aboutRes, settingsRes] = await Promise.all([
+          api.get('/about'),
+          api.get('/admin/settings').catch(() => null),
+        ]);
+        setAboutData(aboutRes.data.data);
+        setSettings(settingsRes?.data || null);
       } catch (error) {
         console.error('Error fetching about data:', error);
       } finally {
@@ -286,10 +334,11 @@ const AboutPage = () => {
     <div className="w-full min-h-screen bg-white">
       <AboutHero hero={aboutData?.hero} />
       <IntroText introText={aboutData?.introText} />
+
       {aboutData?.bannerText && (
         <BannerText bannerText={aboutData.bannerText} />
       )}
-      
+
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-20 space-y-24">
         {sections.map((section, index) => (
           <AboutSection key={section.key || index} section={section} index={index} />
@@ -298,17 +347,15 @@ const AboutPage = () => {
 
       <ActivitiesSection activities={activities} />
 
-      <div className="bg-slate-50">
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="max-w-3xl mx-auto px-6 py-12 text-center"
-        >
-          <p className="font-serif text-2xl font-semibold text-red-900">
-            Shree Ramchandra Temple — A Living Heritage
-          </p>
-        </motion.div>
+      {/* Reels & short videos — below Activities & Programs */}
+      <div className="bg-white pb-16">
+        <FacebookVideoSection
+          settings={settings}
+          t={t}
+          onlyReels
+          showViewMoreReels={false}
+          containerClass="max-w-7xl mx-auto px-4 sm:px-6"
+        />
       </div>
     </div>
   );

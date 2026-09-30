@@ -32,7 +32,7 @@ const DonateFailure = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: "linear-gradient(180deg, #faf8f5 0%, #ffffff 50%, #faf8f5 100%)" }}>
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: "#ffffff" }}>
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 text-center">
         <div className="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
           <X size={40} className="text-red-500" />

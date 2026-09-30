@@ -1,21 +1,31 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Check, X, Clock, Calendar, User, Phone, Tag, FileText, 
   ChevronDown, ChevronUp, Plus, Trash2, Edit2, 
   Eye, EyeOff, Settings, CalendarDays, AlertCircle,
-  Search, Filter, Grid, List, Sparkles, Shield, Save,
+    Search, Filter, Sparkles, Shield, Save,
   Image, Upload, Trash
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
+import { handleImageError } from '../../utils/imageFallback';
 import api from '../../services/api';
+
+// Localized text helper: reads a { en, ne, hi, zh, ta } object
+const getLocalizedValue = (obj, lang) => {
+  if (!obj) return '';
+  if (typeof obj === 'string') return obj;
+  return obj[lang] || obj.en || '';
+};
 
 const AdminBookings = ({ bookings, setBookings, t }) => {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
-  const [viewMode, setViewMode] = useState('table');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(10);
+  const [sortBy, setSortBy] = useState('newest');
   
   const [pujaTypes, setPujaTypes] = useState([]);
   const [newPujaType, setNewPujaType] = useState('');
@@ -28,6 +38,11 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
   const [bookingAvailable, setBookingAvailable] = useState(true);
   const [availabilityMessage, setAvailabilityMessage] = useState('');
   const [savingMessage, setSavingMessage] = useState(false);
+
+  // Booking page content ("पूजा तथा धार्मिक कार्यक्रम बुकिङ")
+  const [bookingContent, setBookingContent] = useState([]);
+  const [contentLang, setContentLang] = useState('ne');
+  const [savingContent, setSavingContent] = useState(false);
   
   // Background Photo State
   const [bookingBgPhoto, setBookingBgPhoto] = useState('/4.jpg');
@@ -72,6 +87,9 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
         }
         if (settings?.bookingBgPhoto) {
           setBookingBgPhoto(settings.bookingBgPhoto);
+        }
+        if (Array.isArray(settings?.bookingContent)) {
+          setBookingContent(settings.bookingContent);
         }
         // Initialize preview images with the current photo
         if (settings?.bookingBgPhoto && settings.bookingBgPhoto !== '/4.jpg') {
@@ -310,6 +328,108 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
     }
   };
 
+  // ===== Booking page content =====
+  const emptyLocalized = () => ({ en: '', ne: '', hi: '', zh: '', ta: '' });
+
+  const patchContent = (index, fn) =>
+    setBookingContent((prev) => prev.map((s, i) => (i === index ? fn(s) : s)));
+
+  const addContentSection = () => {
+    const next = {
+      key: `booking_${Date.now()}`,
+      title: emptyLocalized(),
+      paragraphs: {
+        p1: emptyLocalized(),
+        p2: emptyLocalized(),
+        p3: emptyLocalized(),
+        p4: emptyLocalized()
+      },
+      listTitle: emptyLocalized(),
+      points: [],
+      group: emptyLocalized(),
+      showForm: false,
+      order: bookingContent.length,
+      enabled: true
+    };
+    setBookingContent([...bookingContent, next]);
+  };
+
+  const removeContentSection = (index) => {
+    if (!window.confirm('Remove this section?')) return;
+    setBookingContent(bookingContent.filter((_, i) => i !== index));
+  };
+
+  const moveContentSection = (index, dir) => {
+    const next = [...bookingContent];
+    const target = index + dir;
+    if (target < 0 || target >= next.length) return;
+    [next[index], next[target]] = [next[target], next[index]];
+    setBookingContent(next.map((s, i) => ({ ...s, order: i })));
+  };
+
+  const toggleContentSection = (index, field) => {
+    patchContent(index, (s) => ({ ...s, [field]: field === 'showForm' ? !s.showForm : s[field] === false }));
+  };
+
+  const updateContentField = (index, field, value) => {
+    patchContent(index, (s) => ({ ...s, [field]: { ...(s[field] || {}), [contentLang]: value } }));
+  };
+
+  const updateContentParagraph = (index, pKey, value) => {
+    patchContent(index, (s) => ({
+      ...s,
+      paragraphs: {
+        ...(s.paragraphs || {}),
+        [pKey]: { ...(s.paragraphs?.[pKey] || {}), [contentLang]: value }
+      }
+    }));
+  };
+
+  const addContentPoint = (index) => {
+    patchContent(index, (s) => ({ ...s, points: [...(s.points || []), emptyLocalized()] }));
+  };
+
+  const updateContentPoint = (index, pointIndex, value) => {
+    patchContent(index, (s) => ({
+      ...s,
+      points: (s.points || []).map((p, i) =>
+        i === pointIndex ? { ...(p || {}), [contentLang]: value } : p
+      )
+    }));
+  };
+
+  const removeContentPoint = (index, pointIndex) => {
+    patchContent(index, (s) => ({
+      ...s,
+      points: (s.points || []).filter((_, i) => i !== pointIndex)
+    }));
+  };
+
+  const moveContentPoint = (index, pointIndex, dir) => {
+    patchContent(index, (s) => {
+      const points = [...(s.points || [])];
+      const target = pointIndex + dir;
+      if (target < 0 || target >= points.length) return s;
+      [points[pointIndex], points[target]] = [points[target], points[pointIndex]];
+      return { ...s, points };
+    });
+  };
+
+  const saveContent = async () => {
+    setSavingContent(true);
+    try {
+      await api.put('/admin/settings', {
+        bookingContent: bookingContent.map((s, i) => ({ ...s, order: i }))
+      });
+      showToast('Booking page content saved', 'success');
+    } catch (error) {
+      console.error('Error saving booking content:', error);
+      showToast('Failed to save booking content', 'error');
+    } finally {
+      setSavingContent(false);
+    }
+  };
+
   const getDateLimit = (date) => dateLimits[date] || null;
   const getBookingsForDate = (date) => bookings.filter(b => b.date === date).length;
   const isDateFull = (date) => {
@@ -327,9 +447,50 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
     return matchesSearch && matchesStatus;
   });
 
-  const sortedBookings = [...filteredBookings].sort((a, b) => 
-    new Date(b.createdAt) - new Date(a.createdAt)
-  );
+  const sortedBookings = useMemo(() => {
+    const list = [...filteredBookings];
+    const byName = (a, b) => (a.name || '').localeCompare(b.name || '');
+    switch (sortBy) {
+      case 'oldest':
+        return list.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+      case 'name':
+        return list.sort(byName);
+      case 'date':
+        return list.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+      case 'status':
+        return list.sort((a, b) => (a.status || '').localeCompare(b.status || ''));
+      default:
+        return list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    }
+  }, [filteredBookings, sortBy]);
+
+  // Counts for the summary chips, computed from everything (not the filtered
+  // set) so the chips stay a stable overview while a filter is active.
+  const statusCounts = useMemo(() => {
+    const counts = { all: bookings.length, pending: 0, confirmed: 0, completed: 0, cancelled: 0 };
+    bookings.forEach((b) => {
+      if (counts[b.status] !== undefined) counts[b.status] += 1;
+    });
+    return counts;
+  }, [bookings]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedBookings.length / perPage));
+
+  // Keep the page in range when a search or filter shrinks the result set.
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, filterStatus, perPage]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+  const pagedBookings = useMemo(() => {
+    const start = (page - 1) * perPage;
+    return sortedBookings.slice(start, start + perPage);
+  }, [sortedBookings, page, perPage]);
+
+  const toggleSort = (key) => setSortBy(sortBy === key ? 'newest' : key);
 
   return (
     <div className="space-y-6">
@@ -398,7 +559,7 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
                     alt={`Background ${index + 1}`}
                     className="w-full h-full object-cover"
                     onError={(e) => {
-                      e.target.src = '/4.jpg';
+                      handleImageError(e, '/4.jpg');
                     }}
                   />
                   {bookingBgPhoto === img && (
@@ -517,6 +678,225 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
               </p>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Booking Page Content */}
+      <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+        <div className="px-6 py-4 bg-gradient-to-r from-[#7A0000]/10 to-[#A00000]/5 border-b border-gray-100 flex items-center justify-between">
+          <h4 className="text-gray-700 font-semibold flex items-center gap-2">
+            <FileText size={18} className="text-[#7A0000]" />
+            Booking Page Content
+          </h4>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={addContentSection}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#7A0000] text-white text-xs font-semibold hover:bg-[#5A0000] transition-all"
+            >
+              <Plus size={14} /> Add Section
+            </button>
+            <button
+              onClick={saveContent}
+              disabled={savingContent}
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[#7A0000] text-white text-xs font-semibold hover:bg-[#5A0000] transition-all disabled:opacity-50"
+            >
+              {savingContent ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save size={14} /> Save Content
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        <div className="p-6">
+          <div className="flex gap-2 mb-4">
+            <input
+              type="text"
+              value={contentLang === 'ne' ? 'नेपाली' : contentLang.toUpperCase()}
+              readOnly
+              className="w-24 px-3 py-1.5 border border-gray-200 rounded-lg bg-gray-50 text-xs font-semibold text-gray-600"
+            />
+            <p className="text-xs text-gray-500 self-center">
+              Sections shown on the booking page, in order. The section marked
+              <span className="font-semibold text-[#7A0000]"> booking form </span>
+              renders the real form there.
+            </p>
+          </div>
+
+          <div className="flex gap-1.5 mb-4 flex-wrap">
+            {['ne', 'en', 'hi', 'zh', 'ta'].map((l) => (
+              <button
+                key={l}
+                onClick={() => setContentLang(l)}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all ${
+                  contentLang === l
+                    ? 'bg-[#7A0000] text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-[#7A0000]/10'
+                }`}
+              >
+                {l.toUpperCase()}
+              </button>
+            ))}
+          </div>
+
+          {bookingContent.length === 0 ? (
+            <p className="text-sm text-gray-400 py-6 text-center">No content sections yet.</p>
+          ) : (
+            <div className="space-y-4">
+              {bookingContent.map((section, i) => (
+                <div key={section.key || i} className="border border-gray-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xs font-mono text-gray-400 w-6">{i + 1}</span>
+                      <span className="text-sm font-semibold text-gray-700 truncate">
+                        {getLocalizedValue(section.title, contentLang) || 'Untitled section'}
+                      </span>
+                      {section.showForm && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#7A0000] bg-[#7A0000]/10 rounded-full px-2 py-0.5">
+                          booking form
+                        </span>
+                      )}
+                      {section.enabled === false && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">
+                          hidden
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => moveContentSection(i, -1)}
+                        disabled={i === 0}
+                        className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"
+                        title="Move up"
+                      >
+                        <ChevronUp size={14} />
+                      </button>
+                      <button
+                        onClick={() => moveContentSection(i, 1)}
+                        disabled={i === bookingContent.length - 1}
+                        className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"
+                        title="Move down"
+                      >
+                        <ChevronDown size={14} />
+                      </button>
+                      <button
+                        onClick={() => toggleContentSection(i, 'enabled')}
+                        className="p-1.5 rounded hover:bg-gray-100"
+                        title={section.enabled === false ? 'Show' : 'Hide'}
+                      >
+                        {section.enabled === false ? <Eye size={14} /> : <EyeOff size={14} />}
+                      </button>
+                      <button
+                        onClick={() => toggleContentSection(i, 'showForm')}
+                        className="p-1.5 rounded hover:bg-gray-100"
+                        title="Render the booking form at this section"
+                      >
+                        <CalendarDays size={14} />
+                      </button>
+                      <button
+                        onClick={() => removeContentSection(i)}
+                        className="p-1.5 rounded hover:bg-red-100 text-red-500"
+                        title="Remove"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <input
+                    type="text"
+                    value={getLocalizedValue(section.title, contentLang)}
+                    onChange={(e) => updateContentField(i, 'title', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm mb-2"
+                    placeholder="Section title..."
+                  />
+
+                  <div className="grid sm:grid-cols-2 gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={getLocalizedValue(section.group, contentLang)}
+                      onChange={(e) => updateContentField(i, 'group', e.target.value)}
+                      className="px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
+                      placeholder="Parent heading (optional)"
+                    />
+                    <input
+                      type="text"
+                      value={getLocalizedValue(section.listTitle, contentLang)}
+                      onChange={(e) => updateContentField(i, 'listTitle', e.target.value)}
+                      className="px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
+                      placeholder="List heading (optional)"
+                    />
+                  </div>
+
+                  {['p1', 'p2', 'p3', 'p4'].map((pKey) => (
+                    <textarea
+                      key={pKey}
+                      rows={2}
+                      value={getLocalizedValue(section.paragraphs?.[pKey], contentLang)}
+                      onChange={(e) => updateContentParagraph(i, pKey, e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm resize-none mb-2"
+                      placeholder={`Paragraph ${pKey}...`}
+                    />
+                  ))}
+
+                  <div className="flex items-center justify-between mt-1 mb-2">
+                    <label className="text-xs font-bold text-gray-600">Bullet Points</label>
+                    <button
+                      onClick={() => addContentPoint(i)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#7A0000]/10 text-[#7A0000] text-[11px] font-semibold hover:bg-[#7A0000]/20 transition-all"
+                    >
+                      <Plus size={12} /> Add Point
+                    </button>
+                  </div>
+
+                  {(section.points || []).length === 0 ? (
+                    <p className="text-[11px] text-gray-400">No bullet points.</p>
+                  ) : (
+                    (section.points || []).map((point, pi) => (
+                      <div key={pi} className="flex items-start gap-1.5 mb-1.5">
+                        <input
+                          type="text"
+                          value={getLocalizedValue(point, contentLang)}
+                          onChange={(e) => updateContentPoint(i, pi, e.target.value)}
+                          className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
+                          placeholder={`Point ${pi + 1}...`}
+                        />
+                        <button
+                          onClick={() => moveContentPoint(i, pi, -1)}
+                          disabled={pi === 0}
+                          className="p-2 rounded hover:bg-gray-100 disabled:opacity-30"
+                          title="Move up"
+                        >
+                          <ChevronUp size={13} />
+                        </button>
+                        <button
+                          onClick={() => moveContentPoint(i, pi, 1)}
+                          disabled={pi === section.points.length - 1}
+                          className="p-2 rounded hover:bg-gray-100 disabled:opacity-30"
+                          title="Move down"
+                        >
+                          <ChevronDown size={13} />
+                        </button>
+                        <button
+                          onClick={() => removeContentPoint(i, pi)}
+                          className="p-2 rounded hover:bg-red-100 text-red-500"
+                          title="Remove"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -647,7 +1027,7 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
         </div>
       </div>
 
-      {/* Bookings List - Same as before */}
+      {/* Bookings Table */}
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
         {/* Header */}
         <div className="px-6 py-4 bg-gradient-to-r from-[#7A0000]/10 to-[#A00000]/5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-4">
@@ -658,7 +1038,7 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
               {bookings?.length || 0}
             </span>
           </div>
-          
+
           <div className="flex items-center gap-3 flex-wrap">
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -666,160 +1046,311 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search bookings..."
-                className="pl-9 pr-4 py-2 border border-gray-200 rounded-xl focus:border-[#7A0000] focus:outline-none text-sm w-40 sm:w-56 bg-white"
+                placeholder="Search name, phone, email, puja..."
+                className="pl-9 pr-4 py-2 border border-gray-200 rounded-xl focus:border-[#7A0000] focus:outline-none text-sm w-44 sm:w-64 bg-white transition-shadow"
               />
             </div>
             <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-4 py-2 border border-gray-200 rounded-xl focus:border-[#7A0000] focus:outline-none text-sm bg-white"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="px-4 py-2 border border-gray-200 rounded-xl focus:border-[#7A0000] focus:outline-none text-sm bg-white cursor-pointer"
             >
-              <option value="all">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="confirmed">Confirmed</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="date">Puja date</option>
+              <option value="name">Name (A-Z)</option>
+              <option value="status">Status</option>
             </select>
-            <div className="flex bg-white rounded-xl border border-gray-200 p-1">
-              <button
-                onClick={() => setViewMode('table')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  viewMode === 'table' ? 'bg-[#7A0000] text-white shadow-md' : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <Grid size={14} /> Table
-              </button>
-              <button
-                onClick={() => setViewMode('cards')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  viewMode === 'cards' ? 'bg-[#7A0000] text-white shadow-md' : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <List size={14} /> Cards
-              </button>
-            </div>
           </div>
         </div>
 
-        {/* Body */}
-        <div className="p-4">
-          {sortedBookings.length === 0 ? (
-            <p className="text-center text-gray-500 py-8">No bookings found</p>
-          ) : viewMode === 'table' ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Devotee</th>
-                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">Phone</th>
-                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">Email</th>
-                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Puja</th>
-                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">Date</th>
-                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedBookings.map((booking) => (
-                    <tr key={booking._id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                      <td className="py-3 px-3">
-                        <div>
-                          <p className="font-semibold text-gray-800">{booking.name}</p>
-                          {booking.description && (
-                            <p className="text-xs text-gray-400 truncate max-w-[150px]">{booking.description}</p>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 px-3 text-gray-600 hidden md:table-cell">{booking.phone}</td>
-                      <td className="py-3 px-3 text-gray-600 hidden lg:table-cell">{booking.email}</td>
-                      <td className="py-3 px-3">
-                        <span className="text-xs font-medium px-2 py-1 rounded-full bg-[#7A0000]/10 text-[#7A0000] border border-[#7A0000]/20">
-                          {booking.type}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 text-gray-600 hidden sm:table-cell">{booking.date}</td>
-                      <td className="py-3 px-3">
-                        <select
-                          value={booking.status}
-                          onChange={(e) => handleStatusChange(booking._id, e.target.value)}
-                          disabled={loading}
-                          className={`text-xs font-semibold px-3 py-1 rounded-full border-2 focus:outline-none disabled:opacity-50 cursor-pointer ${getStatusBadge(booking.status)}`}
-                          style={{ borderColor: statusColors[booking.status] }}
-                        >
-                          <option value="pending">Pending</option>
-                          <option value="confirmed">Confirmed</option>
-                          <option value="completed">Completed</option>
-                          <option value="cancelled">Cancelled</option>
-                        </select>
-                      </td>
-                      <td className="py-3 px-3">
-                        <button
-                          onClick={() => setExpandedId(expandedId === booking._id ? null : booking._id)}
-                          className="text-gray-400 hover:text-[#7A0000] transition-colors"
-                        >
-                          {expandedId === booking._id ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {sortedBookings.map((booking) => (
-                <div key={booking._id} className="border border-gray-200 rounded-xl p-4 hover:shadow-md transition-all bg-white">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-[#7A0000] text-white text-sm font-bold flex items-center justify-center flex-shrink-0">
-                        {booking.name?.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <p className="font-semibold text-gray-800">{booking.name}</p>
-                        <p className="text-xs text-gray-500">{booking.phone}</p>
-                      </div>
-                    </div>
-                    <select
-                      value={booking.status}
-                      onChange={(e) => handleStatusChange(booking._id, e.target.value)}
-                      disabled={loading}
-                      className={`text-xs font-semibold px-3 py-1 rounded-full border-2 focus:outline-none disabled:opacity-50 cursor-pointer ${getStatusBadge(booking.status)}`}
-                      style={{ borderColor: statusColors[booking.status] }}
-                    >
-                      <option value="pending">Pending</option>
-                      <option value="confirmed">Confirmed</option>
-                      <option value="completed">Completed</option>
-                      <option value="cancelled">Cancelled</option>
-                    </select>
-                  </div>
-                  
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <p className="text-xs text-gray-400">Puja Type</p>
-                      <p className="font-medium text-gray-700">{booking.type}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-400">Date</p>
-                      <p className="font-medium text-gray-700">{booking.date}</p>
-                    </div>
-                    {booking.description && (
-                      <div className="col-span-2">
-                        <p className="text-xs text-gray-400">Description</p>
-                        <p className="text-gray-600 text-sm">{booking.description}</p>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between text-xs text-gray-400">
-                    <span>Booked: {new Date(booking.createdAt).toLocaleDateString()}</span>
-                    <span>#{booking._id.slice(-6)}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+        {/* Status summary chips - also act as filters */}
+        <div className="px-6 py-3 border-b border-gray-100 flex flex-wrap items-center gap-2">
+          {[
+            { key: 'all', label: 'All', color: '#7A0000' },
+            { key: 'pending', label: 'Pending', color: statusColors.pending },
+            { key: 'confirmed', label: 'Confirmed', color: statusColors.confirmed },
+            { key: 'completed', label: 'Completed', color: statusColors.completed },
+            { key: 'cancelled', label: 'Cancelled', color: statusColors.cancelled },
+          ].map((chip) => {
+            const active = filterStatus === chip.key;
+            return (
+              <button
+                key={chip.key}
+                onClick={() => setFilterStatus(chip.key)}
+                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                  active
+                    ? 'text-white shadow-sm'
+                    : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                }`}
+                style={active ? { background: chip.color, borderColor: chip.color } : undefined}
+              >
+                <span
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{ background: active ? 'rgba(255,255,255,0.85)' : chip.color }}
+                />
+                {chip.label}
+                <span className={active ? 'text-white/85' : 'text-gray-400'}>
+                  {statusCounts[chip.key] ?? 0}
+                </span>
+              </button>
+            );
+          })}
         </div>
+
+        {/* Body */}
+        {sortedBookings.length === 0 ? (
+          <div className="py-16 text-center">
+            <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-[#7A0000]/5 flex items-center justify-center">
+              <Calendar size={26} className="text-[#7A0000]/40" />
+            </div>
+            <p className="text-sm font-semibold text-gray-600">
+              {bookings.length === 0 ? 'No bookings yet' : 'No bookings match your filters'}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              {bookings.length === 0
+                ? 'New puja bookings will appear here automatically.'
+                : 'Try a different search term or status filter.'}
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="bg-gray-50/80 border-y border-gray-100">
+                  <th className="text-left py-3 px-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                    Devotee
+                  </th>
+                  <th className="text-left py-3 px-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider hidden md:table-cell">
+                    Contact
+                  </th>
+                  <th className="text-left py-3 px-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                    Puja
+                  </th>
+                  <th className="text-left py-3 px-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider hidden sm:table-cell">
+                    <button
+                      onClick={() => toggleSort('date')}
+                      className="inline-flex items-center gap-1 hover:text-[#7A0000] transition-colors"
+                    >
+                      Date
+                      {sortBy === 'date' && <ChevronDown size={12} className="text-[#7A0000]" />}
+                    </button>
+                  </th>
+                  <th className="text-left py-3 px-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="text-left py-3 px-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-right">
+                    Details
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {pagedBookings.map((booking) => {
+                  const isOpen = expandedId === booking._id;
+                  return (
+                    <React.Fragment key={booking._id}>
+                      <tr
+                        onClick={() => setExpandedId(isOpen ? null : booking._id)}
+                        className={`border-b border-gray-100 cursor-pointer transition-colors ${
+                          isOpen ? 'bg-[#7A0000]/[0.04]' : 'hover:bg-gray-50/70'
+                        }`}
+                      >
+                        {/* Devotee */}
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="w-9 h-9 shrink-0 rounded-full bg-gradient-to-br from-[#7A0000] to-[#A00000] text-white text-xs font-bold flex items-center justify-center">
+                              {booking.name?.charAt(0).toUpperCase() || '?'}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-gray-800 truncate max-w-[160px]">
+                                {booking.name}
+                              </p>
+                              <p className="text-[11px] text-gray-400 font-mono">
+                                #{booking._id?.slice(-6)}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Contact */}
+                        <td className="py-3 px-4 hidden md:table-cell">
+                          <p className="text-gray-700">{booking.phone || '—'}</p>
+                          {booking.email && (
+                            <p className="text-xs text-gray-400 truncate max-w-[180px]">{booking.email}</p>
+                          )}
+                        </td>
+
+                        {/* Puja */}
+                        <td className="py-3 px-4">
+                          <span className="inline-block text-[11px] font-semibold px-2.5 py-1 rounded-full bg-[#7A0000]/10 text-[#7A0000] border border-[#7A0000]/20 max-w-[160px] truncate">
+                            {booking.type}
+                          </span>
+                        </td>
+
+                        {/* Date */}
+                        <td className="py-3 px-4 text-gray-600 hidden sm:table-cell whitespace-nowrap">
+                          {booking.date || '—'}
+                        </td>
+
+                        {/* Status */}
+                        <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
+                          <select
+                            value={booking.status}
+                            onChange={(e) => handleStatusChange(booking._id, e.target.value)}
+                            disabled={loading}
+                            className={`text-[11px] font-bold px-2.5 py-1 rounded-full border focus:outline-none focus:ring-2 focus:ring-[#7A0000]/20 disabled:opacity-50 cursor-pointer ${getStatusBadge(
+                              booking.status
+                            )}`}
+                          >
+                            <option value="pending">Pending</option>
+                            <option value="confirmed">Confirmed</option>
+                            <option value="completed">Completed</option>
+                            <option value="cancelled">Cancelled</option>
+                          </select>
+                        </td>
+
+                        {/* Expand toggle */}
+                        <td className="py-3 px-4 text-right">
+                          <span
+                            className={`inline-flex items-center justify-center w-7 h-7 rounded-lg transition-all ${
+                              isOpen
+                                ? 'bg-[#7A0000] text-white'
+                                : 'text-gray-400 hover:bg-gray-100 hover:text-[#7A0000]'
+                            }`}
+                          >
+                            {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                          </span>
+                        </td>
+                      </tr>
+
+                      {/* Expanded detail row */}
+                      {isOpen && (
+                        <tr className="bg-[#7A0000]/[0.02]">
+                          <td colSpan={6} className="px-4 pb-5 pt-1">
+                            <div className="rounded-xl border border-[#7A0000]/15 bg-white p-5 shadow-sm">
+                              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                                <div>
+                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                                    Full name
+                                  </p>
+                                  <p className="text-sm text-gray-800">{booking.name || '—'}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                                    Phone
+                                  </p>
+                                  <p className="text-sm text-gray-800">{booking.phone || '—'}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                                    Email
+                                  </p>
+                                  <p className="text-sm text-gray-800 break-all">{booking.email || '—'}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                                    Puja type
+                                  </p>
+                                  <p className="text-sm text-gray-800">{booking.type || '—'}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                                    Puja date
+                                  </p>
+                                  <p className="text-sm text-gray-800">{booking.date || '—'}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                                    Booked on
+                                  </p>
+                                  <p className="text-sm text-gray-800">
+                                    {booking.createdAt
+                                      ? new Date(booking.createdAt).toLocaleString()
+                                      : '—'}
+                                  </p>
+                                </div>
+                                <div className="sm:col-span-2 lg:col-span-2">
+                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                                    Description
+                                  </p>
+                                  <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
+                                    {booking.description || '—'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {sortedBookings.length > 0 && (
+          <div className="px-6 py-3.5 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <span>
+                Showing{' '}
+                <span className="font-semibold text-gray-700">
+                  {(page - 1) * perPage + 1}
+                </span>
+                -
+                <span className="font-semibold text-gray-700">
+                  {Math.min(page * perPage, sortedBookings.length)}
+                </span>{' '}
+                of <span className="font-semibold text-gray-700">{sortedBookings.length}</span>
+              </span>
+              <select
+                value={perPage}
+                onChange={(e) => setPerPage(Number(e.target.value))}
+                className="px-2 py-1 border border-gray-200 rounded-lg text-xs bg-white focus:border-[#7A0000] focus:outline-none cursor-pointer"
+              >
+                {[10, 25, 50, 100].map((n) => (
+                  <option key={n} value={n}>
+                    {n} / page
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Previous
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => setPage(n)}
+                    className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
+                      page === n
+                        ? 'bg-[#7A0000] text-white shadow-sm'
+                        : 'text-gray-500 hover:bg-gray-100'
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

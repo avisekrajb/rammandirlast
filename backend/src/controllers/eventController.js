@@ -1,13 +1,99 @@
 const mongoose = require('mongoose');
 const Event = require('../models/Event');
 const { notifySubscribers } = require('../services/emailService');
+const { DEFAULT_EVENTS } = require('../data/templeContent');
+
+/** The home page shows at most this many events. */
+const HOME_SLOT_MAX = 4;
+
+/**
+ * Coerce anything into a valid home slot: 0 (hidden) or an integer 1..4.
+ * Guards the "max 4" rule and keeps junk out of the collection, since
+ * findByIdAndUpdate runs without casting a raw string.
+ */
+const normalizeHomeSlot = (raw) => {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return 0;
+  const i = Math.trunc(n);
+  if (i < 1) return 0;
+  return Math.min(i, HOME_SLOT_MAX);
+};
+
+/**
+ * The app ships with a few standing programs (साधना–सन्ध्या, बालविहार) that
+ * recur all year. They are created once, identified by `seedKey`, and are then
+ * fully editable from Admin → Events like any other event.
+ */
+let seedPromise = null;
+
+exports.ensureSeedEvents = () => {
+  if (!seedPromise) {
+    seedPromise = (async () => {
+      try {
+        for (const seed of DEFAULT_EVENTS) {
+          const exists = await Event.findOne({ seedKey: seed.seedKey });
+          if (!exists) {
+            await Event.create(seed);
+            continue;
+          }
+
+          // A content correction shipped in a later seedVersion: refresh the
+          // published copy so the fix reaches the live page.
+          if (exists.seedVersion !== seed.seedVersion) {
+            exists.set({
+              title: seed.title,
+              desc: seed.desc,
+              period: seed.period,
+              yearText: seed.yearText,
+              paragraphs: seed.paragraphs,
+              listTitle: seed.listTitle,
+              points: seed.points,
+              order: seed.order,
+              seedVersion: seed.seedVersion,
+            });
+            await exists.save();
+            console.log(`Events: refreshed "${seed.seedKey}" to seed v${seed.seedVersion}`);
+            continue;
+          }
+
+          // Fill in anything added after the record was first seeded, without
+          // touching fields the admin has since edited.
+          const missing = {};
+          for (const key of ['period', 'yearText', 'paragraphs', 'listTitle', 'points']) {
+            const current = exists.get(key);
+            const empty =
+              current == null ||
+              (typeof current === 'string' && !current.trim()) ||
+              (Array.isArray(current) && current.length === 0) ||
+              (current && typeof current === 'object' && !Array.isArray(current) &&
+                !Object.values(current).some((v) => (typeof v === 'string' ? v.trim() : v)));
+            if (empty && seed[key] != null) missing[key] = seed[key];
+          }
+          // `order` is a plain number, so 0 and undefined both count as unset.
+          if (!exists.get('order') && seed.order) missing.order = seed.order;
+
+          if (Object.keys(missing).length > 0) {
+            exists.set(missing);
+            await exists.save();
+          }
+        }
+      } catch (error) {
+        console.error('Seed events error:', error.message);
+        // allow a retry on the next request
+        seedPromise = null;
+      }
+    })();
+  }
+  return seedPromise;
+};
 
 // @desc    Get all events
 // @route   GET /api/events
 // @access  Public
 exports.getAllEvents = async (req, res) => {
   try {
-    const events = await Event.find().sort({ date: 1 });
+    await exports.ensureSeedEvents();
+    const events = await Event.find().sort({ order: 1, date: 1 });
     res.json({
       success: true,
       count: events.length,
@@ -19,11 +105,29 @@ exports.getAllEvents = async (req, res) => {
   }
 };
 
+// @desc    Get the events the admin placed on the home page (max 4, slot order)
+// @route   GET /api/events/home
+// @access  Public
+exports.getHomeEvents = async (req, res) => {
+  try {
+    await exports.ensureSeedEvents();
+    // Sorted by slot, so the response order IS the 1/2/3/4 order shown.
+    const events = await Event.find({ homeSlot: { $gte: 1, $lte: HOME_SLOT_MAX } })
+      .sort({ homeSlot: 1, date: 1 })
+      .limit(HOME_SLOT_MAX);
+    res.json(events);
+  } catch (error) {
+    console.error('Get home events error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 // @desc    Get upcoming events
 // @route   GET /api/events/upcoming
 // @access  Public
 exports.getUpcomingEvents = async (req, res) => {
   try {
+    await exports.ensureSeedEvents();
     const events = await Event.find({ upcoming: true })
       .sort({ date: 1 })
       .limit(6);
@@ -140,6 +244,8 @@ exports.createEvent = async (req, res) => {
       eventData.photo = req.file.path || `/uploads/events/${req.file.filename}`;
     }
     
+    eventData.homeSlot = normalizeHomeSlot(eventData.homeSlot);
+    
     // Initialize default values
     eventData.interestedCount = 0;
     eventData.views = 0;
@@ -184,11 +290,14 @@ exports.updateEvent = async (req, res) => {
       updateData.photo = req.file.path || `/uploads/events/${req.file.filename}`;
     }
     
+    if ('homeSlot' in updateData) {
+      updateData.homeSlot = normalizeHomeSlot(updateData.homeSlot);
+    }
+    
     const event = await Event.findByIdAndUpdate(id, updateData, {
       new: true,
       runValidators: true,
     });
-    
     if (!event) {
       return res.status(404).json({ message: 'Event not found' });
     }

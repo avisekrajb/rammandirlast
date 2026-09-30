@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Plus, Pencil, Trash2, Save, X, Image as ImageIcon, Upload, MoveUp, MoveDown, Eye, EyeOff, Crop, CheckCircle } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
+import { handleImageError } from '../../utils/imageFallback';
 import LanguageSwitcher from '../common/LanguageSwitcher';
 import api from '../../services/api';
 import ImageCropper from '../common/ImageCropper';
@@ -156,10 +157,144 @@ const AdminHistory = ({ history, setHistory, t, settings, updateSettings }) => {
     period: { en: '', ne: '', hi: '', zh: '', ta: '' },
     title: { en: '', ne: '', hi: '', zh: '', ta: '' },
     desc: { en: '', ne: '', hi: '', zh: '', ta: '' },
+    paragraphs: [],
+    listTitle: { en: '', ne: '', hi: '', zh: '', ta: '' },
+    points: [],
+    entries: [],
     year: '',
     order: history.length,
     enabled: true,
   });
+
+  const setLocalizedField = (field, value) => {
+    setEditing((prev) => ({
+      ...prev,
+      [field]: { ...(prev[field] || {}), [activeLang]: value }
+    }));
+  };
+
+  // Paragraphs are a free-length list. Legacy records stored { p1, p2, p3, p4 };
+  // normalize() flattens that shape into an array when the form is opened.
+  const normalizeParagraphs = (raw) => {
+    if (Array.isArray(raw)) return raw.map((p) => ({ ...(p || {}) }));
+    if (raw && typeof raw === 'object') {
+      return Object.keys(raw)
+        .filter((k) => /^p\d+$/i.test(k))
+        .sort((a, b) => parseInt(a.slice(1), 10) - parseInt(b.slice(1), 10))
+        .map((k) => ({ ...(raw[k] || {}) }));
+    }
+    return [];
+  };
+
+  const setParagraph = (index, value) => {
+    setEditing((prev) => {
+      const paragraphs = normalizeParagraphs(prev.paragraphs);
+      while (paragraphs.length <= index) {
+        paragraphs.push({ en: '', ne: '', hi: '', zh: '', ta: '' });
+      }
+      paragraphs[index] = { ...(paragraphs[index] || {}), [activeLang]: value };
+      const next = { ...prev, paragraphs };
+      // keep the legacy single Description in sync with the first paragraph
+      next.desc = paragraphs[0];
+      return next;
+    });
+  };
+
+  const addParagraph = () => {
+    setEditing((prev) => ({
+      ...prev,
+      paragraphs: [
+        ...normalizeParagraphs(prev.paragraphs),
+        { en: '', ne: '', hi: '', zh: '', ta: '' }
+      ]
+    }));
+  };
+
+  const removeParagraph = (index) => {
+    setEditing((prev) => {
+      const paragraphs = normalizeParagraphs(prev.paragraphs).filter((_, i) => i !== index);
+      return { ...prev, paragraphs, desc: paragraphs[0] || { en: '', ne: '', hi: '', zh: '', ta: '' } };
+    });
+  };
+
+  const moveParagraph = (index, dir) => {
+    setEditing((prev) => {
+      const paragraphs = normalizeParagraphs(prev.paragraphs);
+      const target = index + dir;
+      if (target < 0 || target >= paragraphs.length) return prev;
+      [paragraphs[index], paragraphs[target]] = [paragraphs[target], paragraphs[index]];
+      return { ...prev, paragraphs, desc: paragraphs[0] };
+    });
+  };
+
+  const addPoint = () => {
+    setEditing((prev) => ({
+      ...prev,
+      points: [...(prev.points || []), { en: '', ne: '', hi: '', zh: '', ta: '' }]
+    }));
+  };
+
+  const updatePoint = (index, value) => {
+    setEditing((prev) => ({
+      ...prev,
+      points: (prev.points || []).map((p, i) =>
+        i === index ? { ...(p || {}), [activeLang]: value } : p
+      )
+    }));
+  };
+
+  const removePoint = (index) => {
+    setEditing((prev) => ({
+      ...prev,
+      points: (prev.points || []).filter((_, i) => i !== index)
+    }));
+  };
+
+  const movePoint = (index, dir) => {
+    setEditing((prev) => {
+      const points = [...(prev.points || [])];
+      const target = index + dir;
+      if (target < 0 || target >= points.length) return prev;
+      [points[index], points[target]] = [points[target], points[index]];
+      return { ...prev, points };
+    });
+  };
+
+  const addYearEntry = () => {
+    setEditing((prev) => ({
+      ...prev,
+      entries: [...(prev.entries || []), { year: '', text: { en: '', ne: '', hi: '', zh: '', ta: '' } }]
+    }));
+  };
+
+  const updateYearEntry = (index, field, value) => {
+    setEditing((prev) => ({
+      ...prev,
+      entries: (prev.entries || []).map((e, i) => {
+        if (i !== index) return e;
+        return field === 'year'
+          ? { ...e, year: value }
+          : { ...e, text: { ...(e.text || {}), [activeLang]: value } };
+      })
+    }));
+  };
+
+  const removeYearEntry = (index) => {
+    setEditing((prev) => ({
+      ...prev,
+      entries: (prev.entries || []).filter((_, i) => i !== index)
+    }));
+  };
+
+  const moveYearEntry = (index, dir) => {
+    setEditing((prev) => {
+      const entries = [...(prev.entries || [])];
+      const target = index + dir;
+      if (target < 0 || target >= entries.length) return prev;
+      [entries[index], entries[target]] = [entries[target], entries[index]];
+      return { ...prev, entries };
+    });
+  };
 
   const handleSave = async () => {
     setLoading(true);
@@ -228,7 +363,11 @@ const AdminHistory = ({ history, setHistory, t, settings, updateSettings }) => {
       const blob = await response.blob();
       const formData = new FormData();
       formData.append('image', blob, 'history.jpg');
-      formData.append('historyId', editing._id || 'new');
+      // Only send historyId for an entry that already exists. The literal 'new'
+      // made the backend reject the upload for unsaved entries.
+      if (editing._id) {
+        formData.append('historyId', editing._id);
+      }
 
       const uploadRes = await api.post('/admin/upload/history', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -313,9 +452,9 @@ const AdminHistory = ({ history, setHistory, t, settings, updateSettings }) => {
             src={bannerUrl} 
             alt="History Banner" 
             className="w-full h-full object-cover"
-            onError={(e) => {
-              e.target.src = '/aboutusherosection.jpeg';
-            }}
+               onError={(e) => {
+                 handleImageError(e, '/aboutusherosection.jpeg');
+               }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
           <div className="absolute bottom-4 left-4 text-white">
@@ -473,7 +612,7 @@ const AdminHistory = ({ history, setHistory, t, settings, updateSettings }) => {
                           {item.enabled !== false ? <Eye size={16} /> : <EyeOff size={16} />}
                         </button>
                         <button
-                          onClick={() => setEditing(item)}
+                          onClick={() => setEditing({ ...item, paragraphs: normalizeParagraphs(item.paragraphs) })}
                           className="p-1.5 rounded-lg hover:bg-amber-50 text-amber-600 transition-colors"
                           title="Edit"
                         >
@@ -597,19 +736,175 @@ const AdminHistory = ({ history, setHistory, t, settings, updateSettings }) => {
                 />
               </div>
 
-              {/* Description */}
-              <div>
-                <label className="text-xs font-bold text-ink block mb-1.5">Description</label>
-                <textarea
-                  rows={4}
-                  value={getLocalizedValue(editing.desc, activeLang)}
-                  onChange={(e) => setEditing({ 
-                    ...editing, 
-                    desc: { ...editing.desc, [activeLang]: e.target.value } 
-                  })}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm resize-none"
-                  placeholder="Enter description..."
+              {/* Paragraphs */}
+              <div className="pt-4 border-t border-gray-100">
+                <div className="flex items-center justify-between mb-2.5">
+                  <label className="text-xs font-bold text-ink">Paragraphs</label>
+                  <button
+                    type="button"
+                    onClick={addParagraph}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-vermilion/10 text-vermilion text-[11px] font-semibold hover:bg-vermilion/20 transition-all"
+                  >
+                    <Plus size={12} /> Add Paragraph
+                  </button>
+                </div>
+                <p className="text-[11px] text-ink-soft mb-2.5">
+                  Add as many paragraphs as you need. Empty ones are skipped on the public page.
+                </p>
+                {normalizeParagraphs(editing.paragraphs).length === 0 ? (
+                  <p className="text-[11px] text-ink-soft">No paragraphs yet.</p>
+                ) : (
+                  normalizeParagraphs(editing.paragraphs).map((para, pi) => (
+                    <div key={pi} className="mb-2">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="text-[11px] font-mono text-ink-soft w-4 shrink-0">{pi + 1}</span>
+                        <span className="text-xs text-ink-soft flex-1">Paragraph {pi + 1}</span>
+                        <button
+                          type="button"
+                          onClick={() => moveParagraph(pi, -1)}
+                          disabled={pi === 0}
+                          className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"
+                          title="Move up"
+                        >
+                          <MoveUp size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveParagraph(pi, 1)}
+                          disabled={pi === normalizeParagraphs(editing.paragraphs).length - 1}
+                          className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"
+                          title="Move down"
+                        >
+                          <MoveDown size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeParagraph(pi)}
+                          className="p-1.5 rounded hover:bg-red-100 text-red-500"
+                          title="Remove"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                      <textarea
+                        rows={2}
+                        value={getLocalizedValue(para, activeLang)}
+                        onChange={(e) => setParagraph(pi, e.target.value)}
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm resize-none"
+                        placeholder={`Paragraph ${pi + 1}...`}
+                      />
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Bullet list */}
+              <div className="pt-4 border-t border-gray-100">
+                <label className="text-xs font-bold text-ink block mb-1.5">
+                  List Heading (optional)
+                </label>
+                <input
+                  type="text"
+                  value={getLocalizedValue(editing.listTitle, activeLang)}
+                  onChange={(e) => setLocalizedField('listTitle', e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
+                  placeholder="e.g. Main objectives:"
                 />
+
+                <div className="flex items-center justify-between mt-4 mb-2">
+                  <label className="text-xs font-bold text-ink">Bullet Points</label>
+                  <button
+                    type="button"
+                    onClick={addPoint}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-vermilion/10 text-vermilion text-[11px] font-semibold hover:bg-vermilion/20 transition-all"
+                  >
+                    <Plus size={12} /> Add Point
+                  </button>
+                </div>
+
+                {(editing.points || []).length === 0 ? (
+                  <p className="text-[11px] text-ink-soft">No bullet points.</p>
+                ) : (
+                  (editing.points || []).map((point, i) => (
+                    <div key={i} className="flex items-start gap-1.5 mb-2">
+                      <input
+                        type="text"
+                        value={getLocalizedValue(point, activeLang)}
+                        onChange={(e) => updatePoint(i, e.target.value)}
+                        className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
+                        placeholder={`Point ${i + 1}...`}
+                      />
+                      <button type="button" onClick={() => movePoint(i, -1)} disabled={i === 0}
+                        className="p-2 rounded hover:bg-gray-100 disabled:opacity-30" title="Move up">
+                        <MoveUp size={13} />
+                      </button>
+                      <button type="button" onClick={() => movePoint(i, 1)}
+                        disabled={i === editing.points.length - 1}
+                        className="p-2 rounded hover:bg-gray-100 disabled:opacity-30" title="Move down">
+                        <MoveDown size={13} />
+                      </button>
+                      <button type="button" onClick={() => removePoint(i)}
+                        className="p-2 rounded hover:bg-red-100 text-red-500" title="Remove">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Year-by-year list */}
+              <div className="pt-4 border-t border-gray-100">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-bold text-ink">Year-by-Year List</label>
+                  <button
+                    type="button"
+                    onClick={addYearEntry}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-vermilion/10 text-vermilion text-[11px] font-semibold hover:bg-vermilion/20 transition-all"
+                  >
+                    <Plus size={12} /> Add Year
+                  </button>
+                </div>
+                <p className="text-[11px] text-ink-soft mb-2.5">
+                  For sequences such as the year-by-year conservation work.
+                </p>
+
+                {(editing.entries || []).length === 0 ? (
+                  <p className="text-[11px] text-ink-soft">No year entries.</p>
+                ) : (
+                  (editing.entries || []).map((entry, i) => (
+                    <div key={i} className="mb-2 p-2.5 rounded-lg bg-gray-50">
+                      <div className="flex items-start gap-1.5">
+                        <input
+                          type="text"
+                          value={entry.year || ''}
+                          onChange={(e) => updateYearEntry(i, 'year', e.target.value)}
+                          className="w-28 px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
+                          placeholder="वि.सं. २०५०"
+                        />
+                        <textarea
+                          rows={2}
+                          value={getLocalizedValue(entry.text, activeLang)}
+                          onChange={(e) => updateYearEntry(i, 'text', e.target.value)}
+                          className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm resize-none"
+                          placeholder="What happened that year..."
+                        />
+                        <button type="button" onClick={() => moveYearEntry(i, -1)} disabled={i === 0}
+                          className="p-2 rounded hover:bg-gray-200 disabled:opacity-30" title="Move up">
+                          <MoveUp size={13} />
+                        </button>
+                        <button type="button" onClick={() => moveYearEntry(i, 1)}
+                          disabled={i === editing.entries.length - 1}
+                          className="p-2 rounded hover:bg-gray-200 disabled:opacity-30" title="Move down">
+                          <MoveDown size={13} />
+                        </button>
+                        <button type="button" onClick={() => removeYearEntry(i)}
+                          className="p-2 rounded hover:bg-red-100 text-red-500" title="Remove">
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
 
               {/* Status Toggle */}

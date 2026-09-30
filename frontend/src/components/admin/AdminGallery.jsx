@@ -26,6 +26,9 @@ const AdminGallery = ({ gallery, setGallery, galleryVideos, setGalleryVideos, t 
   const [items, setItems] = useState([]);
   const [allItems, setAllItems] = useState([]);
   const [categories, setCategories] = useState(['all']);
+  const [uploadTitle, setUploadTitle] = useState('');
+  const [uploadDesc, setUploadDesc] = useState('');
+  const [uploadCategory, setUploadCategory] = useState('general');
 
   const fileInputRef = useRef(null);
   const videoInputRef = useRef(null);
@@ -73,7 +76,7 @@ const AdminGallery = ({ gallery, setGallery, galleryVideos, setGalleryVideos, t 
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(item => {
-        const caption = item.cap?.[lang] || item.cap?.en || '';
+        const caption = item.title?.[lang] || item.title?.en || item.cap?.[lang] || item.cap?.en || '';
         return caption.toLowerCase().includes(term);
       });
     }
@@ -101,8 +104,10 @@ const AdminGallery = ({ gallery, setGallery, galleryVideos, setGalleryVideos, t 
     const formData = new FormData();
     formData.append('photo', file);
     formData.append('data', JSON.stringify({
-      cap: { en: '' },
-      category: 'general',
+      cap: { en: uploadTitle },
+      title: { en: uploadTitle },
+      description: { en: uploadDesc },
+      category: uploadCategory,
       hue: '#7A1F2B',
     }));
 
@@ -114,6 +119,9 @@ const AdminGallery = ({ gallery, setGallery, galleryVideos, setGalleryVideos, t 
       setAllItems([newItem, ...allItems]);
       showToast('Photo uploaded successfully', 'success');
       setShowAddModal(false);
+      setUploadTitle('');
+      setUploadDesc('');
+      setUploadCategory('general');
     } catch (error) {
       console.error('Upload error:', error);
       showToast(error.response?.data?.message || 'Upload failed', 'error');
@@ -140,10 +148,9 @@ const AdminGallery = ({ gallery, setGallery, galleryVideos, setGalleryVideos, t 
     setUploading(true);
     const formData = new FormData();
     formData.append('video', file);
-    formData.append('data', JSON.stringify({
-      cap: { en: '' },
-      category: 'general',
-    }));
+    formData.append('title', JSON.stringify({ en: uploadTitle }));
+    formData.append('description', JSON.stringify({ en: uploadDesc }));
+    formData.append('category', uploadCategory);
 
     try {
       const response = await api.post('/admin/gallery/video', formData, {
@@ -153,6 +160,9 @@ const AdminGallery = ({ gallery, setGallery, galleryVideos, setGalleryVideos, t 
       setAllItems([newItem, ...allItems]);
       showToast('Video uploaded successfully', 'success');
       setShowAddModal(false);
+      setUploadTitle('');
+      setUploadDesc('');
+      setUploadCategory('general');
     } catch (error) {
       console.error('Upload error:', error);
       showToast(error.response?.data?.message || 'Upload failed', 'error');
@@ -463,7 +473,7 @@ const AdminGallery = ({ gallery, setGallery, galleryVideos, setGalleryVideos, t 
               </div>
               <div className="p-3">
                 <p className="text-xs font-medium text-ink truncate">
-                  {item.cap?.[lang] || item.cap?.en || 'Untitled'}
+                  {item.title?.[lang] || item.title?.en || item.cap?.[lang] || item.cap?.en || 'Untitled'}
                 </p>
                 <div className="flex items-center justify-between mt-1 text-[10px] text-ink-soft">
                   <span className="flex items-center gap-1">
@@ -524,7 +534,7 @@ const AdminGallery = ({ gallery, setGallery, galleryVideos, setGalleryVideos, t 
                     </div>
                   </td>
                   <td className="px-4 py-3 font-medium max-w-[150px] truncate">
-                    {item.cap?.[lang] || item.cap?.en || 'Untitled'}
+                    {item.title?.[lang] || item.title?.en || item.cap?.[lang] || item.cap?.en || 'Untitled'}
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell">
                     <span className="px-2 py-1 bg-gray-100 rounded-full text-xs">
@@ -634,6 +644,43 @@ const AdminGallery = ({ gallery, setGallery, galleryVideos, setGalleryVideos, t 
               </button>
             </div>
             <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-ink-soft mb-1">Title</label>
+                <input
+                  type="text"
+                  value={uploadTitle}
+                  onChange={(e) => setUploadTitle(e.target.value)}
+                  placeholder="Enter image title"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-ink-soft mb-1">Description</label>
+                <textarea
+                  value={uploadDesc}
+                  onChange={(e) => setUploadDesc(e.target.value)}
+                  placeholder="Enter image description"
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm resize-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-ink-soft mb-1">Category</label>
+                <select
+                  value={uploadCategory}
+                  onChange={(e) => setUploadCategory(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm bg-white"
+                >
+                  <option value="general">General</option>
+                  <option value="temple">Temple</option>
+                  <option value="deity">Deity</option>
+                  <option value="festival">Festival</option>
+                  <option value="devotion">Devotion</option>
+                  <option value="ceremony">Ceremony</option>
+                  <option value="ritual">Ritual</option>
+                  <option value="aarti">Aarti</option>
+                </select>
+              </div>
               <div
                 className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-vermilion transition-colors"
                 onClick={() => fileInputRef.current?.click()}

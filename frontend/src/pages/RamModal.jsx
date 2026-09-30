@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
+import { PLACEHOLDER_IMAGE, handleImageError } from '../utils/imageFallback';
 
 const RamModal = ({ isOpen, onClose }) => {
   useEffect(() => {
@@ -58,9 +59,9 @@ const RamModal = ({ isOpen, onClose }) => {
                     src="https://res.cloudinary.com/dibusz4ag/image/upload/v1/temple/ram.jpg"
                     alt="Jai Shree Ram"
                     className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.src = 'https://via.placeholder.com/200/7A1F2B/FFFFFF?text=🕉';
-                    }}
+                       onError={(e) => {
+                         handleImageError(e, PLACEHOLDER_IMAGE);
+                       }}
                   />
                   
                   {/* Glowing Rings */}

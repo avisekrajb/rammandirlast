@@ -1,8 +1,32 @@
 import React, { useRef, useState } from 'react';
-import { Video, Upload, X, Play, Pause, RefreshCw } from 'lucide-react';
+import { Video, Upload, X, Play, Pause, RefreshCw, Type, Save } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import api from '../../services/api';
 import OmLoader from '../../components/common/OmLoader';
+
+const HERO_LANGS = [
+  ['en', 'EN'],
+  ['ne', 'ने'],
+  ['hi', 'हिं'],
+  ['zh', '中'],
+  ['ta', 'த'],
+];
+
+const DEFAULT_HERO_TITLE = {
+  en: 'Shree Ramchandra Temple',
+  ne: 'श्री रामचन्द्र मन्दिर',
+  hi: 'श्री रामचंद्र मंदिर',
+  zh: '什里·拉姆钱德拉神庙',
+  ta: 'ஸ்ரீ ராமச்சந்திர கோவில்',
+};
+
+const DEFAULT_HERO_TAGLINE = {
+  en: 'Where devotion meets the sacred banks of Bagmati',
+  ne: 'जहाँ भक्ति बागमतीको पवित्र किनारमा मिल्छ',
+  hi: 'जहाँ भक्ति बागमती के पवित्र तटों से मिलती है',
+  zh: '虔诚与巴格马蒂圣河相遇之处',
+  ta: 'பக்தி பாக்மதியின் புனித கரையில் சந்திக்கும் இடம்',
+};
 
 const AdminHero = ({ settings, updateSettings, t }) => {
   const { showToast } = useToast();
@@ -10,6 +34,23 @@ const AdminHero = ({ settings, updateSettings, t }) => {
   const videoRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [heroTitle, setHeroTitle] = useState({ ...(settings?.heroTitle || DEFAULT_HERO_TITLE) });
+  const [heroTagline, setHeroTagline] = useState({ ...(settings?.heroTagline || DEFAULT_HERO_TAGLINE) });
+  const [textLang, setTextLang] = useState('en');
+  const [textSaving, setTextSaving] = useState(false);
+
+  const handleSaveText = async () => {
+    setTextSaving(true);
+    try {
+      await updateSettings({ heroTitle, heroTagline });
+      showToast(t.heroTextSaved || 'Hero text updated successfully', 'success');
+    } catch (error) {
+      console.error('Save hero text error:', error);
+      showToast(error.response?.data?.message || 'Failed to save hero text', 'error');
+    } finally {
+      setTextSaving(false);
+    }
+  };
 
   const handleUpload = async (e) => {
     const file = e.target.files[0];
@@ -190,6 +231,72 @@ const AdminHero = ({ settings, updateSettings, t }) => {
           <span>📹 Upload a video to display in the hero section</span>
         )}
       </p>
+
+      <div className="border-t border-gray-100 mt-6 pt-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Type size={16} className="text-vermilion" />
+          <h4 className="text-sm font-serif font-semibold text-ink">
+            {t.heroText || 'Hero Banner Text'}
+          </h4>
+          <p className="text-xs text-ink-soft">Title & tagline shown on the home page hero</p>
+        </div>
+
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          {HERO_LANGS.map(([code, label]) => (
+            <button
+              key={code}
+              onClick={() => setTextLang(code)}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                textLang === code
+                  ? 'bg-vermilion text-white'
+                  : 'bg-gray-100 text-ink-soft hover:bg-gray-200'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-ink-soft mb-1.5">
+              {t.heroTitleLabel || 'Title'}
+            </label>
+            <input
+              type="text"
+              value={heroTitle[textLang] || ''}
+              onChange={(e) => setHeroTitle(prev => ({ ...prev, [textLang]: e.target.value }))}
+              className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-vermilion/40 focus:border-vermilion"
+              placeholder="Shree Ramchandra Temple"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-ink-soft mb-1.5">
+              {t.heroTaglineLabel || 'Tagline'}
+            </label>
+            <textarea
+              rows={2}
+              value={heroTagline[textLang] || ''}
+              onChange={(e) => setHeroTagline(prev => ({ ...prev, [textLang]: e.target.value }))}
+              className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-vermilion/40 focus:border-vermilion resize-none"
+              placeholder="Where devotion meets the sacred banks of Bagmati"
+            />
+          </div>
+        </div>
+
+        <button
+          onClick={handleSaveText}
+          disabled={textSaving}
+          className="mt-4 w-full py-2.5 rounded-xl bg-vermilion text-white font-semibold text-sm hover:bg-[#a83a0c] transition-all disabled:opacity-50 inline-flex items-center justify-center gap-2"
+        >
+          {textSaving ? (
+            <OmLoader size="sm" color="white" />
+          ) : (
+            <Save size={16} />
+          )}
+          {textSaving ? 'Saving...' : (t.saveHeroText || 'Save Hero Text')}
+        </button>
+      </div>
     </div>
   );
 };

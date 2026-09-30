@@ -20,7 +20,6 @@ import {
   Wallet,
   User,
   Calendar,
-  Clock,
   Heart,
   Loader2,
   Shield,
@@ -37,9 +36,9 @@ import {
 
 // Real payment icons as inline SVG or image URLs
 const PaymentIcons = {
-  esewa: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Esewa_logo.png/1200px-Esewa_logo.png',
-  khalti: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Khalti_logo.png/1200px-Khalti_logo.png',
-  ips: 'https://login.connectips.com/static/media/newLogo.ed7f73c800e12259be50.png',
+  esewa: '/esewa.jpeg',
+  khalti: '/khalti.jpeg',
+  ips: '/ips.jpeg',
   bank: 'https://cdn-icons-png.flaticon.com/512/1011/1011876.png',
 };
 
@@ -66,6 +65,48 @@ const DonatePage = () => {
   const [currentDonation, setCurrentDonation] = useState(null);
 
   const tiers = [108, 501, 1100, 2100, 5100, 11000];
+
+  const gatewayColors = {
+    esewa: { base: '#60BB46', hover: '#4CAF50' },
+    khalti: { base: '#5C2D91', hover: '#482270' },
+    ips: { base: '#1a56db', hover: '#1245a8' },
+    bank: { base: '#7A0000', hover: '#5a0000' },
+  };
+
+  const gatewayLabels = {
+    esewa: 'Pay with eSewa',
+    khalti: 'Pay with Khalti',
+    ips: 'Pay with IPS',
+    bank: t.donateBtn || 'Donate Now',
+  };
+
+  const gatewayNames = {
+    esewa: 'eSewa',
+    khalti: 'Khalti',
+    ips: 'IPS',
+    bank: 'Bank Transfer',
+  };
+
+  const redirectViaForm = (url, data) => {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = url;
+    Object.entries(data).forEach(([key, value]) => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = key;
+      input.value = value;
+      form.appendChild(input);
+    });
+    document.body.appendChild(form);
+    form.submit();
+  };
+
+  const savePendingPayment = (donationId, method) => {
+    localStorage.setItem('pendingDonationId', donationId);
+    localStorage.setItem('pendingDonationAmount', amount);
+    localStorage.setItem('pendingMethod', method);
+  };
 
   useEffect(() => {
     if (user) {
@@ -134,30 +175,114 @@ const DonatePage = () => {
 
       const { data, url, donationId } = response.data;
 
-      localStorage.setItem('pendingDonationId', donationId);
-      localStorage.setItem('pendingDonationAmount', amount);
+      savePendingPayment(donationId, 'esewa');
 
       setTimeout(() => {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = url;
-
-        Object.entries(data).forEach(([key, value]) => {
-          const input = document.createElement('input');
-          input.type = 'hidden';
-          input.name = key;
-          input.value = value;
-          form.appendChild(input);
-        });
-
-        document.body.appendChild(form);
-        form.submit();
+        redirectViaForm(url, data);
         setPaymentProcessing(false);
         setShowRedirect(false);
       }, 3000);
 
     } catch (error) {
       console.error('Payment initiation error:', error);
+      showToast(error.response?.data?.message || 'Payment initiation failed', 'error');
+      setPaymentProcessing(false);
+      setShowRedirect(false);
+    }
+  };
+
+  const handleKhaltiPayment = async () => {
+    if (!user) {
+      showToast(t.loginRequiredDonate || 'Please login to donate', 'warning');
+      navigate('/');
+      return;
+    }
+
+    if (!amount || Number(amount) < 1) {
+      showToast(t.validAmount || 'Please enter a valid amount', 'error');
+      return;
+    }
+
+    setPaymentProcessing(true);
+    setShowRedirect(true);
+
+    try {
+      const response = await api.post('/payment/khalti/initiate', {
+        amount: Number(amount),
+        name: name || user.name,
+        email: email || user.email,
+        phone: phone || user.phone,
+        message: message || '',
+      });
+
+      if (!response.data.success) {
+        showToast(response.data.message || 'Payment initiation failed', 'error');
+        setPaymentProcessing(false);
+        setShowRedirect(false);
+        return;
+      }
+
+      const { data, donationId } = response.data;
+
+      savePendingPayment(donationId, 'khalti');
+
+      setTimeout(() => {
+        window.location.href = data.paymentUrl;
+        setPaymentProcessing(false);
+        setShowRedirect(false);
+      }, 2500);
+
+    } catch (error) {
+      console.error('Khalti payment initiation error:', error);
+      showToast(error.response?.data?.message || 'Payment initiation failed', 'error');
+      setPaymentProcessing(false);
+      setShowRedirect(false);
+    }
+  };
+
+  const handleIpsPayment = async () => {
+    if (!user) {
+      showToast(t.loginRequiredDonate || 'Please login to donate', 'warning');
+      navigate('/');
+      return;
+    }
+
+    if (!amount || Number(amount) < 1) {
+      showToast(t.validAmount || 'Please enter a valid amount', 'error');
+      return;
+    }
+
+    setPaymentProcessing(true);
+    setShowRedirect(true);
+
+    try {
+      const response = await api.post('/payment/ips/initiate', {
+        amount: Number(amount),
+        name: name || user.name,
+        email: email || user.email,
+        phone: phone || user.phone,
+        message: message || '',
+      });
+
+      if (!response.data.success) {
+        showToast(response.data.message || 'Payment initiation failed', 'error');
+        setPaymentProcessing(false);
+        setShowRedirect(false);
+        return;
+      }
+
+      const { data, url, donationId } = response.data;
+
+      savePendingPayment(donationId, 'ips');
+
+      setTimeout(() => {
+        redirectViaForm(url, data);
+        setPaymentProcessing(false);
+        setShowRedirect(false);
+      }, 3000);
+
+    } catch (error) {
+      console.error('IPS payment initiation error:', error);
       showToast(error.response?.data?.message || 'Payment initiation failed', 'error');
       setPaymentProcessing(false);
       setShowRedirect(false);
@@ -176,8 +301,13 @@ const DonatePage = () => {
       return;
     }
 
-    if (selectedMethod === 'khalti' || selectedMethod === 'ips') {
-      showToast(`${selectedMethod.toUpperCase()} coming soon!`, 'info');
+    if (selectedMethod === 'khalti') {
+      await handleKhaltiPayment();
+      return;
+    }
+
+    if (selectedMethod === 'ips') {
+      await handleIpsPayment();
       return;
     }
 
@@ -257,8 +387,8 @@ const DonatePage = () => {
       color: '#5C2D91',
       bgColor: 'bg-purple-50',
       borderColor: 'border-purple-300',
-      description: 'Coming Soon',
-      available: false
+      description: 'Pay with Khalti wallet',
+      available: true
     },
     {
       id: 'ips',
@@ -267,8 +397,8 @@ const DonatePage = () => {
       color: '#1a56db',
       bgColor: 'bg-blue-50',
       borderColor: 'border-blue-300',
-      description: 'Coming Soon',
-      available: false
+      description: 'Pay with ConnectIPS via your bank',
+      available: true
     },
     {
       id: 'bank',
@@ -290,7 +420,7 @@ const DonatePage = () => {
           <div className="w-20 h-20 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-4">
             <OmLoader size="lg" color="green" />
           </div>
-          <h2 className="text-2xl font-serif font-bold text-ink mb-2">Redirecting to eSewa...</h2>
+          <h2 className="text-2xl font-serif font-bold text-ink mb-2">Redirecting to {gatewayNames[selectedMethod]}...</h2>
           <p className="text-ink-soft">Please wait while we redirect you to the payment gateway.</p>
           <div className="mt-4 h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
             <div className="h-full bg-green-500 rounded-full animate-[progress_3s_ease-in-out]" />
@@ -308,7 +438,7 @@ const DonatePage = () => {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: "linear-gradient(180deg, #faf8f5 0%, #ffffff 50%, #faf8f5 100%)" }}>
+    <div className="min-h-screen" style={{ background: "#ffffff" }}>
       
       <PageHero 
         title={t.donateTitle || 'Support the Temple'} 
@@ -440,12 +570,12 @@ const DonatePage = () => {
               onClick={handleDonate}
               disabled={loading || done || paymentProcessing}
               className="w-full px-8 py-3.5 text-sm font-semibold text-white rounded-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-              style={{ background: selectedMethod === 'esewa' ? '#60BB46' : '#7A0000' }}
+              style={{ background: gatewayColors[selectedMethod].base }}
               onMouseEnter={(e) => { 
-                e.currentTarget.style.background = selectedMethod === 'esewa' ? '#4CAF50' : '#5a0000'; 
+                e.currentTarget.style.background = gatewayColors[selectedMethod].hover; 
               }}
               onMouseLeave={(e) => { 
-                e.currentTarget.style.background = selectedMethod === 'esewa' ? '#60BB46' : '#7A0000'; 
+                e.currentTarget.style.background = gatewayColors[selectedMethod].base; 
               }}
             >
               {loading || paymentProcessing ? (
@@ -459,10 +589,7 @@ const DonatePage = () => {
                   {selectedMethod === 'khalti' && <img src={PaymentIcons.khalti} alt="Khalti" className="w-5 h-5 object-contain" />}
                   {selectedMethod === 'ips' && <img src={PaymentIcons.ips} alt="IPS" className="w-5 h-5 object-contain" />}
                   {selectedMethod === 'bank' && <Banknote size={16} />}
-                  {selectedMethod === 'esewa' ? 'Pay with eSewa' : 
-                   selectedMethod === 'khalti' ? 'Coming Soon' :
-                   selectedMethod === 'ips' ? 'Coming Soon' :
-                   t.donateBtn || 'Donate Now'}
+                  {gatewayLabels[selectedMethod]}
                 </>
               )}
             </button>
@@ -478,19 +605,34 @@ const DonatePage = () => {
               <div className="mt-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
                 <p className="text-xs text-amber-700 text-center">
                   <Shield size={12} className="inline mr-1" />
-                  Test eSewa: 9806800001 / 123456 / MPIN: 1122
+                  Test eSewa: 9806800001 / Nepal@123 / MPIN: 1122
                 </p>
                 <p className="text-xs text-amber-600 text-center mt-1">
-                  Use these credentials to test the payment
+                  Use these credentials to test the payment (OTP: 123456)
                 </p>
               </div>
             )}
 
-            {(selectedMethod === 'khalti' || selectedMethod === 'ips') && (
+            {selectedMethod === 'khalti' && (
+              <div className="mt-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
+                <p className="text-xs text-purple-700 text-center">
+                  <Shield size={12} className="inline mr-1" />
+                  Test Khalti: 9800000005 / PIN: 1111 / OTP: 987654
+                </p>
+                <p className="text-xs text-purple-600 text-center mt-1">
+                  If MPIN is locked, use another number (9800000000 – 9800000005)
+                </p>
+              </div>
+            )}
+
+            {selectedMethod === 'ips' && (
               <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <p className="text-xs text-blue-600 text-center">
-                  <Clock size={12} className="inline mr-1" />
-                  {selectedMethod.toUpperCase()} integration coming soon. Please use eSewa or Bank Transfer.
+                <p className="text-xs text-blue-700 text-center">
+                  <Shield size={12} className="inline mr-1" />
+                  IPS Test Mode – you will complete payment through the ConnectIPS UAT gateway
+                </p>
+                <p className="text-xs text-blue-600 text-center mt-1">
+                  Payment is verified using your bank log-in + OTP
                 </p>
               </div>
             )}

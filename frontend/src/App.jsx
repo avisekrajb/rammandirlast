@@ -14,11 +14,14 @@ import { ChatbotProvider } from './context/ChatbotContext'; // <-- Import Chatbo
 import Layout from './components/common/Layout';
 import PrivateRoute from './routes/PrivateRoute';
 import AdminRoute from './routes/AdminRoute';
+import SuperAdminRoute from './routes/SuperAdminRoute';
 import NoticeModal from './components/modals/NoticeModal';
+import MaintenanceModal from './components/modals/MaintenanceModal';
 import ScrollToTop from './components/common/ScrollToTop';
 import ScrollToTopButton from './components/common/ScrollToTopButton';
 import SocialFloating from './components/common/SocialFloating';
 import Chatbot from './components/chatbot/Chatbot'; // <-- Import Chatbot component
+import CookieConsent from './components/common/CookieConsent';
 
 // Components
 import AuthModal from './components/modals/AuthModal';
@@ -36,28 +39,30 @@ const GalleryPage = lazy(() => import('./pages/GalleryPage'));
 const BookingPage = lazy(() => import('./pages/BookingPage'));
 const DonatePage = lazy(() => import('./pages/DonatePage'));
 const DonateSuccess = lazy(() => import('./pages/DonateSuccess'));
+const DonateFailure = lazy(() => import('./pages/DonateFailure'));
 const ContactPage = lazy(() => import('./pages/ContactPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const MyBookingsPage = lazy(() => import('./pages/MyBookingsPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
+const SuperAdminPage = lazy(() => import('./pages/SuperAdminPage'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
 const TeamPage = lazy(() => import('./pages/TeamPage'));
-const TeamProfilePage = lazy(() => import('./pages/TeamProfilePage'));
-const CloudGalleryPage = lazy(() => import('./pages/CloudGalleryPage'));
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage'));
 const TermsPage = lazy(() => import('./pages/TermsPage'));
 const RamPage = lazy(() => import('./pages/RamPage'));
 const DynamicPage = lazy(() => import('./pages/DynamicPage'));
+const UnicodeConverterPage = lazy(() => import('./pages/UnicodeConverterPage'));
+const CalendarPage = lazy(() => import('./pages/CalendarPage'));
 
 function App() {
-  const { user, logout, loading } = useAuth();
+  const { logout, loading } = useAuth();
   const { t } = useLanguage();
   const { showToast } = useToast();
   const location = useLocation();
   const [authModal, setAuthModal] = useState(null);
   const [forgotModal, setForgotModal] = useState(false);
 
-  const isAdminRoute = location.pathname.startsWith('/admin');
+  const isAdminRoute = location.pathname.startsWith('/admin') || location.pathname.startsWith('/super/admin');
 
   const handleLogout = () => {
     // Header already shows its own logout confirmation modal,
@@ -92,11 +97,17 @@ function App() {
                     {/* Notice Modal - Shows on first visit */}
                     <NoticeModal />
 
+                    {/* Maintenance Mode Modal - Blocks site when super admin enables it */}
+                    <MaintenanceModal />
+
                     {/* Floating Social Icons - Shows on all pages */}
                     <SocialFloating />
 
                     {/* Chatbot - Shows on all pages */}
                     <Chatbot /> {/* <-- Add Chatbot component */}
+
+                    {/* Cookie consent bar - Shows on all pages until the user chooses */}
+                    <CookieConsent />
 
                     {!isAdminRoute ? (
                       <Layout onLogout={handleLogout} setAuthModal={setAuthModal}>
@@ -116,13 +127,7 @@ function App() {
                             {/* About & Team - IMPORTANT: More specific routes FIRST */}
                             <Route path="/about" element={<AboutPage />} />
                             
-                            {/* Team routes - MUST be in this order: 
-                                1. Team Profile with ID only (most specific)
-                                2. Team Profile with slug and ID
-                                3. Team listing page (least specific) 
-                            */}
-                            <Route path="/templeteams/:id" element={<TeamProfilePage />} />
-                            <Route path="/templeteams/:nameSlug/:id" element={<TeamProfilePage />} />
+                            {/* Team listing page */}
                             <Route path="/templeteams" element={<TeamPage />} />
                             
                             {/* History */}
@@ -142,7 +147,7 @@ function App() {
                             {/* Donate - PUBLIC (No login required) */}
                             <Route path="/donate" element={<DonatePage />} />
                             <Route path="/donate/success" element={<DonateSuccess />} />
-                            <Route path="/donate/failure" element={<DonatePage />} />
+                            <Route path="/donate/failure" element={<DonateFailure />} />
                             
                             {/* Contact */}
                             <Route path="/contact" element={<ContactPage />} />
@@ -157,6 +162,10 @@ function App() {
                             
                             {/* Dynamic Pages for custom footer links */}
                             <Route path="/page-*" element={<DynamicPage />} />
+
+                            {/* Unicode Converter & Calendar */}
+                            <Route path="/unicode-converter" element={<UnicodeConverterPage />} />
+                            <Route path="/calendar" element={<CalendarPage />} />
                             
                             {/* ==============================================================
                                 PROTECTED ROUTES - Login required
@@ -176,9 +185,6 @@ function App() {
                                 ============================================================== */}
                             <Route path="/admin/*" element={<AdminRoute><AdminPage /></AdminRoute>} />
                             
-                            {/* Cloud Gallery - Admin only */}
-                            <Route path="/cloudgallery" element={<AdminRoute><CloudGalleryPage /></AdminRoute>} />
-                            
                             {/* ==============================================================
                                 404 - Catch all - MUST be last
                                 ============================================================== */}
@@ -194,6 +200,7 @@ function App() {
                       }>
                         <Routes>
                           <Route path="/admin/*" element={<AdminRoute><AdminPage /></AdminRoute>} />
+                          <Route path="/super/admin/*" element={<SuperAdminRoute><SuperAdminPage /></SuperAdminRoute>} />
                         </Routes>
                       </Suspense>
                     )}

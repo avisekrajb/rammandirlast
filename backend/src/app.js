@@ -42,16 +42,35 @@ const allowedOrigins = [
   'https://shree-ramchandra-temple.onrender.com',
 ];
 
+// Private/LAN addresses, e.g. http://192.168.1.107:4000 when testing on a phone
+// on the same network. Only trusted in development.
+const isPrivateOrigin = (origin) => {
+  try {
+    const { hostname } = new URL(origin);
+    return (
+      hostname === 'localhost' ||
+      hostname === '[::1]' ||
+      hostname === '::1' ||
+      /^127\./.test(hostname) ||
+      /^10\./.test(hostname) ||
+      /^192\.168\./.test(hostname) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(hostname)
+    );
+  } catch {
+    return false;
+  }
+};
+
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
-      callback(null, true);
-    } else {
-      console.warn(`⚠️ CORS blocked origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
+      return callback(null, true);
     }
+    if (isPrivateOrigin(origin)) return callback(null, true);
+    console.warn(`⚠️ CORS blocked origin: ${origin}`);
+    return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
@@ -75,9 +94,15 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // ============================================
 // LOGGING MIDDLEWARE
 // ============================================
+const STATIC_ASSET_RE = /\.(?:jpg|jpeg|png|gif|webp|svg|avif|ico|css|js|mjs|map|woff2?|ttf|eot|mp4|webm|mp3|pdf|txt|xml)$/i;
+
 if (process.env.NODE_ENV !== 'production') {
   app.use((req, res, next) => {
-    console.log(`📝 ${req.method} ${req.url}`);
+    // Skip static assets: browsers retry missing images constantly and it drowns
+    // out the API traffic. Those requests are served by the frontend, not the API.
+    if (!STATIC_ASSET_RE.test(req.path)) {
+      console.log(`📝 ${req.method} ${req.url}`);
+    }
     next();
   });
 } else {
@@ -122,6 +147,10 @@ app.use('/api/admin/activity', adminLogRoutes);
 const backupRoutes = require('./routes/backupRoutes');
 app.use('/api/admin/backup', backupRoutes);
 
+// Super Admin Routes
+const superAdminRoutes = require('./routes/superAdminRoutes');
+app.use('/api/superadmin', superAdminRoutes);
+
 // About Routes
 const aboutRoutes = require('./routes/aboutRoutes');
 app.use('/api/about', aboutRoutes);
@@ -161,6 +190,18 @@ app.use('/api/payment', paymentRoutes);
 // Team Routes - For team member management
 const teamRoutes = require('./routes/teamRoutes');
 app.use('/api/team', teamRoutes);
+
+// Notification Routes - For admin notifications
+const notificationRoutes = require('./routes/notificationRoutes');
+app.use('/api/admin/notifications', notificationRoutes);
+
+// Chatbot Routes - For persisting chatbot messages
+const chatbotRoutes = require('./routes/chatbotRoutes');
+app.use('/api/chatbot', chatbotRoutes);
+
+// Maintenance Mode (public status - no auth required)
+const superAdminController = require('./controllers/superAdminController');
+app.get('/api/maintenance', superAdminController.getPublicMaintenanceMode);
 
 // ============================================
 // HEALTH & ROOT ENDPOINTS
@@ -205,6 +246,7 @@ app.get('/', (req, res) => {
       subscribe: '/api/subscribe',
       payment: '/api/payment',
       team: '/api/team',
+      chatbot: '/api/chatbot',
       health: '/api/health',
     },
     docs: 'https://github.com/your-repo/shree-ramchandra-temple',
@@ -234,6 +276,7 @@ app.use((req, res) => {
       '/api/subscribe',
       '/api/payment',
       '/api/team',
+      '/api/chatbot',
       '/api/health',
     ],
   });

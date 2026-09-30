@@ -18,6 +18,12 @@ const protect = async (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ message: 'Not authorized, user not found' });
     }
+
+    // Block admin/disabled users unless they are a superadmin (superadmin can never be disabled)
+    if (req.user.active === false && req.user.role !== 'superadmin') {
+      return res.status(403).json({ message: 'Account disabled. Contact the super administrator.' });
+    }
+
     next();
   } catch (error) {
     console.error('Auth middleware error:', error);

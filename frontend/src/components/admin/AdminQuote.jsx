@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Save, Calendar, ChevronLeft, ChevronRight, Copy, X, 
   Plus, Trash2, RefreshCw, Search, Edit, Globe, 
-  CheckCircle, AlertCircle, Clock, CalendarDays, 
+  CheckCircle, Clock, CalendarDays, 
   Loader2, Languages, BookOpen, Filter
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
@@ -858,81 +858,100 @@ const AdminQuote = ({ settings, updateSettings, t }) => {
               <Search size={14} className="absolute left-2.5 top-2 text-gray-400" />
             </div>
           </div>
-          <div className="p-4 max-h-96 overflow-y-auto scrollbar-hide">
-            <div className="space-y-1">
-              {filteredQuotes.length === 0 ? (
-                <div className="text-center py-8 text-gray-400 text-sm">
-                  No quotes found
-                </div>
-              ) : (
-                filteredQuotes
-                  .sort(([a], [b]) => a.localeCompare(b))
-                  .map(([dateKey, quoteData]) => {
-                    const date = new Date(dateKey);
-                    const isTodayQuote = dateKey === todayKey;
-                    const quoteText = quoteData[activeLang] || quoteData.en || 'No quote';
-                    const status = getLanguageStatus(dateKey);
-                    const allComplete = status.filled === status.total && status.total > 0;
-                    const partial = status.filled > 0 && status.filled < status.total;
-                    
-                    return (
-                      <div
-                        key={dateKey}
-                        className={`flex flex-wrap items-center gap-2 p-2 rounded-lg hover:bg-gray-50 transition-all cursor-pointer ${
-                          isTodayQuote ? 'bg-[#7A0000]/5 border border-[#7A0000]/20' : ''
-                        }`}
-                        onClick={() => {
-                          const d = new Date(dateKey);
-                          // Save current quote before switching
-                          if (editingQuote.trim() && quotes[getDateKey(selectedDate)]) {
-                            handleAutoSave();
-                          }
-                          setSelectedDate(d);
-                          setShowAllQuotes(false);
-                        }}
-                      >
-                        <span className="text-xs font-mono text-gray-400 w-24 sm:w-28 flex-shrink-0">
-                          {dateKey}
-                        </span>
-                        <span className="text-sm text-gray-700 flex-1 truncate min-w-[100px]">
-                          {quoteText}
-                        </span>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          {/* Language indicators */}
-                          <div className="flex items-center gap-0.5">
-                            {languages.map(lang => {
-                              const hasContent = quoteData[lang.code] && quoteData[lang.code].trim();
-                              return (
-                                <span
-                                  key={lang.code}
-                                  className={`text-[8px] ${hasContent ? 'text-green-600' : 'text-gray-300'}`}
-                                  title={`${lang.code}: ${hasContent ? '✓' : '✗'}`}
-                                >
-                                  {lang.code}
+          <div className="p-4 max-h-[28rem] overflow-y-auto scrollbar-hide">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-gray-50 text-left text-[10px] uppercase tracking-wider text-ink-soft z-10">
+                <tr>
+                  <th className="px-3 py-2.5 font-semibold">Date</th>
+                  <th className="px-3 py-2.5 font-semibold">Quote</th>
+                  <th className="px-3 py-2.5 font-semibold text-center">EN</th>
+                  <th className="px-3 py-2.5 font-semibold text-center">NE</th>
+                  <th className="px-3 py-2.5 font-semibold text-center">HI</th>
+                  <th className="px-3 py-2.5 font-semibold text-center">ZH</th>
+                  <th className="px-3 py-2.5 font-semibold text-center">TA</th>
+                  <th className="px-3 py-2.5 font-semibold">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredQuotes.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="text-center py-8 text-gray-400 text-sm">
+                      No quotes found
+                    </td>
+                  </tr>
+                ) : (
+                  filteredQuotes
+                    .sort(([a], [b]) => a.localeCompare(b))
+                    .map(([dateKey, quoteData]) => {
+                      const date = new Date(dateKey);
+                      const isTodayQuote = dateKey === todayKey;
+                      const quoteText = quoteData[activeLang] || quoteData.en || 'No quote';
+                      const status = getLanguageStatus(dateKey);
+                      const allComplete = status.filled === status.total && status.total > 0;
+                      const partial = status.filled > 0 && status.filled < status.total;
+
+                      return (
+                        <tr
+                          key={dateKey}
+                          onClick={() => {
+                            const d = new Date(dateKey);
+                            if (editingQuote.trim() && quotes[getDateKey(selectedDate)]) {
+                              handleAutoSave();
+                            }
+                            setSelectedDate(d);
+                            setShowAllQuotes(false);
+                          }}
+                          className={`hover:bg-gray-50 transition-colors cursor-pointer ${isTodayQuote ? 'bg-[#7A0000]/5' : ''}`}
+                        >
+                          <td className="px-3 py-2.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-mono text-gray-400">{dateKey}</span>
+                              {isTodayQuote && (
+                                <span className="text-[9px] font-bold text-[#7A0000] bg-[#7A0000]/10 px-1.5 py-0.5 rounded-full">
+                                  Today
                                 </span>
-                              );
-                            })}
-                          </div>
-                          {allComplete ? (
-                            <span className="text-[10px] text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
-                              <CheckCircle size={10} /> All
-                            </span>
-                          ) : partial ? (
-                            <span className="text-[10px] text-yellow-600 bg-yellow-50 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
-                              <AlertCircle size={10} /> Partial
-                            </span>
-                          ) : null}
-                          {isTodayQuote && (
-                            <span className="text-[10px] font-semibold text-[#7A0000] bg-[#7A0000]/10 px-2 py-0.5 rounded-full">
-                              Today
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-              )}
-            </div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2.5 max-w-[220px]">
+                            <span className="text-xs text-gray-700 line-clamp-2">{quoteText}</span>
+                          </td>
+                          {languages.map((lang) => {
+                            const hasContent = quoteData[lang.code] && quoteData[lang.code].trim();
+                            return (
+                              <td key={lang.code} className="px-3 py-2.5 text-center">
+                                <span
+                                  className={`inline-flex items-center justify-center w-6 h-6 rounded-full ${
+                                    hasContent ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-300'
+                                  }`}
+                                  title={`${lang.label}: ${hasContent ? '✓' : '✗'}`}
+                                >
+                                  {hasContent ? <CheckCircle size={13} /> : <X size={13} />}
+                                </span>
+                              </td>
+                            );
+                          })}
+                          <td className="px-3 py-2.5">
+                            {allComplete ? (
+                              <span className="text-[10px] text-green-600 bg-green-50 px-2 py-0.5 rounded-full font-semibold">
+                                All Complete
+                              </span>
+                            ) : partial ? (
+                              <span className="text-[10px] text-yellow-600 bg-yellow-50 px-2 py-0.5 rounded-full font-semibold">
+                                Partial
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full font-semibold">
+                                Empty
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

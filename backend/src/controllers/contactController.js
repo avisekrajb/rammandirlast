@@ -1,6 +1,7 @@
 const Contact = require('../models/Contact');
 const { sendEmail } = require('../services/emailService');
 const { sendContactReply } = require('../services/emailService');
+const { createNotification } = require('./notificationController');
 
 // ============================================
 // PUBLIC ROUTES
@@ -37,6 +38,14 @@ exports.sendContactMessage = async (req, res) => {
       message,
       status: 'pending',
     });
+
+    // Notify admins about new contact message
+    await createNotification(
+      'contact',
+      'New Contact Message',
+      `${name} sent a message: "${message.substring(0, 50)}${message.length > 50 ? '...' : ''}"`,
+      { id: contact._id, name: contact.name, email: contact.email, message: contact.message, status: contact.status, createdAt: contact.createdAt }
+    );
 
     // Send email to admin
     const adminHtml = `

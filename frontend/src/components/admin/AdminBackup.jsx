@@ -4,14 +4,26 @@ import {
   Cloud, Clock, Users, CalendarDays, Gift, BookOpen,
   Image, ScrollText, Users as UsersIcon, Mail,
   Activity, Loader2, CheckCircle, XCircle, FileText,
-  HardDrive, Server, Archive, Shield, Lock, X
+  HardDrive, Server, Archive, X,
+  Settings2, Layers, Check
 } from 'lucide-react';
-import { useToast } from '../../context/ToastContext';
 import { useBackup } from '../../context/BackupContext';
 import OmLoader from '../../components/common/OmLoader';
 
+const SECTIONS = [
+  { key: 'users', label: 'Users', icon: UsersIcon },
+  { key: 'bookings', label: 'Bookings', icon: CalendarDays },
+  { key: 'donations', label: 'Donations', icon: Gift },
+  { key: 'events', label: 'Events', icon: CalendarDays },
+  { key: 'gallery', label: 'Gallery', icon: Image },
+  { key: 'history', label: 'History', icon: BookOpen },
+  { key: 'team', label: 'Team', icon: Users },
+  { key: 'contacts', label: 'Contacts', icon: Mail },
+  { key: 'visitors', label: 'Visitors', icon: Activity },
+  { key: 'blogs', label: 'Blogs', icon: ScrollText },
+];
+
 const AdminBackup = ({ t }) => {
-  const { showToast } = useToast();
   const {
     backups,
     loading,
@@ -21,6 +33,7 @@ const AdminBackup = ({ t }) => {
     createBackup,
     downloadBackup,
     downloadFromCloudinary,
+    restoreBackup,
     deleteBackup,
     getBackupStats,
   } = useBackup();
@@ -28,6 +41,14 @@ const AdminBackup = ({ t }) => {
   const [stats, setStats] = useState(null);
   const [selectedBackup, setSelectedBackup] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [backupOptions, setBackupOptions] = useState({
+    description: '',
+    type: 'full',
+    includeDeleted: true,
+    sections: SECTIONS.map(s => s.key),
+  });
 
   useEffect(() => {
     fetchBackups();
@@ -40,12 +61,40 @@ const AdminBackup = ({ t }) => {
   };
 
   const handleCreateBackup = async () => {
-    await createBackup({
-      description: 'Full system backup',
-      type: 'full',
-      includeDeleted: true,
-    });
-    loadStats();
+    setIsSubmitting(true);
+    try {
+      const options = {
+        description: backupOptions.description || (backupOptions.type === 'partial' ? 'Partial system backup' : 'Full system backup'),
+        type: backupOptions.type,
+        includeDeleted: backupOptions.includeDeleted,
+      };
+      if (backupOptions.type === 'partial') {
+        options.sections = backupOptions.sections;
+      }
+      await createBackup(options);
+      setShowCreateModal(false);
+      loadStats();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const toggleSection = (key) => {
+    setBackupOptions(prev => ({
+      ...prev,
+      sections: prev.sections.includes(key)
+        ? prev.sections.filter(s => s !== key)
+        : [...prev.sections, key],
+    }));
+  };
+
+  const toggleAllSections = () => {
+    setBackupOptions(prev => ({
+      ...prev,
+      sections: prev.sections.length === SECTIONS.length
+        ? []
+        : SECTIONS.map(s => s.key),
+    }));
   };
 
   const formatDate = (dateString) => {
@@ -98,7 +147,7 @@ const AdminBackup = ({ t }) => {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={handleCreateBackup}
+            onClick={() => setShowCreateModal(true)}
             disabled={isBackingUp}
             className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#7A0000] text-white rounded-xl text-sm font-semibold hover:bg-[#5A0000] transition-all disabled:opacity-50"
           >
@@ -135,6 +184,166 @@ const AdminBackup = ({ t }) => {
               className="h-full bg-[#7A0000] rounded-full transition-all duration-500"
               style={{ width: `${progress}%` }}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Create Backup Options Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full max-h-[92vh] overflow-y-auto">
+            <div className="bg-gradient-to-r from-[#7A0000]/10 to-[#A00000]/5 px-6 py-4 border-b border-gray-100 flex items-center justify-between sticky top-0 z-10 bg-white/95 backdrop-blur-sm">
+              <h3 className="text-lg font-serif font-bold text-[#7A0000] flex items-center gap-2">
+                <Settings2 size={18} />
+                Backup Options
+              </h3>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="p-2 rounded-xl hover:bg-gray-100 transition-all"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Description */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">
+                  Description
+                </label>
+                <textarea
+                  value={backupOptions.description}
+                  onChange={(e) => setBackupOptions(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="e.g. Before Diwali event - full snapshot"
+                  rows={2}
+                  className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-ink focus:border-[#7A0000] focus:ring-2 focus:ring-[#7A0000]/20 outline-none transition-all resize-none"
+                />
+              </div>
+
+              {/* Backup type */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">
+                  Backup Type
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setBackupOptions(prev => ({ ...prev, type: 'full' }))}
+                    className={`rounded-xl border p-4 text-left transition-all ${
+                      backupOptions.type === 'full'
+                        ? 'border-[#7A0000] bg-[#7A0000]/5 ring-2 ring-[#7A0000]/20'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <Database size={16} className={backupOptions.type === 'full' ? 'text-[#7A0000]' : 'text-gray-400'} />
+                      <span className="text-sm font-semibold text-ink">Full backup</span>
+                      {backupOptions.type === 'full' && <Check size={14} className="text-[#7A0000] ml-auto" />}
+                    </div>
+                    <p className="text-xs text-ink-soft">Capture every data section in a single snapshot.</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBackupOptions(prev => ({ ...prev, type: 'partial' }))}
+                    className={`rounded-xl border p-4 text-left transition-all ${
+                      backupOptions.type === 'partial'
+                        ? 'border-[#7A0000] bg-[#7A0000]/5 ring-2 ring-[#7A0000]/20'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <Layers size={16} className={backupOptions.type === 'partial' ? 'text-[#7A0000]' : 'text-gray-400'} />
+                      <span className="text-sm font-semibold text-ink">Partial backup</span>
+                      {backupOptions.type === 'partial' && <Check size={14} className="text-[#7A0000] ml-auto" />}
+                    </div>
+                    <p className="text-xs text-ink-soft">Choose only the data sections you need.</p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Sections (partial only) */}
+              {backupOptions.type === 'partial' && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                      Data Sections
+                    </label>
+                    <button
+                      type="button"
+                      onClick={toggleAllSections}
+                      className="text-xs font-semibold text-[#7A0000] hover:text-[#5A0000] transition-colors"
+                    >
+                      {backupOptions.sections.length === SECTIONS.length ? 'Clear all' : 'Select all'}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {SECTIONS.map((section) => {
+                      const Icon = section.icon;
+                      const isSelected = backupOptions.sections.includes(section.key);
+                      return (
+                        <button
+                          key={section.key}
+                          type="button"
+                          onClick={() => toggleSection(section.key)}
+                          className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-medium transition-all ${
+                            isSelected
+                              ? 'border-[#7A0000] bg-[#7A0000]/5 text-[#7A0000]'
+                              : 'border-gray-200 text-ink-soft hover:border-gray-300'
+                          }`}
+                        >
+                          <Icon size={15} />
+                          <span className="truncate">{section.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Include deleted */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setBackupOptions(prev => ({ ...prev, includeDeleted: !prev.includeDeleted }))}
+                  className="w-full flex items-center gap-3 rounded-xl border border-gray-200 p-4 text-left transition-all hover:border-gray-300"
+                >
+                  <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all ${backupOptions.includeDeleted ? 'bg-[#7A0000] border-[#7A0000]' : 'border-gray-300'}`}>
+                    {backupOptions.includeDeleted && <Check size={13} className="text-white" />}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-ink">Include deleted items</p>
+                    <p className="text-xs text-ink-soft">Preserve recently deleted records (last 30 days)</p>
+                  </div>
+                </button>
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-end gap-3 pt-2 border-t border-gray-100">
+                <button
+                  onClick={() => setShowCreateModal(false)}
+                  className="px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateBackup}
+                  disabled={isSubmitting || (backupOptions.type === 'partial' && backupOptions.sections.length === 0)}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#7A0000] text-white rounded-xl text-sm font-semibold hover:bg-[#5A0000] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Cloud size={16} />
+                      Create Backup
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -274,6 +483,13 @@ const AdminBackup = ({ t }) => {
                             title="View Details"
                           >
                             <FileText size={16} />
+                          </button>
+                          <button
+                            onClick={() => restoreBackup(backup._id)}
+                            className="p-1.5 rounded-lg text-green-500 hover:text-green-700 hover:bg-green-50 transition-all"
+                            title="Restore"
+                          >
+                            <Upload size={16} />
                           </button>
                           <button
                             onClick={() => deleteBackup(backup._id)}

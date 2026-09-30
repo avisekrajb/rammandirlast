@@ -1,16 +1,19 @@
 const express = require('express');
 const router = express.Router();
 const Subscriber = require('../models/Subscriber');
+const protect = require('../middleware/auth');
 const { sendEmail } = require('../services/emailService');
+const { createNotification } = require('../controllers/notificationController');
 
 // @desc    Subscribe to updates
 // @route   POST /api/subscribe
-// @access  Public
-router.post('/', async (req, res) => {
+// @access  Private (requires login)
+router.post('/', protect, async (req, res) => {
   try {
     const { email } = req.body;
+    const userEmail = email || req.user.email;
 
-    if (!email || !email.includes('@')) {
+    if (!userEmail || !userEmail.includes('@')) {
       return res.status(400).json({ 
         success: false,
         message: 'Please provide a valid email address' 
@@ -18,14 +21,39 @@ router.post('/', async (req, res) => {
     }
 
     // Store the subscriber so they receive future event/blog update emails
+    let subscriber = null;
     try {
-      await Subscriber.findOneAndUpdate(
-        { email: email.toLowerCase().trim() },
-        { email: email.toLowerCase().trim() },
+      subscriber = await Subscriber.findOneAndUpdate(
+        { email: userEmail.toLowerCase().trim() },
+        { email: userEmail.toLowerCase().trim() },
         { upsert: true, new: true, setDefaultsOnInsert: true }
       );
     } catch (subError) {
       console.error('Subscriber save error:', subError.message);
+    }
+
+    // Notify admins about new subscriber
+    await createNotification(
+      'subscribe',
+      'New Subscriber',
+      `${userEmail} subscribed to temple updates`,
+      { id: subscriber?._id, email: userEmail, createdAt: subscriber?.createdAt || new Date().toISOString() }
+    );
+
+    // Send admin email about new subscriber (best effort)
+    try {
+      await sendEmail({
+        to: process.env.EMAIL_USER || 'admin@ramchandratemple.org.np',
+        subject: '🕉 New Subscriber - Shree Ramchandra Temple',
+        html: `
+          <h3>New Subscriber</h3>
+          <p>A new devotee subscribed to temple updates:</p>
+          <p><strong>Email:</strong> ${userEmail}</p>
+          <p><strong>Date:</strong> ${new Date().toLocaleString()}</p>
+        `,
+      });
+    } catch (adminEmailError) {
+      console.error('Subscriber admin email error:', adminEmailError.message);
     }
 
     // Send confirmation email
@@ -73,7 +101,7 @@ router.post('/', async (req, res) => {
     `;
 
     await sendEmail({
-      to: email,
+      to: userEmail,
       subject: '🕉 Subscription Confirmed - Shree Ramchandra Temple',
       html,
     });

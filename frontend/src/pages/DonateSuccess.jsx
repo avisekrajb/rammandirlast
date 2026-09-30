@@ -6,6 +6,22 @@ import api from '../services/api';
 import OmLoader from '../components/common/OmLoader';
 import { Check, X, Heart } from 'lucide-react';
 
+const decodeData = (value) => {
+  try {
+    const normalized = String(value).replace(/-/g, '+').replace(/_/g, '/');
+    const raw = typeof Buffer !== 'undefined' ? Buffer.from(normalized, 'base64').toString('utf8') : atob(normalized);
+    return JSON.parse(raw);
+  } catch (error) {
+    return null;
+  }
+};
+
+const clearPending = () => {
+  localStorage.removeItem('pendingDonationId');
+  localStorage.removeItem('pendingDonationAmount');
+  localStorage.removeItem('pendingMethod');
+};
+
 const DonateSuccess = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -18,42 +34,77 @@ const DonateSuccess = () => {
     const verifyPayment = async () => {
       try {
         const urlParams = new URLSearchParams(window.location.search);
+        const dataParam = urlParams.get('data');
+        const pidx = urlParams.get('pidx');
+        const txnid = urlParams.get('TXNID') || urlParams.get('txnid');
         const transactionUuid = urlParams.get('transaction_uuid');
-        const productCode = urlParams.get('product_code');
-        const totalAmount = urlParams.get('total_amount');
-        const statusParam = urlParams.get('status');
         const donationId = localStorage.getItem('pendingDonationId');
         const pendingAmount = localStorage.getItem('pendingDonationAmount');
+        const pendingMethod = localStorage.getItem('pendingMethod') || 'esewa';
 
-        setAmount(pendingAmount || totalAmount || '0');
+        let paymentMethod = pendingMethod;
+        if (dataParam) paymentMethod = 'esewa';
+        if (pidx) paymentMethod = 'khalti';
+        if (txnid) paymentMethod = 'ips';
+        if (transactionUuid && paymentMethod !== 'khalti' && paymentMethod !== 'ips') paymentMethod = 'esewa';
 
-        if (statusParam === 'success' || statusParam === 'COMPLETE') {
-          // Verify with backend
-          const response = await api.post('/payment/esewa/verify', {
-            transaction_uuid: transactionUuid,
-            product_code: productCode,
-            total_amount: totalAmount,
-            status: statusParam,
-            donationId: donationId,
-          });
+        if (!donationId) {
+          setStatus('failed');
+          showToast('No pending payment found. Please try again.', 'error');
+          setLoading(false);
+          return;
+        }
 
-          if (response.data.success) {
-            setStatus('success');
-            showToast('Payment successful! Thank you for your donation.', 'success');
-            localStorage.removeItem('pendingDonationId');
-            localStorage.removeItem('pendingDonationAmount');
+        let payload = { donationId };
+        let displayAmount = pendingAmount;
+
+        if (paymentMethod === 'esewa') {
+          if (dataParam) {
+            const decoded = decodeData(dataParam);
+            payload = { ...payload, data: dataParam };
+            if (decoded && !displayAmount) displayAmount = decoded.total_amount;
           } else {
-            setStatus('failed');
-            showToast('Payment verification failed. Please contact support.', 'error');
+            payload = {
+              ...payload,
+              transaction_uuid: transactionUuid,
+              product_code: urlParams.get('product_code'),
+              total_amount: urlParams.get('total_amount'),
+              status: urlParams.get('status'),
+            };
+            if (!displayAmount) displayAmount = urlParams.get('total_amount');
           }
+        } else if (paymentMethod === 'khalti') {
+          payload = { ...payload, pidx };
+          if (!displayAmount) displayAmount = urlParams.get('amount');
+        } else if (paymentMethod === 'ips') {
+          payload = { ...payload, txnid };
+        }
+
+        setAmount(displayAmount || '0');
+
+        const endpoint =
+          paymentMethod === 'khalti'
+            ? '/payment/khalti/verify'
+            : paymentMethod === 'ips'
+            ? '/payment/ips/verify'
+            : '/payment/esewa/verify';
+
+        const response = await api.post(endpoint, payload);
+
+        if (response.data.success) {
+          setStatus('success');
+          showToast('Payment successful! Thank you for your donation.', 'success');
+          clearPending();
         } else {
           setStatus('failed');
-          showToast('Payment was not successful. Please try again.', 'error');
+          showToast('Payment verification failed. Please contact support.', 'error');
+          clearPending();
         }
       } catch (error) {
         console.error('Verification error:', error);
         setStatus('failed');
         showToast('Payment verification failed. Please contact support.', 'error');
+        clearPending();
       } finally {
         setLoading(false);
       }

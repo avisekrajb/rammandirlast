@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
@@ -44,12 +44,7 @@ const BookingPage = () => {
   const [dateLimits, setDateLimits] = useState({});
   const [dateLimitMessage, setDateLimitMessage] = useState('');
   const [isDateValidForBooking, setIsDateValidForBooking] = useState(true);
-  const [bookingBgPhoto, setBookingBgPhoto] = useState('/4.jpg');
-  const [stats, setStats] = useState({
-    pujaTypes: 5,
-    secureBooking: '100%',
-    support: '24/7'
-  });
+  const [bookingContent, setBookingContent] = useState([]);
   const [showMyBookings, setShowMyBookings] = useState(false);
   const [myBookings, setMyBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
@@ -65,50 +60,52 @@ const BookingPage = () => {
     description: '',
   });
 
-  // Multi-language puja types (fallback)
+  // Multi-language puja types (fallback).
+  // Index matches the admin-configured order in AdminSettings.pujaTypes.
   const pujaTypesFallback = {
-    en: ['Ram Puja', 'Satyanarayan Puja', 'Griha Pravesh Puja', 'Birthday Puja', 'General Darshan Booking'],
-    ne: ['राम पूजा', 'सत्यनारायण पूजा', 'गृह प्रवेश पूजा', 'जन्मदिन पूजा', 'साधारण दर्शन बुकिङ'],
-    hi: ['राम पूजा', 'सत्यनारायण पूजा', 'गृह प्रवेश पूजा', 'जन्मदिन पूजा', 'सामान्य दर्शन बुकिंग'],
-    zh: ['罗摩祈福', '萨蒂亚那罗延祈福', '乔迁祈福', '生日祈福', '普通参拜预约'],
-    ta: ['ராம பூஜை', 'சத்யநாராயண பூஜை', 'கிரக பிரவேச பூஜை', 'பிறந்தநாள் பூஜை', 'பொது தரிசன பதிவு'],
+    en: [
+      'Ram Puja', 'Satyanarayan Puja', 'Griha Pravesh Puja', 'Birthday Puja', 'General Darshan Booking',
+      'Wedding (Vivah)', 'Bratabandha', 'Pasni', 'Chauraasi Puja', 'Wedding Anniversary',
+      'Engagement', 'Religious Puja & Rituals', 'Meeting & Seminar', 'Cultural Program',
+      'Film & Music Video Shooting'
+    ],
+    ne: [
+      'राम पूजा', 'सत्यनारायण पूजा', 'गृह प्रवेश पूजा', 'जन्मदिन पूजा', 'साधारण दर्शन बुकिङ',
+      'विवाह', 'व्रतबन्ध', 'पास्नी', 'चौरासी पूजा', 'वैवाहिक वर्षगाँठ',
+      'इन्गेजमेन्ट', 'धार्मिक पूजा तथा अनुष्ठान', 'सभा तथा सेमिनार', 'सांस्कृतिक कार्यक्रम',
+      'फिल्म तथा म्युजिक भिडियो छायांकन'
+    ],
+    hi: [
+      'राम पूजा', 'सत्यनारायण पूजा', 'गृह प्रवेश पूजा', 'जन्मदिन पूजा', 'सामान्य दर्शन बुकिंग',
+      'विवाह', 'व्रतबंध', 'पासनी', 'चौरासी पूजा', 'वैवाहिक वर्षगाँठ',
+      'इंगेजमेंट', 'धार्मिक पूजा एवं अनुष्ठान', 'सभा एवं सेमिनार', 'सांस्कृतिक कार्यक्रम',
+      'फिल्म एवं म्यूजिक वीडियो शूटिंग'
+    ],
+    zh: [
+      '罗摩祈福', '萨蒂亚那罗延祈福', '乔迁祈福', '生日祈福', '普通参拜预约',
+      '婚礼', '结缘仪式', '帕斯尼仪式', '八十四岁祭', '结婚周年',
+      '订婚', '宗教祈福与仪式', '会议与研讨会', '文化活动',
+      '电影与音乐视频拍摄'
+    ],
+    ta: [
+      'ராம பூஜை', 'சத்யநாராயண பூஜை', 'கிரக பிரவேச பூஜை', 'பிறந்தநாள் பூஜை', 'பொது தரிசன பதிவு',
+      'திருமணம்', 'நிலை விழா', 'பஸ்னி', 'உறைசாஸ்தி பூஜை', 'திருமண ஆண்டு விழா',
+      'நிம்சம்', 'சடங்கு மற்றும் புரோட்டா', 'கூட்டம் மற்றும் சிமினார்', 'கலாச்சார நிகழ்ச்சி',
+      'திரைப்படம் மற்றும் இசை வீடியோ பதிவு'
+    ],
   };
 
-  // Get puja types from admin or fallback
+  // Admin types are stored unlocalized, so show them in the selected language
+  // when the stored list matches the known order; otherwise show it as-is.
   const getPujaTypes = () => {
     if (pujaTypesFromAdmin && pujaTypesFromAdmin.length > 0) {
-      return pujaTypesFromAdmin;
+      const known = pujaTypesFallback.en;
+      const matchesOrder =
+        pujaTypesFromAdmin.length === known.length &&
+        pujaTypesFromAdmin.every((type, i) => type === known[i]);
+      return matchesOrder ? (pujaTypesFallback[lang] || pujaTypesFallback.en) : pujaTypesFromAdmin;
     }
     return pujaTypesFallback[lang] || pujaTypesFallback.en;
-  };
-
-  // Multi-language stats labels
-  const statsLabels = {
-    en: {
-      pujaTypes: 'Puja Types',
-      secureBooking: 'Secure Booking',
-      support: 'Support'
-    },
-    ne: {
-      pujaTypes: 'पूजा प्रकारहरू',
-      secureBooking: 'सुरक्षित बुकिङ',
-      support: 'सहायता'
-    },
-    hi: {
-      pujaTypes: 'पूजा प्रकार',
-      secureBooking: 'सुरक्षित बुकिंग',
-      support: 'सहायता'
-    },
-    zh: {
-      pujaTypes: '法会类型',
-      secureBooking: '安全预订',
-      support: '支持'
-    },
-    ta: {
-      pujaTypes: 'பூஜை வகைகள்',
-      secureBooking: 'பாதுகாப்பான முன்பதிவு',
-      support: 'ஆதரவு'
-    }
   };
 
   // Multi-language form labels
@@ -306,7 +303,6 @@ const BookingPage = () => {
   };
 
   const currentLabels = labels[lang] || labels.en;
-  const currentStatsLabels = statsLabels[lang] || statsLabels.en;
   const types = getPujaTypes();
 
   // Get today's date for min date validation
@@ -548,16 +544,8 @@ const BookingPage = () => {
           setDateLimits(settings.dateLimits);
         }
         
-        if (settings.bookingStats) {
-          setStats({
-            pujaTypes: settings.bookingStats.pujaTypes || 5,
-            secureBooking: settings.bookingStats.secureBooking || '100%',
-            support: settings.bookingStats.support || '24/7'
-          });
-        }
-        
-        if (settings.bookingBgPhoto) {
-          setBookingBgPhoto(settings.bookingBgPhoto);
+        if (Array.isArray(settings.bookingContent)) {
+          setBookingContent(settings.bookingContent);
         }
       } catch (error) {
         console.error('Error fetching settings:', error);
@@ -617,40 +605,114 @@ const BookingPage = () => {
     }
   };
 
+  // ===== "पूजा तथा धार्मिक कार्यक्रम बुकिङ" content =====
+  const getLocalized = (obj) => {
+    if (!obj) return '';
+    if (typeof obj === 'string') return obj;
+    return obj[lang] || obj.en || '';
+  };
+
+  const sections = useMemo(
+    () =>
+      (bookingContent || [])
+        .filter((s) => s && s.enabled !== false)
+        .sort((a, b) => (a.order || 0) - (b.order || 0)),
+    [bookingContent]
+  );
+
+  // the booking form is pinned at the top of the right column; everything
+  // before it sits in the left column, everything after it flows below the form
+  const formSlot = sections.findIndex((s) => s.showForm);
+  const sectionsBefore = formSlot >= 0 ? sections.slice(0, formSlot + 1) : sections;
+  const sectionsAfter = formSlot >= 0 ? sections.slice(formSlot + 1) : [];
+
+  // a parent heading is printed once, above the first of its sections.
+  // `offset` is the position of this slice inside the full `sections` list, so
+  // the neighbour lookup below is done against the full list, not the slice.
+  const showGroupFor = (section, index, offset) => {
+    const groupText = getLocalized(section.group);
+    if (!groupText) return false;
+    const globalIndex = offset + index;
+    return getLocalized(sections[globalIndex - 1]?.group) !== groupText;
+  };
+
+  const renderSection = (section, index, offset) => {
+    const titleText = getLocalized(section.title);
+    const listTitleText = getLocalized(section.listTitle);
+    const paragraphs = Object.keys(section.paragraphs || {})
+      .map((pKey) => getLocalized(section.paragraphs[pKey]))
+      .filter(Boolean);
+    const points = (section.points || []).map(getLocalized).filter(Boolean);
+    // for the form slot we print only the heading, the form itself follows
+    const showBody = !section.showForm;
+    const showGroup = showGroupFor(section, index, offset || 0);
+
+    if (!titleText && !showGroup && paragraphs.length === 0 && points.length === 0) return null;
+
+    return (
+      <div key={section.key || index} className={index === 0 ? '' : 'mt-10'}>
+        {showGroup && (
+          <div className="mt-14 mb-4">
+            <div className="h-px w-12 bg-[#7A0000]/25 mb-3" />
+            <h2 className="font-serif text-xl sm:text-2xl font-extrabold text-[#7A0000] tracking-tight">
+              {getLocalized(section.group)}
+            </h2>
+          </div>
+        )}
+        {titleText && (
+          <h2 className={`font-serif text-xl sm:text-2xl font-extrabold text-[#7A0000] tracking-tight ${showGroup ? 'mt-6 mb-3' : 'mb-3'}`}>
+            {titleText}
+          </h2>
+        )}
+        {showBody && (
+          <>
+            {paragraphs.map((text, i) => (
+              <p key={i} className="text-[#4A4A50] leading-relaxed text-base text-justify mt-3">
+                {text}
+              </p>
+            ))}
+            {listTitleText && (
+              <p className="font-semibold text-[#7A0000] mt-4 mb-2">{listTitleText}</p>
+            )}
+            {points.length > 0 && (
+              <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-2 mt-3">
+                {points.map((point, i) => (
+                  <li key={i} className="flex items-start gap-2.5">
+                    <span
+                      className="shrink-0 mt-2 w-1.5 h-1.5 rounded-full"
+                      style={{ background: 'linear-gradient(135deg, #E8A93D, #C1440E)' }}
+                    />
+                    <span className="text-[#4A4A50] leading-relaxed text-base">{point}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </div>
+    );
+  };
+
   if (!user) {
     return (
-      <main className="min-h-screen" style={{ background: 'linear-gradient(180deg, #faf8f5 0%, #ffffff 50%, #faf8f5 100%)' }}>
+      <main className="min-h-screen" style={{ background: '#ffffff' }}>
         <div className="max-w-6xl mx-auto px-6 py-20">
-          <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
-            <div className="grid lg:grid-cols-2">
-              <div className="hidden lg:block relative min-h-[500px] bg-[#7A0000]">
-                <img 
-                  src={bookingBgPhoto || '/4.jpg'} 
-                  alt="Temple" 
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.target.src = '/4.jpg';
-                  }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#7A0000]/80 via-transparent to-transparent" />
-                <div className="absolute bottom-10 left-10 right-10">
-                  <h3 className="text-white text-2xl font-serif font-bold">Shree Ramchandra Temple</h3>
-                  <p className="text-white/70 text-sm">{currentLabels.bookYourPuja}</p>
-                </div>
+          <div className="bg-white rounded-3xl overflow-hidden border border-gray-100/70 mx-auto max-w-lg"
+            style={{ boxShadow: '0 18px 50px -20px rgba(122,0,0,0.18)' }}
+          >
+            <div className="h-1 bg-gradient-to-r from-[#7A0000] via-[#A00000] to-[#7A0000]" />
+            <div className="p-8 md:p-10 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-[#7A0000]/10 text-[#7A0000] flex items-center justify-center mx-auto mb-4">
+                <Lock size={24} />
               </div>
-              <div className="p-8 md:p-12 text-center">
-                <div className="w-14 h-14 rounded-full bg-red-50 text-red-500 flex items-center justify-center mx-auto mb-4">
-                  <AlertCircle size={26} />
-                </div>
-                <h3 className="text-xl font-serif font-semibold">{currentLabels.loginRequired}</h3>
-                <p className="text-sm text-gray-500 mt-2">{currentLabels.loginMsg}</p>
-                <button
-                  onClick={() => navigate('/')}
-                  className="mt-4 inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[#7A0000] text-white font-semibold text-sm hover:bg-[#5A0000] transition-all shadow-lg shadow-[#7A0000]/20"
-                >
-                  {currentLabels.loginContinue}
-                </button>
-              </div>
+              <h3 className="text-xl font-serif font-bold text-[#7A0000]">{currentLabels.loginRequired}</h3>
+              <p className="text-sm text-gray-500 mt-2">{currentLabels.loginMsg}</p>
+              <button
+                onClick={() => navigate('/')}
+                className="mt-5 inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[#7A0000] text-white font-semibold text-sm hover:bg-[#5A0000] transition-all shadow-lg shadow-[#7A0000]/20"
+              >
+                {currentLabels.loginContinue}
+              </button>
             </div>
           </div>
         </div>
@@ -659,80 +721,40 @@ const BookingPage = () => {
   }
 
   return (
-    <main className="min-h-screen" style={{ background: 'linear-gradient(180deg, #faf8f5 0%, #ffffff 50%, #faf8f5 100%)' }}>
+    <main className="min-h-screen" style={{ background: '#ffffff' }}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12">
-        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100/50">
-          <div className={`h-1.5 ${bookingAvailable ? 'bg-gradient-to-r from-[#7A0000] via-[#A00000] to-[#7A0000]' : 'bg-gradient-to-r from-gray-400 via-gray-500 to-gray-400'}`} />
-          
-          <div className="grid lg:grid-cols-2">
-            {/* Left Side - Image 50% */}
-            <div className="relative min-h-[400px] lg:min-h-[600px] bg-[#7A0000]">
-              <img 
-                src={bookingBgPhoto || '/4.jpg'} 
-                alt="Temple Booking" 
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.target.src = '/4.jpg';
-                }}
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#7A0000]/90 via-[#7A0000]/40 to-transparent" />
-              
-              <div className="absolute bottom-0 left-0 right-0 p-8 md:p-10">
-                <div className={`inline-flex items-center gap-2 backdrop-blur-sm px-4 py-1.5 rounded-full text-white text-xs font-semibold mb-4 ${
-                  bookingAvailable ? 'bg-white/20' : 'bg-gray-500/50'
-                }`}>
-                  {bookingAvailable ? <CalendarDays size={14} /> : <Lock size={14} />}
-                  {bookingAvailable ? currentLabels.bookNowLabel : currentLabels.unavailable}
-                </div>
-                <h2 className="text-white text-2xl md:text-3xl font-serif font-bold leading-tight">
-                  {currentLabels.bookYourPuja}
-                </h2>
-                <p className="text-white/80 text-sm mt-2 max-w-sm">
-                  {currentLabels.templeDesc}
-                </p>
-                
-                <div className="grid grid-cols-3 gap-3 mt-6">
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 text-center border border-white/10 hover:bg-white/20 transition-all duration-300">
-                    <div className="text-white text-lg font-bold">{stats.pujaTypes}+</div>
-                    <div className="text-white/60 text-[10px] font-medium tracking-wide">
-                      {currentStatsLabels.pujaTypes}
-                    </div>
-                  </div>
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 text-center border border-white/10 hover:bg-white/20 transition-all duration-300">
-                    <div className="text-white text-lg font-bold">{stats.secureBooking}</div>
-                    <div className="text-white/60 text-[10px] font-medium tracking-wide">
-                      {currentStatsLabels.secureBooking}
-                    </div>
-                  </div>
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 text-center border border-white/10 hover:bg-white/20 transition-all duration-300">
-                    <div className="text-white text-lg font-bold">{stats.support}</div>
-                    <div className="text-white/60 text-[10px] font-medium tracking-wide">
-                      {currentStatsLabels.support}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+        {/* Text on the left (60%) · mini form at the top right (40%) */}
+        <div className="grid lg:grid-cols-12 gap-8 lg:gap-10 items-start">
+          {/* Booking content — left, 60% */}
+          <div className="lg:col-span-7 order-2 lg:order-1">
+            {sectionsBefore.map((section, index) => renderSection(section, index, 0))}
+          </div>
 
-            {/* Right Side - Form 50% */}
-            <div className="p-6 md:p-8 lg:p-10 overflow-y-auto max-h-[600px] lg:max-h-[700px] scrollbar-hide">
-              <div className="mb-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-8 h-0.5 rounded-full ${bookingAvailable ? 'bg-[#7A0000]' : 'bg-gray-400'}`} />
-                    <span className={`text-[10px] font-bold uppercase tracking-wider ${bookingAvailable ? 'text-[#7A0000]' : 'text-gray-400'}`}>
-                      {bookingAvailable ? currentLabels.bookNowLabel : currentLabels.unavailable}
-                    </span>
-                  </div>
-                  
-                  {/* View My Bookings Button */}
-                  <button
-                    onClick={toggleMyBookings}
-                    className="flex items-center gap-1.5 text-xs text-[#7A0000] hover:text-[#5A0000] font-medium bg-[#7A0000]/10 px-3 py-1.5 rounded-full transition-all hover:bg-[#7A0000]/20"
-                  >
-                    {showMyBookings ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                    {showMyBookings ? currentLabels.hideBookings : currentLabels.viewMyBookings}
-                    <span className="bg-[#7A0000] text-white text-[8px] w-4 h-4 rounded-full flex items-center justify-center">
+          {/* Form — top right, 40% */}
+          <div className="lg:col-span-5 order-1 lg:order-2 lg:sticky lg:top-24">
+            <div
+              className="bg-white rounded-3xl border border-gray-100/70 overflow-hidden"
+              style={{ boxShadow: '0 18px 50px -20px rgba(122,0,0,0.18)' }}
+            >
+              <div className={`h-1 ${bookingAvailable ? 'bg-gradient-to-r from-[#7A0000] via-[#A00000] to-[#7A0000]' : 'bg-gradient-to-r from-gray-400 via-gray-500 to-gray-400'}`} />
+              <div className="p-5 sm:p-6">
+                <div className="mb-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-8 h-0.5 rounded-full ${bookingAvailable ? 'bg-[#7A0000]' : 'bg-gray-400'}`} />
+                      <span className={`text-[10px] font-bold uppercase tracking-wider ${bookingAvailable ? 'text-[#7A0000]' : 'text-gray-400'}`}>
+                        {bookingAvailable ? currentLabels.bookNowLabel : currentLabels.unavailable}
+                      </span>
+                    </div>
+
+                    {/* View My Bookings Button */}
+                    <button
+                      onClick={toggleMyBookings}
+                      className="flex items-center gap-1.5 text-xs text-[#7A0000] hover:text-[#5A0000] font-medium bg-[#7A0000]/10 px-3 py-1.5 rounded-full transition-all hover:bg-[#7A0000]/20"
+                    >
+                      {showMyBookings ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      {showMyBookings ? currentLabels.hideBookings : currentLabels.viewMyBookings}
+                      <span className="bg-[#7A0000] text-white text-[8px] w-4 h-4 rounded-full flex items-center justify-center">
                       {myBookings.length}
                     </span>
                   </button>
@@ -754,37 +776,39 @@ const BookingPage = () => {
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="text-xs font-semibold text-gray-700 block mb-1 flex items-center gap-1.5">
-                    <User size={13} className="text-[#7A0000]" />
-                    {currentLabels.name} <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    disabled={!bookingAvailable}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:border-[#7A0000] focus:ring-2 focus:ring-[#7A0000]/10 focus:outline-none transition-all text-sm bg-gray-50/50 hover:bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
-                    placeholder={currentLabels.name}
-                    required
-                  />
-                </div>
+              <form onSubmit={handleSubmit} className="space-y-3.5">
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-700 block mb-1 flex items-center gap-1.5">
+                      <User size={13} className="text-[#7A0000]" />
+                      {currentLabels.name} <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={form.name}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      disabled={!bookingAvailable}
+                      className="w-full px-3.5 py-2 border border-gray-200 rounded-xl focus:border-[#7A0000] focus:ring-2 focus:ring-[#7A0000]/10 focus:outline-none transition-all text-sm bg-gray-50/50 hover:bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      placeholder={currentLabels.name}
+                      required
+                    />
+                  </div>
 
-                <div>
-                  <label className="text-xs font-semibold text-gray-700 block mb-1 flex items-center gap-1.5">
-                    <Phone size={13} className="text-[#7A0000]" />
-                    {currentLabels.phone} <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="tel"
-                    value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    disabled={!bookingAvailable}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:border-[#7A0000] focus:ring-2 focus:ring-[#7A0000]/10 focus:outline-none transition-all text-sm bg-gray-50/50 hover:bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
-                    placeholder="98XXXXXXXX"
-                    required
-                  />
+                  <div>
+                    <label className="text-xs font-semibold text-gray-700 block mb-1 flex items-center gap-1.5">
+                      <Phone size={13} className="text-[#7A0000]" />
+                      {currentLabels.phone} <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="tel"
+                      value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      disabled={!bookingAvailable}
+                      className="w-full px-3.5 py-2 border border-gray-200 rounded-xl focus:border-[#7A0000] focus:ring-2 focus:ring-[#7A0000]/10 focus:outline-none transition-all text-sm bg-gray-50/50 hover:bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      placeholder="98XXXXXXXX"
+                      required
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -929,6 +953,12 @@ const BookingPage = () => {
                   </div>
                 )}
               </form>
+              </div>
+            </div>
+
+            {/* Content that follows the form — fills the column, no empty gap */}
+            <div className="mt-8">
+              {sectionsAfter.map((section, index) => renderSection(section, index, formSlot + 1))}
             </div>
           </div>
         </div>

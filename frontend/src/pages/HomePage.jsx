@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { motion, useScroll, useTransform, useSpring, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
@@ -9,8 +9,10 @@ import { ArrowRight, X, Download, Play, Pause, QuoteIcon, Clock, MapPin, Gift, S
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import api from '../services/api';
+import { handleImageError } from '../utils/imageFallback';
 import OmLoader from '../components/common/OmLoader';
 import TempleIcon from '../components/common/TempleIcon';
+import FacebookVideoSection from '../components/common/FacebookVideoSection';
 
 // Register GSAP plugins
 gsap.registerPlugin(ScrollTrigger);
@@ -149,121 +151,8 @@ const getLocalizedText = (obj, lang) => {
   return obj[lang] || obj.en || '';
 };
 
-// ─── Team Members Horizontal Strip ──────────────────────────────────────────
-function TeamStrip({ team }) {
-  const { lang } = useLanguage();
-  const navigate = useNavigate();
-  const [isHovered, setIsHovered] = useState(false);
-
-  // Filter enabled team members
-  const enabledTeam = team?.filter(m => m.enabled !== false) || [];
-
-  if (enabledTeam.length === 0) return null;
-
-  // Triple the team for seamless infinite scroll
-  const tripledTeam = [...enabledTeam, ...enabledTeam, ...enabledTeam];
-
-  // Speed control - adjust for smooth scrolling
-  const speedMultiplier = 0.25;
-  const BASE_SCROLL_DURATION = enabledTeam.length * 5;
-  const SCROLL_DURATION = BASE_SCROLL_DURATION / speedMultiplier;
-
-  const handleTeamClick = (member) => {
-    const nameText = getLocalizedText(member.name, lang) || 'member';
-    const nameSlug = nameText
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
-    navigate(`/templeteams/${nameSlug}/${member._id}`);
-  };
-
-  return (
-    <div
-      className="absolute bottom-16 left-0 right-0 z-20 overflow-hidden"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="relative overflow-hidden">
-          {/* Gradient fade edges */}
-          <div className="absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-[#0a0a0a] to-transparent z-10 pointer-events-none" />
-          <div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-[#0a0a0a] to-transparent z-10 pointer-events-none" />
-
-          <div
-            className="flex gap-5"
-            style={{
-              width: 'max-content',
-              animation: isHovered ? 'none' : `team-scroll-left ${SCROLL_DURATION}s linear infinite`,
-            }}
-          >
-            {tripledTeam.map((member, idx) => {
-              const nameText = getLocalizedText(member.name, lang) || 'Team Member';
-              const roleText = getLocalizedText(member.role, lang) || '';
-
-              return (
-                <motion.button
-                  key={`${member._id}-${idx}`}
-                  onClick={() => handleTeamClick(member)}
-                  className="flex-shrink-0 flex items-center gap-3 px-3 py-1.5 rounded-full bg-black/20 backdrop-blur-sm border border-white/5 hover:bg-black/30 hover:border-white/15 transition-all duration-300 group cursor-pointer"
-                  whileHover={{ scale: 1.05 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  {/* Photo - Circular with subtle glow */}
-                  <div className="relative flex-shrink-0">
-                    <div className="w-9 h-9 rounded-full overflow-hidden border border-white/20 group-hover:border-white/40 transition-all duration-300">
-                      {member.photo ? (
-                        <img
-                          src={member.photo}
-                          alt={nameText}
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                          onError={(e) => {
-                            e.target.src = '/default-avatar.jpg';
-                          }}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-white font-bold text-sm bg-gradient-to-br from-vermilion/80 to-maroon/80">
-                          {nameText.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                    </div>
-                    {/* Subtle glow ring */}
-                    <div className="absolute -inset-0.5 rounded-full bg-gradient-to-r from-vermilion/20 to-marigold/20 opacity-0 group-hover:opacity-100 blur-sm transition-opacity duration-500" />
-                  </div>
-
-                  {/* Info */}
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-white/90 text-sm font-medium truncate max-w-[100px] group-hover:text-white transition-colors duration-300">
-                      {nameText}
-                    </span>
-                    {roleText && (
-                      <span className="text-white/40 text-[10px] truncate max-w-[100px] group-hover:text-white/60 transition-colors duration-300">
-                        {roleText}
-                      </span>
-                    )}
-                  </div>
-                </motion.button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      <style>{`
-        @keyframes team-scroll-left {
-          0% {
-            transform: translateX(0);
-          }
-          100% {
-            transform: translateX(-${(enabledTeam.length / 3) * 100}%);
-          }
-        }
-      `}</style>
-    </div>
-  );
-}
-
 // ─── Hero Section ─────────────────────────────────────────────────────────────
-function Hero({ settings, team }) {
+function Hero({ settings }) {
   const { t, lang } = useLanguage();
   const ref = useRef(null);
   const videoRef = useRef(null);
@@ -272,7 +161,9 @@ function Hero({ settings, team }) {
 
   const heroVideo = settings?.heroVideo;
   const heroEnabled = settings?.heroEnabled !== false;
-  const heroPoster = settings?.heroPoster || 'linear-gradient(160deg,#7A1F2B 0%,#5B1420 45%,#2B1810 100%)';
+  const heroPoster = settings?.heroPoster || 'linear-gradient(160deg,#7A1F2B 0%,#8B2635 45%,#5B1420 100%)';
+  const heroTitle = getLocalizedText(settings?.heroTitle, lang) || t.templeName || 'Shree Ramchandra Temple';
+  const heroTagline = getLocalizedText(settings?.heroTagline, lang) || t.heroTagline || 'Where devotion meets the sacred banks of Bagmati';
   const timings = settings?.timings || { open: '05:00 AM', close: '08:00 PM' };
 
   const { scrollYProgress } = useScroll({
@@ -311,34 +202,30 @@ function Hero({ settings, team }) {
             initial={{ opacity: 0, y: 36 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1.05, ease: [0.16, 1, 0.3, 1], delay: 0.25 }}
-            className="font-serif text-5xl sm:text-6xl lg:text-8xl text-white font-light leading-tight drop-shadow-2xl mb-6"
+            className="font-serif text-5xl sm:text-6xl lg:text-8xl text-white font-light leading-tight drop-shadow-2xl mb-4"
           >
-            {t.templeName || 'Shree Ramchandra Temple'}
+            {heroTitle}
           </motion.h1>
+
           <motion.p
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.9, delay: 0.5 }}
-            className="text-white/70 text-base sm:text-lg max-w-xl leading-relaxed mb-10"
+            className="text-white/70 text-base sm:text-lg max-w-xl leading-relaxed"
           >
-            {t.heroTagline || 'Where devotion meets the sacred banks of Bagmati'}
+            {heroTagline}
           </motion.p>
+
           <motion.div
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.9, delay: 0.65 }}
-            className="flex flex-wrap items-center justify-center gap-3"
+            className="mt-7 inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/20 backdrop-blur-sm px-4 py-1.5 text-white/85 text-sm"
           >
-            <Link to="/booking" className="inline-flex items-center gap-2 px-6 py-3 rounded-full font-semibold text-sm shadow-lg shadow-vermilion/30 hover:bg-[#a83a0c] hover:-translate-y-0.5 transition-all" style={{ backgroundColor: "#7A0000", color: "white" }}>
-              {t.heroCta2 || 'Book Puja'} <ArrowRight className="w-4 h-4" />
-            </Link>
-            <Link to="/donate" className="inline-flex items-center gap-2 px-6 py-3 rounded-full font-semibold text-sm text-white border border-white/50 hover:bg-white/10 transition-all">
-              {t.navDonate || 'Donate'}
-            </Link>
+            <MapPin size={14} className="text-marigold" />
+            {t.templeSub}
           </motion.div>
         </div>
-        {/* Team Strip */}
-        <TeamStrip team={team} />
       </section>
     );
   }
@@ -409,32 +296,28 @@ function Hero({ settings, team }) {
           initial={{ opacity: 0, y: 36 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1.05, ease: [0.16, 1, 0.3, 1], delay: 0.25 }}
-          className="font-serif text-5xl sm:text-6xl lg:text-8xl text-white font-light leading-tight drop-shadow-2xl mb-6"
+          className="font-serif text-5xl sm:text-6xl lg:text-8xl text-white font-light leading-tight drop-shadow-2xl mb-4"
         >
-          {t.templeName || 'Shree Ramchandra Temple'}
+          {heroTitle}
         </motion.h1>
 
         <motion.p
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9, delay: 0.5 }}
-          className="text-white/70 text-base sm:text-lg max-w-xl leading-relaxed mb-10"
+          className="text-white/70 text-base sm:text-lg max-w-xl leading-relaxed"
         >
-          {t.heroTagline || 'Where devotion meets the sacred banks of Bagmati'}
+          {heroTagline}
         </motion.p>
 
         <motion.div
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9, delay: 0.65 }}
-          className="flex flex-wrap items-center justify-center gap-3"
+          className="mt-7 inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/20 backdrop-blur-sm px-4 py-1.5 text-white/85 text-sm"
         >
-          <Link to="/booking" className="inline-flex items-center gap-2 px-6 py-3 rounded-full font-semibold text-sm shadow-lg shadow-vermilion/30 hover:bg-[#a83a0c] hover:-translate-y-0.5 transition-all" style={{ backgroundColor: "#7A0000", color: "white" }}>
-            {t.heroCta2 || 'Book Puja'} <ArrowRight className="w-4 h-4" />
-          </Link>
-          <Link to="/donate" className="inline-flex items-center gap-2 px-6 py-3 rounded-full font-semibold text-sm text-white border border-white/50 hover:bg-white/10 transition-all">
-            {t.navDonate || 'Donate'}
-          </Link>
+          <MapPin size={14} className="text-marigold" />
+          {t.templeSub}
         </motion.div>
       </motion.div>
 
@@ -458,9 +341,6 @@ function Hero({ settings, team }) {
           }}
         />
       </motion.div>
-
-      {/* Team Strip - Displayed on hero video */}
-      <TeamStrip team={team} />
     </section>
   );
 }
@@ -470,22 +350,17 @@ function QuoteStrip({ quote }) {
   const { t, lang } = useLanguage();
   const [dailyQuote, setDailyQuote] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
 
   useEffect(() => {
     const fetchTodayQuote = async () => {
       try {
         setLoading(true);
-        setError(false);
         const response = await api.get('/admin/quotes/today');
         if (response.data.success) {
           setDailyQuote(response.data.data);
-        } else {
-          setError(true);
         }
-      } catch (error) {
-        console.error('Error fetching daily quote:', error);
-        setError(true);
+      } catch (err) {
+        console.error('Error fetching daily quote:', err);
       } finally {
         setLoading(false);
       }
@@ -493,50 +368,31 @@ function QuoteStrip({ quote }) {
     fetchTodayQuote();
   }, []);
 
-  // Get localized quote
+  // Localized quote, API first then the settings prop. No hardcoded default
+  // text — if nothing is published the strip stays hidden.
   const getLocalizedQuote = () => {
-    // If loading, show loading state
-    if (loading) {
-      return t.dailyQuote || "Loading daily quote...";
-    }
-
-    // If we have a daily quote from API
     if (dailyQuote && dailyQuote.quote) {
-      const quoteText = dailyQuote.quote[lang] || dailyQuote.quote.en || '';
-      if (quoteText) return quoteText;
+      return dailyQuote.quote[lang] || dailyQuote.quote.en || '';
     }
-
-    // Fallback to prop quote (for backward compatibility)
     if (quote) {
       if (typeof quote === 'string') return quote;
-      return quote[lang] || quote.en || t.dailyQuote || "Where there is righteousness in the heart, there is beauty in the character.";
+      return quote[lang] || quote.en || '';
     }
-
-    // Final fallback
-    return t.dailyQuote || "Where there is righteousness in the heart, there is beauty in the character.";
+    return '';
   };
 
   const localizedQuote = getLocalizedQuote();
-  const isDefault = dailyQuote?.isDefault || false;
+
+  if (loading || !localizedQuote) return null;
 
   return (
-    <div className="bg-maroon text-white flex items-start gap-3 px-4 md:px-6 py-4 md:py-5 max-w-7xl mx-auto -mt-px rounded-b-xl shadow-lg">
-      <QuoteIcon size={18} className="text-marigold flex-shrink-0 mt-1" />
+    <div className="bg-gradient-to-r from-maroon-deep via-maroon to-vermilion text-white flex items-start gap-3 px-4 md:px-6 py-4 md:py-5 max-w-7xl mx-auto rounded-xl shadow-md shadow-maroon/20 border border-maroon">
+      <QuoteIcon size={18} className="text-amber-300 flex-shrink-0 mt-1" />
       <div>
-        <span className="text-[10px] md:text-xs uppercase tracking-widest text-marigold font-bold">
+        <span className="text-[10px] md:text-xs uppercase tracking-widest text-amber-200 font-bold">
           {t.quoteLabel || 'Thought for the Day'}
-          {dailyQuote && dailyQuote.date && (
-            <span className="ml-2 text-white/40 text-[8px] font-normal">
-              {dailyQuote.date}
-            </span>
-          )}
-          {isDefault && (
-            <span className="ml-2 text-yellow-400/60 text-[8px] font-normal">
-              (default)
-            </span>
-          )}
         </span>
-        <p className="font-serif text-sm md:text-base text-white/90 mt-1 leading-relaxed">
+        <p className="font-serif text-sm md:text-base text-white mt-1 leading-relaxed">
           {localizedQuote}
         </p>
       </div>
@@ -617,7 +473,7 @@ function AboutPreview({ settings }) {
     <section ref={sectionRef} className="max-w-7xl mx-auto px-6 py-20">
       <div className="grid md:grid-cols-2 gap-12 items-center">
         <div ref={textRef}>
-          <h2 className="font-serif text-3xl sm:text-4xl mb-6" style={{ color: "#520505" }}>
+          <h2 className="font-serif text-3xl sm:text-4xl mb-6" style={{ color: "#7A1F2B" }}>
             {title}
           </h2>
           <p className="text-base sm:text-lg text-mute leading-relaxed mb-8 text-justify">
@@ -625,16 +481,15 @@ function AboutPreview({ settings }) {
           </p>
           <ul className="list-none p-0 m-0 flex flex-col gap-2 mb-6">
             <li className="flex items-center gap-2 text-sm text-ink-soft">
-              <Clock size={14} className="text-vermilion" /> {t.openHours || 'Darshan Hours'}: {timings.open} – {timings.close}
+              <Clock size={14} className="text-vermilion" /> {t.openHours || 'Darshan Hours'}: 5:00 – 10:00 PM
             </li>
             <li className="flex items-center gap-2 text-sm text-ink-soft">
-              <MapPin size={14} className="text-vermilion" /> {t.templeAddressLine || 'Gaushala, Kathmandu, Nepal'}
+              <MapPin size={14} className="text-vermilion" /> {t.templeAddressLine}
             </li>
           </ul>
           <Link
   to="/about"
-  className="inline-flex items-center px-5 py-2 rounded-full font-medium text-sm text-white hover:opacity-90 transition-all"
-  style={{ backgroundColor: "#8B2A2A" }}
+  className="inline-flex items-center px-5 py-2 rounded-full font-medium text-sm text-white bg-gradient-to-r from-maroon to-maroon-deep hover:from-maroon-deep hover:to-maroon shadow-md shadow-maroon/25 hover:-translate-y-0.5 transition-all"
 >
   {t.viewMore || "View More"}
 </Link>
@@ -669,95 +524,17 @@ function AboutPreview({ settings }) {
 }
 
 // ─── Facebook Video Section (NEW - renders below About section) ────────────
-// Supports multiple videos in a grid, showing 6 at a time with a
-// View More / View Less toggle. Videos are admin-editable via
-// settings?.facebookVideos (array of { url, enabled }), falling back
-// to the hardcoded list below if that field isn't present.
-const DEFAULT_FACEBOOK_VIDEOS = [
-  'https://www.facebook.com/shreeramchandramandir/videos/2472164706588918/',
-  'https://www.facebook.com/shreeramchandramandir/videos/1075819584931828/',
-  'https://www.facebook.com/shreeramchandramandir/videos/2273607406769837/',
-  'https://www.facebook.com/shreeramchandramandir/videos/1614691790082453/',
-  'https://www.facebook.com/shreeramchandramandir/videos/2106938773498642/',
-  'https://www.facebook.com/shreeramchandramandir/videos/1041350001985138/',
-];
-
-const FACEBOOK_VIDEOS_PAGE_SIZE = 6;
-
-function FacebookVideoCard({ url }) {
-  const embedSrc = `https://www.facebook.com/plugins/video.php?height=314&href=${encodeURIComponent(
-    url
-  )}&show_text=false&width=560&t=0`;
-
-  return (
-    <div className="rounded-xl overflow-hidden shadow-lg border border-line bg-black">
-      <div className="relative w-full" style={{ paddingBottom: '56.13%' /* 314/560 aspect ratio */ }}>
-        <iframe
-          src={embedSrc}
-          className="absolute inset-0 w-full h-full"
-          style={{ border: 'none', overflow: 'hidden' }}
-          scrolling="no"
-          frameBorder="0"
-          allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
-          allowFullScreen
-          title="Facebook Video"
-        />
-      </div>
-    </div>
-  );
-}
-
+// Videos (rectangle) on top, Reels (vertical) below, shown as horizontal
+// sliders. Admin-editable via settings?.facebookVideos / settings?.facebookReels.
 function FacebookVideoTeaser({ settings }) {
   const { t } = useLanguage();
-  const [showAll, setShowAll] = useState(false);
-
   const fbEnabled = settings?.facebookVideo?.enabled !== false;
   if (!fbEnabled) return null;
-
-  // Build the list of video URLs, admin-editable list first, fallback to defaults.
-  const configuredVideos = settings?.facebookVideos
-    ?.filter(v => v.enabled !== false)
-    ?.map(v => v.url)
-    ?.filter(Boolean);
-
-  const videos = configuredVideos && configuredVideos.length > 0
-    ? configuredVideos
-    : DEFAULT_FACEBOOK_VIDEOS;
-
-  if (videos.length === 0) return null;
-
-  const visibleVideos = showAll ? videos : videos.slice(0, FACEBOOK_VIDEOS_PAGE_SIZE);
-  const hasMore = videos.length > FACEBOOK_VIDEOS_PAGE_SIZE;
-
+  
   return (
-    <section className="py-20" style={{ background: "linear-gradient(180deg, #ffffff 0%, #faf8f5 100%)" }}>
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 text-center">
-        <h2 className="font-serif text-3xl sm:text-4xl mb-10" style={{ color: "#7A0000" }}>
-          {t.facebookVideoTitle || ''}
-        </h2>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {visibleVideos.map((url, idx) => (
-            <FacebookVideoCard key={`${url}-${idx}`} url={url} />
-          ))}
-        </div>
-
-        {hasMore && (
-          <div className="mt-10 flex justify-center">
-            <div
-              className="inline-flex items-center rounded-full p-1"
-              style={{ backgroundColor: "rgba(122, 31, 43, 0.08)", border: "1px solid rgba(122, 31, 43, 0.15)" }}
-            >
-              <button
-  onClick={() => setShowAll(prev => !prev)}
-  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full font-semibold text-sm text-white hover:-translate-y-0.5 transition-all shadow-lg shadow-vermilion/30"
-  style={{ backgroundColor: "#8B2A2A" }}
->
-  {showAll ? (t.viewLess || "View Less") : (t.viewMore || "View More")}
-</button>
-            </div>
-          </div>
-        )}
+    <section className="py-20" style={{ background: "#ffffff" }}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
+        <FacebookVideoSection settings={settings} t={t} hideReels />
       </div>
     </section>
   );
@@ -847,9 +624,9 @@ function EventDetailModal({ event, onClose, lang, t, user, onInterested, isInter
             src={event.photo || '/default-event.jpg'}
             alt={titleText}
             className="w-full h-full object-cover"
-            onError={(e) => { e.target.src = '/default-event.jpg'; }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+              onError={(e) => { handleImageError(e, '/default-event.jpg'); }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
           <div className="absolute bottom-4 left-6">
             <span className="text-white/90 text-sm font-medium">
               {dateText || gregText || ''}
@@ -957,8 +734,11 @@ function EventsTeaser({ onOpen }) {
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        const response = await api.get('/events/upcoming');
-        const eventsData = response.data.slice(0, 4);
+        // The events the admin placed on the home page, in slot order. The server
+        // returns them already sorted by homeSlot and capped at 4, so the response
+        // order is exactly the 1/2/3/4 order rendered below. See Admin -> Events.
+        const response = await api.get('/events/home');
+        const eventsData = Array.isArray(response.data) ? response.data : response.data?.data || [];
         setEvents(eventsData);
 
         // Initialize interested counts
@@ -1084,7 +864,7 @@ function EventsTeaser({ onOpen }) {
 
   if (loading) {
     return (
-      <section className="py-24" style={{ background: "linear-gradient(180deg, #faf8f5 0%, #ffffff 100%)" }}>
+      <section className="py-24" style={{ background: "#ffffff" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 text-center">
           <OmLoader size="md" color="vermilion" className="mx-auto" />
         </div>
@@ -1094,16 +874,30 @@ function EventsTeaser({ onOpen }) {
 
   if (events.length === 0) return null;
 
+  // Keep the row full when there are fewer than 4 festivals, instead of leaving
+  // empty grid columns on the right.
+  const gridCols =
+    events.length === 1 ? 'md:grid-cols-1 max-w-sm mx-auto'
+      : events.length === 2 ? 'md:grid-cols-2'
+      : events.length === 3 ? 'md:grid-cols-2 lg:grid-cols-3'
+      : 'md:grid-cols-2 lg:grid-cols-4';
+
   return (
     <>
-      <section className="py-24" style={{ background: "linear-gradient(180deg, #faf8f5 0%, #ffffff 100%)" }}>
+      <section className="py-24" style={{ background: "#ffffff" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="text-center mb-14">
-            <h2 className="font-serif text-3xl sm:text-4xl" style={{ color: "#7A0000" }}>
+          <motion.div
+            initial={{ opacity: 0, y: 28 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+            className="text-center mb-14"
+          >
+            <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl" style={{ color: "#7A0000" }}>
               {t.upcomingEvents || 'Upcoming Events'}
             </h2>
-          </div>
-          <div className="grid md:grid-cols-4 gap-6">
+          </motion.div>
+          <div className={`grid ${gridCols} gap-6`}>
             {events.map((e, i) => {
               const titleText = getLocalizedText(e.title, lang);
               const descText = getLocalizedText(e.desc, lang);
@@ -1126,12 +920,13 @@ function EventsTeaser({ onOpen }) {
                       src={e.photo || '/4.jpg'}
                       alt={titleText}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
-                      onError={(e) => { e.target.src = '/4.jpg'; }}
+                      onError={(e) => { handleImageError(e, '/4.jpg'); }}
                     />
                     <div
                       className="absolute inset-0 pointer-events-none"
                       style={{ background: "linear-gradient(to top, rgba(0,0,0,0.3) 0%, transparent 40%)" }}
                     />
+
                     <div className="absolute top-4 right-4 bg-black/30 backdrop-blur-sm text-white px-3 py-1.5 text-xs font-display rounded-md pointer-events-none shadow-md border border-white/10">
                       {e.date ? formatEventDate(e.date) : 'Coming Soon'}
                     </div>
@@ -1188,8 +983,7 @@ function EventsTeaser({ onOpen }) {
           <div className="text-center mt-12">
           <Link
   to="/events"
-  className="inline-flex items-center px-5 py-2 rounded-full font-medium text-sm text-white hover:opacity-90 transition-all"
-  style={{ backgroundColor: "#8B2A2A" }}
+  className="inline-flex items-center px-5 py-2 rounded-full font-medium text-sm text-white bg-gradient-to-r from-maroon to-maroon-deep hover:from-maroon-deep hover:to-maroon shadow-md shadow-maroon/25 hover:-translate-y-0.5 transition-all"
 >
   {t.viewMore || "View More"}
 </Link>
@@ -1219,18 +1013,8 @@ function EventsTeaser({ onOpen }) {
 // ─── Gallery Teaser - IMAGES NOT CLICKABLE ────────────────────────────────────
 function GalleryTeaser({ settings }) {
   const { t, lang } = useLanguage();
-  const galleryImages = settings?.galleryImages?.filter(img => img.enabled) || [];
-  const imgs = galleryImages.slice(0, 8);
-  const count = imgs.length;
-
-  // Triple the images for seamless infinite scroll
-  const tripledImages = [...imgs, ...imgs, ...imgs];
+  const [galleryPhotos, setGalleryPhotos] = useState([]);
   const [isHovered, setIsHovered] = useState(false);
-
-  // SPEED CONTROL: Adjust this value to control scroll speed
-  const speedMultiplier = 0.25;
-  const BASE_SCROLL_DURATION = count * 8;
-  const SCROLL_DURATION = BASE_SCROLL_DURATION / speedMultiplier;
 
   const getLocalizedAlt = (obj) => {
     if (!obj) return 'Gallery Image';
@@ -1238,73 +1022,150 @@ function GalleryTeaser({ settings }) {
     return obj[lang] || obj.en || 'Gallery Image';
   };
 
-  if (count === 0) return null;
+  // Prefer the real gallery collection (admin uploads), fall back to
+  // settings.galleryImages managed in Admin → Home.
+  useEffect(() => {
+    let mounted = true;
+    api.get('/admin/gallery/all')
+      .then(res => {
+        if (!mounted) return;
+        const photos = (res.data?.data || []).filter(it => it.type === 'photo' || !it.type);
+        if (photos.length > 0) setGalleryPhotos(photos);
+      })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, []);
+
+  const settingsImgs = settings?.galleryImages?.filter(img => img.enabled) || [];
+
+  const items = galleryPhotos.length > 0
+    ? galleryPhotos.map(p => ({
+        key: p._id,
+        src: p.photo,
+        title: getLocalizedText(p.title, lang) || getLocalizedText(p.cap, lang) || 'श्री राम मंदिर',
+        desc: getLocalizedText(p.description, lang) || '',
+      }))
+    : settingsImgs.slice(0, 8).map(img => ({
+        key: img.id,
+        src: img.src,
+        title: getLocalizedAlt(img),
+        desc: '',
+      }));
+
+  if (items.length === 0) return null;
+
+  // Two rows for a 360-style dual marquee
+  const row1 = items;                    // top row  → right to left
+  const row2 = [...items].reverse();     // bottom row → left to right
+  const tripled1 = [...row1, ...row1, ...row1];
+  const tripled2 = [...row2, ...row2, ...row2];
+
+  // One full loop = one set width (33.333% of the tripled container)
+  const DURATION = Math.max(28, items.length * 5);
+
+  const renderCard = (img) => (
+    <div
+      key={img.key}
+      className="group relative flex-shrink-0 marquee-card rounded-2xl overflow-hidden shadow-lg"
+    >
+      <img
+        src={img.src}
+        alt={img.title}
+        loading="lazy"
+        draggable={false}
+        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+          onError={(e) => { handleImageError(e, '/1.jpg'); }}
+      />
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: "linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 45%)" }}
+      />
+      <div className="absolute bottom-0 left-0 right-0 p-3 text-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+        <p className="text-white/95 text-sm font-serif font-medium tracking-wide">{img.title}</p>
+        {img.desc && (
+          <p className="text-white/70 text-xs mt-0.5 line-clamp-2">{img.desc}</p>
+        )}
+      </div>
+    </div>
+  );
 
   return (
-    <section className="py-20 overflow-hidden">
+    <section className="py-20 overflow-hidden" style={{ background: '#f8fafc' }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="text-center mb-12">
-          <h2 className="font-serif text-3xl sm:text-4xl" style={{ color: "#7A0000" }}>
+        <motion.div
+          initial={{ opacity: 0, y: 28 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+          className="text-center mb-12"
+        >
+          <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl" style={{ color: "#7A0000" }}>
             {t.galleryTitle || 'Photo Gallery'}
           </h2>
-        </div>
+        </motion.div>
 
         <div
-          className="relative overflow-hidden"
+          className="relative"
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
-          <div
-            className="flex gap-4"
-            style={{
-              width: 'max-content',
-              animation: isHovered ? 'none' : `scroll-left ${SCROLL_DURATION}s linear infinite`,
-            }}
-          >
-            {tripledImages.map((img, idx) => (
-              <div
-                key={`${img.id}-${idx}`}
-                className="flex-shrink-0 rounded-xl shadow-lg group overflow-hidden relative"
-                style={{
-                  width: 280,
-                  height: 280
-                }}
-              >
-                <img
-                  src={img.src}
-                  alt={getLocalizedAlt(img.alt)}
-                  loading="lazy"
-                  draggable={false}
-                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                />
-                <div
-                  className="absolute inset-0 pointer-events-none"
-                  style={{ background: "linear-gradient(to top, rgba(0,0,0,0.4) 0%, transparent 40%)" }}
-                />
-              </div>
-            ))}
+          {/* Row 1 - scrolls right → left */}
+          <div className="overflow-hidden pb-5">
+            <div
+              className="flex gap-4"
+              style={{
+                width: 'max-content',
+                animation: isHovered ? 'none' : `scroll-left ${DURATION}s linear infinite`,
+                willChange: 'transform',
+              }}
+            >
+              {tripled1.map(renderCard)}
+            </div>
+          </div>
+
+          {/* Row 2 - scrolls left → right */}
+          <div className="overflow-hidden">
+            <div
+              className="flex gap-4"
+              style={{
+                width: 'max-content',
+                animation: isHovered ? 'none' : `scroll-right ${DURATION}s linear infinite`,
+                willChange: 'transform',
+              }}
+            >
+              {tripled2.map(renderCard)}
+            </div>
           </div>
         </div>
 
         <style>{`
+          .marquee-card {
+            width: clamp(140px, 42vw, 240px);
+            height: clamp(140px, 42vw, 240px);
+          }
+          @media (max-width: 480px) {
+            .marquee-card {
+              width: clamp(110px, 38vw, 240px);
+              height: clamp(110px, 38vw, 240px);
+            }
+          }
           @keyframes scroll-left {
-            0% {
-              transform: translateX(0);
-            }
-            100% {
-              transform: translateX(-${(count / 3) * 100}%);
-            }
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-33.3333%); }
+          }
+          @keyframes scroll-right {
+            0% { transform: translateX(-33.3333%); }
+            100% { transform: translateX(0); }
           }
         `}</style>
 
-        <div className="text-center mt-8">
-        <Link
-  to="/gallery"
-  className="inline-flex items-center px-5 py-2 rounded-full font-medium text-sm text-white hover:opacity-90 transition-all"
-  style={{ backgroundColor: "#8B2A2A" }}
->
-  {t.viewMore || "View More"}
-</Link>
+        <div className="text-center mt-10">
+          <Link
+            to="/gallery"
+            className="inline-flex items-center px-5 py-2 rounded-full font-medium text-sm text-white bg-gradient-to-r from-maroon to-maroon-deep hover:from-maroon-deep hover:to-maroon shadow-md shadow-maroon/25 hover:-translate-y-0.5 transition-all"
+          >
+            {t.viewMore || "View More"}
+          </Link>
         </div>
       </div>
     </section>
@@ -1498,16 +1359,34 @@ function LiveDarshan({ settings }) {
   const currentEmbedUrl = getEmbedUrl();
 
   return (
-    <section className="bg-red-900 text-white py-20 border-t border-line">
+    <section className="text-white py-20 border-t border-line" style={{ background: "linear-gradient(160deg, #7A1F2B 0%, #5B1420 45%, #6b1f2b 100%)" }}>
       <div className="max-w-5xl mx-auto px-6 text-center">
-        <h2 className="font-serif text-3xl sm:text-4xl text-white">
+        <motion.h2
+          initial={{ opacity: 0, y: 26 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.7, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+          className="font-serif text-3xl sm:text-4xl text-white"
+        >
           {titleText}
-        </h2>
-        <p className="mt-3 text-white/70">
+        </motion.h2>
+        <motion.p
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.7, delay: 0.2 }}
+          className="mt-3 text-white/70"
+        >
           {descText}
-        </p>
+        </motion.p>
 
-        <div className="mt-8 aspect-video w-full overflow-hidden rounded-lg border border-white/20 bg-black relative">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96 }}
+          whileInView={{ opacity: 1, scale: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.8, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
+          className="mt-8 aspect-video w-full overflow-hidden rounded-lg border border-white/20 bg-black relative"
+        >
           {isLoading && !videoError && (
             <div className="absolute inset-0 flex items-center justify-center z-10 bg-black/50">
               <div className="flex flex-col items-center gap-3">
@@ -1561,16 +1440,22 @@ function LiveDarshan({ settings }) {
               </div>
             </div>
           )}
-        </div>
+        </motion.div>
 
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.7, delay: 0.4 }}
+          className="mt-8 flex flex-wrap items-center justify-center gap-3"
+        >
           <Link to="/booking" className="inline-flex items-center gap-2 px-6 py-3 rounded-full font-semibold text-sm shadow-lg shadow-vermilion/30 hover:bg-[#a83a0c] hover:-translate-y-0.5 transition-all" style={{ backgroundColor: "#7A0000", color: "white" }}>
             {t.heroCta2 || 'Book Puja'} <ArrowRight className="w-4 h-4" />
           </Link>
           <Link to="/donate" className="inline-flex items-center gap-2 px-6 py-3 rounded-full font-semibold text-sm text-white border border-white/50 hover:bg-white/10 transition-all">
             {t.navDonate || 'Donate'}
           </Link>
-        </div>
+        </motion.div>
       </div>
     </section>
   );
@@ -1580,7 +1465,6 @@ function LiveDarshan({ settings }) {
 const HomePage = () => {
   const { modal, open, close } = useImageModal();
   const [settings, setSettings] = useState(null);
-  const [team, setTeam] = useState([]);
   const [loading, setLoading] = useState(true);
   const fetched = useRef(false);
   const { t, lang } = useLanguage();
@@ -1591,16 +1475,8 @@ const HomePage = () => {
 
     const fetchData = async () => {
       try {
-        const [settingsRes, teamRes] = await Promise.all([
-          api.get('/admin/settings'),
-          api.get('/admin/team')
-        ]);
+        const settingsRes = await api.get('/admin/settings');
         setSettings(settingsRes.data);
-        // Sort team by order and filter enabled members
-        const sortedTeam = (teamRes.data || [])
-          .sort((a, b) => (a.order || 0) - (b.order || 0))
-          .filter(m => m.enabled !== false);
-        setTeam(sortedTeam);
       } catch (error) {
         console.error('Error fetching data:', error);
       } finally {
@@ -1637,13 +1513,13 @@ const HomePage = () => {
 
   return (
     <>
-      <Hero settings={settings} team={team} />
+      <Hero settings={settings} />
       <QuoteStrip quote={quote} />
       <AboutPreview settings={settings} />
       <FacebookVideoTeaser settings={settings} />
       <EventsTeaser onOpen={open} />
-      <GalleryTeaser settings={settings} />
       <LiveDarshan settings={settings} />
+      <GalleryTeaser settings={settings} />
 
       {modal && (
         <ImageModal src={modal.src} alt={modal.alt} onClose={close} />

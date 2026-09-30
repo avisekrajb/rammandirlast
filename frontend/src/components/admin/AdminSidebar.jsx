@@ -73,8 +73,6 @@ const AdminSidebar = ({ isOpen, onClose }) => {
 
   const currentTab = location.pathname.split('/admin/')[1] || 'overview';
 
-  const isSuperAdmin = user?.role === 'superadmin';
-
   const toggleSection = (section) => {
     setExpandedSections(prev => ({
       ...prev,
@@ -98,6 +96,7 @@ const AdminSidebar = ({ isOpen, onClose }) => {
         { key: 'history', label: t.manageHistory || 'History', icon: ScrollText },
         { key: 'team', label: t.manageTeam || 'Team', icon: UsersIcon },
         { key: 'events', label: t.manageEvents || 'Events', icon: CalendarDays },
+        { key: 'events/aarti', label: 'Daily Aarti & Info', icon: Clock },
         { key: 'blogs', label: 'Blogs', icon: BookOpen },
         { key: 'gallery', label: t.manageGallery || 'Gallery', icon: GalleryIcon },
         { key: 'notice', label: 'Notice Modal', icon: Bell },
@@ -115,7 +114,6 @@ const AdminSidebar = ({ isOpen, onClose }) => {
         { key: 'visitors', label: 'Visitor Analytics', icon: Activity },
         { key: 'backup', label: 'Backup & Restore', icon: Database },
         { key: 'cloud', label: 'Cloud Storage', icon: Cloud },
-        { key: 'cloudgallery', label: 'Cloud Gallery', icon: FolderOpen },
       ]
     },
     {
@@ -129,6 +127,7 @@ const AdminSidebar = ({ isOpen, onClose }) => {
         { key: 'logo', label: t.logoQr || 'Logo', icon: Image },
         { key: 'footer', label: 'Footer Settings', icon: Settings },
         { key: 'social', label: 'Social Links', icon: Share2 }, // <-- Added Social Links
+        { key: 'facebook-video', label: 'Facebook Video', icon: Video }, // <-- Facebook Video Embeds
       ]
     }
   ];
@@ -138,29 +137,8 @@ const AdminSidebar = ({ isOpen, onClose }) => {
     if (onClose) onClose();
   };
 
-  // Superadmins only see: Overview, Visitor Analytics, and Settings
-  // (Settings contains Activity Logs and Create New Admin). User panel is hidden.
-  const visibleMenuSections = isSuperAdmin
-    ? [
-        {
-          id: 'content',
-          label: t.overview || 'Overview',
-          icon: LayoutDashboard,
-          items: [
-            { key: 'overview', label: t.overview || 'Overview', icon: LayoutDashboard },
-            { key: 'visitors', label: 'Visitor Analytics', icon: Activity },
-          ],
-        },
-        {
-          id: 'settings',
-          label: t.settings || 'Settings',
-          icon: Settings,
-          items: [
-            { key: 'settings', label: 'Activity Logs & Create Admin', icon: Settings },
-          ],
-        },
-      ]
-    : menuSections;
+  // Superadmins and admins see the same full admin dashboard menu
+  const visibleMenuSections = menuSections;
 
   const handleLogout = () => {
     logout();
