@@ -3,6 +3,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
 import { ArrowRight, X, Youtube, Play, Clock, Calendar } from 'lucide-react';
 import { handleImageError } from '../utils/imageFallback';
+import PageHeader from '../components/common/PageHeader';
+import SectionTitle from '../components/common/SectionTitle';
 
 const PER_PAGE = 6;
 
@@ -200,25 +202,16 @@ const VideosPage = () => {
   return (
     <div className="min-h-screen" style={{ background: '#ffffff' }}>
       {/* Header */}
-      <div className="pt-28 pb-8 text-center px-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7 }}
-        >
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <Youtube size={28} className="text-red-600" />
-            <span className="text-xs font-semibold uppercase tracking-widest text-vermilion bg-vermilion/10 px-4 py-1 rounded-full">
-              {t.videosTag || 'Temple Videos'}
-            </span>
-          </div>
-          <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl font-light" style={{ color: '#7A0000' }}>
-            {t.videosTitle || 'Temple Videos'}
-          </h1>
-          <p className="mt-4 text-base sm:text-lg text-mute max-w-xl mx-auto leading-relaxed">
-            {t.videosSubtitle || 'Watch devotional videos, aartis, and temple ceremonies'}
-          </p>
-        </motion.div>
+      <div className="pt-28 pb-8 px-6">
+        <div className="flex items-center justify-center gap-2 mb-4">
+          <Youtube size={28} className="text-red-600" />
+          <span className="text-xs font-semibold uppercase tracking-widest text-vermilion bg-vermilion/10 px-4 py-1 rounded-full">
+            {t.videosTag || 'Temple Videos'}
+          </span>
+        </div>
+        <PageHeader sub={t.videosSubtitle || 'Watch devotional videos, aartis, and temple ceremonies'}>
+          {t.videosTitle || 'Temple Videos'}
+        </PageHeader>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-24">
@@ -227,10 +220,9 @@ const VideosPage = () => {
 
         {/* Recent Videos Section */}
         <div className="mb-6">
-          <h2 className="font-serif text-2xl sm:text-3xl" style={{ color: '#7A0000' }}>
+          <SectionTitle sub="Watch our latest temple videos and ceremonies">
             {t.videosRecent || 'Recent Videos'}
-          </h2>
-          <p className="text-sm text-gray-500 mt-1">Watch our latest temple videos and ceremonies</p>
+          </SectionTitle>
         </div>
 
         <AnimatePresence mode="wait">

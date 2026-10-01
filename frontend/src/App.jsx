@@ -26,7 +26,7 @@ import CookieConsent from './components/common/CookieConsent';
 // Components
 import AuthModal from './components/modals/AuthModal';
 import ForgotPasswordModal from './components/modals/ForgotPasswordModal';
-import LoadingSpinner from './components/common/LoadingSpinner';
+import OmLoader from './components/common/OmLoader';
 
 // Lazy load pages
 const HomePage = lazy(() => import('./pages/HomePage'));
@@ -74,7 +74,7 @@ function App() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
-        <LoadingSpinner size="lg" color="maroon" />
+        <OmLoader size="lg" color="maroon" />
       </div>
     );
   }
@@ -113,7 +113,7 @@ function App() {
                       <Layout onLogout={handleLogout} setAuthModal={setAuthModal}>
                         <Suspense fallback={
                           <div className="min-h-[60vh] flex items-center justify-center">
-                            <LoadingSpinner size="lg" color="maroon" />
+                            <OmLoader size="lg" color="maroon" />
                           </div>
                         }>
                           <Routes>
@@ -195,7 +195,7 @@ function App() {
                     ) : (
                       <Suspense fallback={
                         <div className="min-h-screen flex items-center justify-center bg-panel">
-                          <LoadingSpinner size="lg" color="maroon" />
+                          <OmLoader size="lg" color="maroon" />
                         </div>
                       }>
                         <Routes>

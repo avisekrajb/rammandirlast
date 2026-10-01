@@ -58,7 +58,7 @@ export const translations = {
     openHours: "Darshan Hours",
     quoteLabel: "Thought for the Day",
     dailyQuote: "Quote.",
-    aboutTitleDefault: "About the Temple",
+    aboutTitleDefault: "Introduction to the Temple",
     aboutTextDefault: "Nestled in the heart of Gaushala, Shree Ramchandra Temple has stood as a beacon of devotion for generations.",
     historyTitle: "Our History",
     eventsTitle: "Temple Events",
@@ -166,6 +166,8 @@ export const translations = {
   facebookVideoTitle: "Watch on Facebook",
   facebookReelsTitle: "Reels & Short Videos",
   viewMoreReels: "View More Reels",
+  // Notice modal - mobile only
+  noticeAutoHideHint: "This notice closes automatically in 10 seconds",
     addPhoto: "Add Photo",
     addVideo: "Add Video",
     photoCaption: "Caption",
@@ -297,6 +299,19 @@ export const translations = {
     contactSending: "Sending...",
     contactSend: "Send Message",
 
+    // Contact details block ("सम्पर्कका लागि")
+    contactForTitle: "For Contact",
+    contactLocationLabel: "Location",
+    contactLocationValue: "Battisputali, Kathmandu, Nepal",
+    contactOfficeLabel: "Office",
+    contactOfficeValue: "Shree Ramchandra Temple Office",
+    contactPujaLabel: "Religious Programs & Puja",
+    contactPujaValue: "Please contact at the temple office.",
+    contactDonateLabel: "Donation & Support",
+    contactDonateValue: "Get details through the temple office.",
+    contactDirections: "Get Directions",
+    contactCharCount: "characters",
+
     // Footer
     footerBlessing: "Jai Shree Ram",
     navigation: "Quick Navigation",
@@ -311,7 +326,7 @@ export const translations = {
     footerLocationLine: "Gaushala, Kathmandu",
     footerPrivacy: "Privacy Policy",
     footerTerms: "Terms of Service",
-    footerPowered: "Powered by ZeroInfinity",
+    footerPowered: "Developed by ZeroInfinity",
 
     // Videos
     videosTitle: "Videos",
@@ -373,6 +388,8 @@ export const translations = {
     daysLeftShort: "days",
     nextFestival: "Next Festival",
     aboutIntroduction: "Introduction",
+  // About page hero banner title
+  aboutHeroTitle: "Shree Ramchandra Temple — An Introduction",
     activitiesPrograms: "Activities & Programs",
   },
   
@@ -430,7 +447,7 @@ export const translations = {
     openHours: "दर्शन समय",
     quoteLabel: "आजको विचार",
     dailyQuote: "जहाँ हृदयमा धर्म छ, त्यहाँ चरित्रमा सुन्दरता छ।",
-    aboutTitleDefault: "मन्दिरको बारेमा",
+    aboutTitleDefault: "श्री रामचन्द्र मन्दिरको परिचय",
     aboutTextDefault: "गौशालाको मुटुमा अवस्थित, श्री रामचन्द्र मन्दिर पुस्तौंदेखि भक्तिको प्रकाशस्तम्भको रूपमा खडा छ।",
     historyTitle: "हाम्रो इतिहास",
     eventsTitle: "मन्दिरका कार्यक्रमहरू",
@@ -537,6 +554,7 @@ export const translations = {
   galleryVideos: "भिडियोहरू",
   facebookVideoTitle: "फेसबुकमा हेर्नुहोस्",
   facebookReelsTitle: "रिल र छोटा भिडियोहरू",
+  noticeAutoHideHint: "यो सूचना १० सेकेण्डपछि आफैँ बन्द हुनेछ",
   viewMoreReels: "थप रिल हेर्नुहोस्",
     addPhoto: "फोटो थप्नुहोस्",
     addVideo: "भिडियो थप्नुहोस्",
@@ -668,6 +686,17 @@ export const translations = {
     contactError: "सन्देश पठाउन असफल भयो",
     contactSending: "पठाउँदै...",
     contactSend: "सन्देश पठाउनुहोस्",
+    contactForTitle: "सम्पर्कका लागि",
+    contactLocationLabel: "स्थान",
+    contactLocationValue: "बत्तीसपुतली, काठमाडौं, नेपाल",
+    contactOfficeLabel: "कार्यालय",
+    contactOfficeValue: "श्रीरामचन्द्रमन्दिर कार्यालय",
+    contactPujaLabel: "धार्मिक कार्यक्रम तथा पूजा",
+    contactPujaValue: "मन्दिर कार्यालयमा सम्पर्क गर्नुहोस्।",
+    contactDonateLabel: "दान तथा सहयोग",
+    contactDonateValue: "मन्दिर कार्यालयमार्फत जानकारी लिनुहोस्।",
+    contactDirections: "दिशा निर्देशन",
+    contactCharCount: "अक्षर",
 
     // Footer
     footerBlessing: "जय श्री राम",
@@ -683,7 +712,7 @@ export const translations = {
     footerLocationLine: "गौशाला, काठमाडौं",
     footerPrivacy: "गोपनीयता नीति",
     footerTerms: "सेवा सर्तहरू",
-    footerPowered: "ZeroInfinity द्वारा संचालित",
+    footerPowered: "ZeroInfinity द्वारा विकास गरिएको हो",
 
     // Videos
     videosTitle: "भिडियोहरू",
@@ -745,6 +774,7 @@ export const translations = {
     daysLeftShort: "दिन",
     nextFestival: "अर्को पर्व",
     aboutIntroduction: "परिचय",
+    aboutHeroTitle: "श्री रामचन्द्र मन्दिरको परिचय",
     activitiesPrograms: "गतिविधि तथा कार्यक्रम",
   },
   
@@ -800,7 +830,7 @@ export const translations = {
     openHours: "दर्शन समय",
     quoteLabel: "आज का विचार",
     dailyQuote: "जहाँ हृदय में धर्म है, वहाँ चरित्र में सुंदरता है।",
-    aboutTitleDefault: "मंदिर के बारे में",
+    aboutTitleDefault: "श्री रामचन्द्र मन्दिर का परिचय",
     aboutTextDefault: "गौशाला के केंद्र में स्थित, श्री रामचंद्र मंदिर पीढ़ियों से भक्ति का प्रकाशस्तंभ रहा है।",
     historyTitle: "हमारा इतिहास",
     eventsTitle: "मंदिर कार्यक्रम",
@@ -907,6 +937,7 @@ export const translations = {
   galleryVideos: "वीडियो",
   facebookVideoTitle: "Facebook पर देखें",
   facebookReelsTitle: "रील और शॉर्ट वीडियो",
+  noticeAutoHideHint: "यह सूचना 10 सेकंड में अपने आप बंद हो जाएगी",
   viewMoreReels: "और रील देखें",
     addPhoto: "फोटो जोड़ें",
     addVideo: "वीडियो जोड़ें",
@@ -1037,6 +1068,17 @@ export const translations = {
     contactError: "संदेश भेजने में विफल",
     contactSending: "भेजा जा रहा है...",
     contactSend: "संदेश भेजें",
+    contactForTitle: "संपर्क के लिए",
+    contactLocationLabel: "स्थान",
+    contactLocationValue: "बत्तीसपुतली, काठमांडू, नेपाल",
+    contactOfficeLabel: "कार्यालय",
+    contactOfficeValue: "श्रीरामचंद्र मंदिर कार्यालय",
+    contactPujaLabel: "धार्मिक कार्यक्रम एवं पूजा",
+    contactPujaValue: "कृपया मंदिर कार्यालय में संपर्क करें।",
+    contactDonateLabel: "दान एवं सहयोग",
+    contactDonateValue: "कृपया मंदिर कार्यालय से जानकारी लें।",
+    contactDirections: "दिशा-निर्देश",
+    contactCharCount: "अक्षर",
 
     // Footer
     footerBlessing: "जय श्री राम",
@@ -1052,7 +1094,7 @@ export const translations = {
     footerLocationLine: "गौशाला, काठमांडू",
     footerPrivacy: "गोपनीयता नीति",
     footerTerms: "सेवा की शर्तें",
-    footerPowered: "ZeroInfinity द्वारा संचालित",
+    footerPowered: "ZeroInfinity द्वारा विकसित",
 
     // Videos
     videosTitle: "वीडियो",
@@ -1114,6 +1156,7 @@ export const translations = {
     daysLeftShort: "दिन",
     nextFestival: "अगला त्योहार",
     aboutIntroduction: "परिचय",
+    aboutHeroTitle: "श्री रामचन्द्र मन्दिर का परिचय",
     activitiesPrograms: "गतिविधियाँ एवं कार्यक्रम",
   },
   
@@ -1169,7 +1212,7 @@ export const translations = {
     openHours: "朝拜时间",
     quoteLabel: "今日感悟",
     dailyQuote: "心中有正义，品格自有美。",
-    aboutTitleDefault: "关于神庙",
+    aboutTitleDefault: "什里·拉姆钱德拉神庙简介",
     aboutTextDefault: "坐落在高沙拉的中心，什里·拉姆钱德拉神庙世代以来一直是虔诚的灯塔。",
     historyTitle: "我们的历史",
     eventsTitle: "神庙活动",
@@ -1276,6 +1319,7 @@ export const translations = {
   galleryVideos: "视频",
   facebookVideoTitle: "在 Facebook 上观看",
   facebookReelsTitle: "Reels 和短视频",
+  noticeAutoHideHint: "此通知将在 10 秒后自动关闭",
   viewMoreReels: "查看更多 Reels",
     addPhoto: "添加照片",
     addVideo: "添加视频",
@@ -1407,6 +1451,17 @@ export const translations = {
     contactError: "发送消息失败",
     contactSending: "发送中...",
     contactSend: "发送消息",
+    contactForTitle: "联系方式",
+    contactLocationLabel: "地址",
+    contactLocationValue: "巴蒂斯普塔利，加德满都，尼泊尔",
+    contactOfficeLabel: "办公室",
+    contactOfficeValue: "什里·拉姆钱德拉神庙办公室",
+    contactPujaLabel: "宗教活动与法会",
+    contactPujaValue: "请前往神庙办公室联系。",
+    contactDonateLabel: "捐赠与支持",
+    contactDonateValue: "请通过神庙办公室了解详情。",
+    contactDirections: "获取路线",
+    contactCharCount: "字",
 
     // Footer
     footerBlessing: "贾伊·什里·拉姆",
@@ -1422,7 +1477,7 @@ export const translations = {
     footerLocationLine: "Gaushala, 加德满都",
     footerPrivacy: "隐私政策",
     footerTerms: "服务条款",
-    footerPowered: "由ZeroInfinity提供支持",
+    footerPowered: "由 ZeroInfinity 开发",
 
     // Videos
     videosTitle: "视频",
@@ -1484,6 +1539,7 @@ export const translations = {
     daysLeftShort: "天",
     nextFestival: "下一个节日",
     aboutIntroduction: "简介",
+    aboutHeroTitle: "什里·拉姆钱德拉神庙简介",
     activitiesPrograms: "活动与项目",
   },
   
@@ -1539,7 +1595,7 @@ export const translations = {
     openHours: "தரிசன நேரங்கள்",
     quoteLabel: "இன்றைய சிந்தனை",
     dailyQuote: "இதயத்தில் நீதி இருக்கும் இடத்தில், குணத்தில் அழகு இருக்கும்.",
-    aboutTitleDefault: "கோவிலை பற்றி",
+    aboutTitleDefault: "ஸ்ரீ ராமச்சந்திர கோயில் அறிமுகம்",
     aboutTextDefault: "கௌஷாலாவின் மையத்தில் அமைந்துள்ள ஸ்ரீ ராமச்சந்திர கோவில், தலைமுறைகளாக பக்திக்கு ஒரு விளக்கமாக நின்றுள்ளது.",
     historyTitle: "எங்கள் வரலாறு",
     eventsTitle: "கோவில் நிகழ்வுகள்",
@@ -1646,6 +1702,7 @@ export const translations = {
   galleryVideos: "வீடியோக்கள்",
   facebookVideoTitle: "Facebook இல் காண்க",
   facebookReelsTitle: "ரீல்கள் மற்றும் குறும்படங்கள்",
+  noticeAutoHideHint: "இந்த அறிவிப்பு 10 வினாடிகளில் தானாக மூடும்",
   viewMoreReels: "மேலும் ரீல்களைப் பார்க்க",
     addPhoto: "புகைப்படத்தை சேர்க்கவும்",
     addVideo: "வீடியோவை சேர்க்கவும்",
@@ -1777,6 +1834,17 @@ export const translations = {
     contactError: "செய்தியை அனுப்ப முடியவில்லை",
     contactSending: "அனுப்புகிறது...",
     contactSend: "செய்தி அனுப்பு",
+    contactForTitle: "தொடர்புக்கு",
+    contactLocationLabel: "இருப்பிடம்",
+    contactLocationValue: "பட்டீஸ்புதாலி, காத்மாண்டு, நேபாளம்",
+    contactOfficeLabel: "அலுவலகம்",
+    contactOfficeValue: "ஸ்ரீ ராமச்சந்திர கோயில் அலுவலகம்",
+    contactPujaLabel: "அருள்பூஜைகள் மற்றும் நிகழ்வுகள்",
+    contactPujaValue: "கோயில் அலுவலகத்தில் தொடர்பு கொள்ளவும்.",
+    contactDonateLabel: "நன்கொடை மற்றும் ஆதரவு",
+    contactDonateValue: "கோயில் அலுவலகம் வழியாக விவரங்களை அறியவும்.",
+    contactDirections: "திசைகாட்டல்",
+    contactCharCount: "எழுத்துகள்",
 
     // Footer
     footerBlessing: "ஜெய் ஸ்ரீ ராம்",
@@ -1792,7 +1860,7 @@ export const translations = {
     footerLocationLine: "கௌசாலா, காத்மாண்டு",
     footerPrivacy: "தனியுரிமைக் கொள்கை",
     footerTerms: "சேவை விதிமுறைகள்",
-    footerPowered: "ZeroInfinity மூலம் இயக்கப்படுகிறது",
+    footerPowered: "ZeroInfinity ஆல் உருவாக்கப்பட்டது",
 
     // Videos
     videosTitle: "வீடியோக்கள்",
@@ -1854,6 +1922,7 @@ export const translations = {
     daysLeftShort: "நாட்கள்",
     nextFestival: "அடுத்த திருவிழா",
     aboutIntroduction: "அறிமுகம்",
+    aboutHeroTitle: "ஸ்ரீ ராமச்சந்திர கோயில் அறிமுகம்",
     activitiesPrograms: "செயல்பாடுகள் மற்றும் திட்டங்கள்",
   }
 };

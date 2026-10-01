@@ -11,8 +11,13 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import api from '../services/api';
 import { handleImageError } from '../utils/imageFallback';
 import OmLoader from '../components/common/OmLoader';
+import HeroShloka from '../components/common/HeroShloka';
 import TempleIcon from '../components/common/TempleIcon';
 import FacebookVideoSection from '../components/common/FacebookVideoSection';
+import SectionTitle from '../components/common/SectionTitle';
+import YoutubeFacade from '../components/common/YoutubeFacade';
+import { optimizeImageCached } from '../utils/imageOptimize';
+import { getSectionTitle } from '../utils/sectionTitle';
 
 // Register GSAP plugins
 gsap.registerPlugin(ScrollTrigger);
@@ -163,7 +168,9 @@ function Hero({ settings }) {
   const heroEnabled = settings?.heroEnabled !== false;
   const heroPoster = settings?.heroPoster || 'linear-gradient(160deg,#7A1F2B 0%,#8B2635 45%,#5B1420 100%)';
   const heroTitle = getLocalizedText(settings?.heroTitle, lang) || t.templeName || 'Shree Ramchandra Temple';
-  const heroTagline = getLocalizedText(settings?.heroTagline, lang) || t.heroTagline || 'Where devotion meets the sacred banks of Bagmati';
+  // heroTagline is no longer rendered in the hero: the banner now shows the
+  // invocation and stuti instead (see HeroShloka). The setting is still
+  // available in Admin → Home should the tagline be wanted back.
   const timings = settings?.timings || { open: '05:00 AM', close: '08:00 PM' };
 
   const { scrollYProgress } = useScroll({
@@ -194,36 +201,17 @@ function Hero({ settings }) {
       <section
         ref={ref}
         className="relative w-full overflow-hidden"
+        data-hero-section="home"
         style={{ height: "100svh", minHeight: 560, background: heroPoster }}
       >
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-black/60" />
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center text-center px-6">
-          <motion.h1
-            initial={{ opacity: 0, y: 36 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 1.05, ease: [0.16, 1, 0.3, 1], delay: 0.25 }}
-            className="font-serif text-5xl sm:text-6xl lg:text-8xl text-white font-light leading-tight drop-shadow-2xl mb-4"
-          >
-            {heroTitle}
-          </motion.h1>
-
-          <motion.p
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.9, delay: 0.5 }}
-            className="text-white/70 text-base sm:text-lg max-w-xl leading-relaxed"
-          >
-            {heroTagline}
-          </motion.p>
-
           <motion.div
-            initial={{ opacity: 0, y: 18 }}
+            initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.9, delay: 0.65 }}
-            className="mt-7 inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/20 backdrop-blur-sm px-4 py-1.5 text-white/85 text-sm"
+            transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1], delay: 0.35 }}
           >
-            <MapPin size={14} className="text-marigold" />
-            {t.templeSub}
+            <HeroShloka templeName={heroTitle} />
           </motion.div>
         </div>
       </section>
@@ -234,6 +222,7 @@ function Hero({ settings }) {
     <section
       ref={ref}
       className="relative w-full overflow-hidden"
+      data-hero-section="home"
       style={{ height: "100svh", minHeight: 560 }}
     >
       <motion.div
@@ -241,6 +230,10 @@ function Hero({ settings }) {
         className="absolute inset-0 w-full h-full origin-center"
       >
         {heroVideo && !videoError ? (
+          /*
+           * object-cover on every screen size, matching the previous
+           * behaviour on both desktop and mobile.
+           */
           <video
             ref={videoRef}
             className="w-full h-full object-cover"
@@ -292,32 +285,12 @@ function Hero({ settings }) {
         style={{ y: textY, opacity: textOpacity }}
         className="absolute inset-0 z-10 flex flex-col items-center justify-center text-center px-6"
       >
-        <motion.h1
-          initial={{ opacity: 0, y: 36 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1.05, ease: [0.16, 1, 0.3, 1], delay: 0.25 }}
-          className="font-serif text-5xl sm:text-6xl lg:text-8xl text-white font-light leading-tight drop-shadow-2xl mb-4"
-        >
-          {heroTitle}
-        </motion.h1>
-
-        <motion.p
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.9, delay: 0.5 }}
-          className="text-white/70 text-base sm:text-lg max-w-xl leading-relaxed"
-        >
-          {heroTagline}
-        </motion.p>
-
         <motion.div
-          initial={{ opacity: 0, y: 18 }}
+          initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.9, delay: 0.65 }}
-          className="mt-7 inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/20 backdrop-blur-sm px-4 py-1.5 text-white/85 text-sm"
+          transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1], delay: 0.35 }}
         >
-          <MapPin size={14} className="text-marigold" />
-          {t.templeSub}
+          <HeroShloka templeName={heroTitle} />
         </motion.div>
       </motion.div>
 
@@ -410,7 +383,9 @@ function AboutPreview({ settings }) {
   useEffect(() => {
     const ctx = gsap.context(() => {
       if (textRef.current) {
-        const children = textRef.current.querySelectorAll("h2, p, a");
+        const children = textRef.current.querySelectorAll(
+          ".about-reveal, p, a"
+        );
         gsap.set(children, { opacity: 0, x: -52, clipPath: "inset(0 100% 0 0)" });
         gsap.to(children, {
           opacity: 1,
@@ -455,7 +430,12 @@ function AboutPreview({ settings }) {
   // Check if about preview is enabled
   if (aboutPreview.enabled === false) return null;
 
-  const title = getLocalizedText(aboutPreview.title, lang) || t.aboutTitleDefault || 'About the Temple';
+  /*
+ * getSectionTitle, not getLocalizedText: it discards a saved placeholder such as
+ * "श्री रामचन्द्र मन्दिरको बारेमा" so the current default below is used instead.
+ * A title the admin wrote by hand still wins.
+ */
+  const title = getSectionTitle(aboutPreview.title, lang) || t.aboutTitleDefault || 'Introduction to the Temple';
   const text = getLocalizedText(aboutPreview.text, lang) || t.aboutTextDefault || 'Nestled in the heart of Gaushala, Shree Ramchandra Temple has stood as a beacon of devotion for generations.';
 
   // Get about preview images (filter enabled)
@@ -473,10 +453,12 @@ function AboutPreview({ settings }) {
     <section ref={sectionRef} className="max-w-7xl mx-auto px-6 py-20">
       <div className="grid md:grid-cols-2 gap-12 items-center">
         <div ref={textRef}>
-          <h2 className="font-serif text-3xl sm:text-4xl mb-6" style={{ color: "#7A1F2B" }}>
-            {title}
-          </h2>
-          <p className="text-base sm:text-lg text-mute leading-relaxed mb-8 text-justify">
+          <div className="about-reveal">
+            <SectionTitle animate={false} align="left">
+              {title}
+            </SectionTitle>
+          </div>
+          <p className="text-base sm:text-lg text-mute leading-relaxed mt-6 mb-8 text-justify">
             {text}
           </p>
           <ul className="list-none p-0 m-0 flex flex-col gap-2 mb-6">
@@ -496,24 +478,38 @@ function AboutPreview({ settings }) {
         </div>
 
         <div ref={imagesRef} className="grid grid-cols-2 gap-4">
+          {/* Images sit in fixed 256px-tall boxes; lazy + sized so the grid
+              reserves its space and the fetch waits until scrolled near. */}
           <div className="img-card overflow-hidden rounded-lg border border-line shadow-lg">
             <img
-              src={image1}
+              src={optimizeImageCached(image1, { width: 640 })}
               alt="Temple"
+              loading="lazy"
+              decoding="async"
+              width={640}
+              height={256}
               className="w-full h-64 object-cover hover:scale-105 transition-transform duration-500"
             />
           </div>
           <div className="img-card overflow-hidden rounded-lg border border-line shadow-lg">
             <img
-              src={image2}
+              src={optimizeImageCached(image2, { width: 640 })}
               alt="Temple Deity"
+              loading="lazy"
+              decoding="async"
+              width={640}
+              height={256}
               className="w-full h-64 object-cover hover:scale-105 transition-transform duration-500"
             />
           </div>
           <div className="img-card col-span-2 overflow-hidden rounded-lg border border-line shadow-lg">
             <img
-              src={image3}
+              src={optimizeImageCached(image3, { width: 1280 })}
               alt="Temple Architecture"
+              loading="lazy"
+              decoding="async"
+              width={1280}
+              height={256}
               className="w-full h-64 object-cover hover:scale-105 transition-transform duration-500"
             />
           </div>
@@ -532,13 +528,38 @@ function FacebookVideoTeaser({ settings }) {
   if (!fbEnabled) return null;
   
   return (
-    <section className="py-20" style={{ background: "#ffffff" }}>
+    <section className="py-14 sm:py-16" style={{ background: "#ffffff" }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <FacebookVideoSection settings={settings} t={t} hideReels />
       </div>
     </section>
   );
 }
+
+/*
+ * ============================================================================
+ *  VIDEO PERFORMANCE — WHY THE HOME PAGE WAS SLOW
+ * ============================================================================
+ *
+ * FacebookVideoCard rendered a real <iframe> for every video, all at once, with
+ * loading="eager". Each facebook.com/plugins/video.php frame pulls roughly
+ * 1.5-2.5MB of player JavaScript plus video segments, and the origin only
+ * coalesces duplicates when the response is still cacheable. A homepage with a
+ * dozen videos was firing a dozen full players in parallel — which is exactly
+ * the "requests through video.php?href=..." pattern and the "many resources at
+ * once" symptom.
+ *
+ * The card now shows a lightweight cover and only creates the iframe on click,
+ * so the initial page makes zero third-party video requests. The existing
+ * VideoPopupModal (which autoplays with sound) is unchanged: clicking the card
+ * opens that, and the click also activates this card's own inline player.
+ *
+ * A note on thumbnails: Facebook only exposes its preview image through the
+ * player itself, so there is no free static URL to use as a cover. Rather than
+ * keep loading the player to get one, the card renders a branded placeholder
+ * built from the page's own palette — which is why `poster` is a CSS gradient
+ * rather than an image request.
+ */
 
 // ─── Event Detail Modal ──────────────────────────────────────────────────────
 function EventDetailModal({ event, onClose, lang, t, user, onInterested, isInterested, interestedCount }) {
@@ -886,17 +907,9 @@ function EventsTeaser({ onOpen }) {
     <>
       <section className="py-24" style={{ background: "#ffffff" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <motion.div
-            initial={{ opacity: 0, y: 28 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-            className="text-center mb-14"
-          >
-            <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl" style={{ color: "#7A0000" }}>
-              {t.upcomingEvents || 'Upcoming Events'}
-            </h2>
-          </motion.div>
+          <div className="mb-12 sm:mb-14">
+            <SectionTitle>{t.upcomingEvents || 'Upcoming Events'}</SectionTitle>
+          </div>
           <div className={`grid ${gridCols} gap-6`}>
             {events.map((e, i) => {
               const titleText = getLocalizedText(e.title, lang);
@@ -917,8 +930,12 @@ function EventsTeaser({ onOpen }) {
                 >
                   <div className="relative h-48 sm:h-56 overflow-hidden">
                     <img
-                      src={e.photo || '/4.jpg'}
+                      src={optimizeImageCached(e.photo || '/4.jpg', { width: 640 })}
                       alt={titleText}
+                      loading="lazy"
+                      decoding="async"
+                      width={640}
+                      height={360}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
                       onError={(e) => { handleImageError(e, '/4.jpg'); }}
                     />
@@ -1068,10 +1085,18 @@ function GalleryTeaser({ settings }) {
       key={img.key}
       className="group relative flex-shrink-0 marquee-card rounded-2xl overflow-hidden shadow-lg"
     >
+      {/*
+        Sized to the rendered slot (clamp tops out at 240px) and served through
+        the optimiser, so a multi-megapixel upload no longer ships at full size.
+        width/height give the browser an aspect ratio and prevent layout shift.
+      */}
       <img
-        src={img.src}
+        src={optimizeImageCached(img.src, { width: 480, quality: 'medium' })}
         alt={img.title}
         loading="lazy"
+        decoding="async"
+        width={480}
+        height={480}
         draggable={false}
         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
           onError={(e) => { handleImageError(e, '/1.jpg'); }}
@@ -1092,17 +1117,9 @@ function GalleryTeaser({ settings }) {
   return (
     <section className="py-20 overflow-hidden" style={{ background: '#f8fafc' }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <motion.div
-          initial={{ opacity: 0, y: 28 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-          className="text-center mb-12"
-        >
-          <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl" style={{ color: "#7A0000" }}>
-            {t.galleryTitle || 'Photo Gallery'}
-          </h2>
-        </motion.div>
+        <div className="mb-10 sm:mb-12">
+          <SectionTitle>{t.galleryTitle || 'Photo Gallery'}</SectionTitle>
+        </div>
 
         <div
           className="relative"
@@ -1180,7 +1197,9 @@ function LiveDarshan({ settings }) {
   const [retryCount, setRetryCount] = useState(0);
   const [useAlternativeEmbed, setUseAlternativeEmbed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const iframeRef = useRef(null);
+  // Becomes true once the visitor clicks the facade. The "Loading live
+  // stream..." spinner is meaningless before that, since nothing is loading.
+  const [playerActive, setPlayerActive] = useState(false);
 
   // Default live video with proper autoplay URL
   const liveVideo = settings?.liveVideo || {
@@ -1292,22 +1311,26 @@ function LiveDarshan({ settings }) {
 
   const { videoId, playlistId, embedUrl, watchUrl, isLiveStream } = parseYouTubeUrl(liveVideo.url);
 
-  // ─── Handle iframe load timeout ─────────────────────────────────────────────
+  /*
+   * Load timeout, but only once the visitor has actually asked for the player.
+   *
+   * Previously this started on mount, so a visitor who never scrolled to the
+   * live stream still had the 15s timer running, and any unrelated slow load
+   * replaced the thumbnail with the "unable to load" panel.
+   */
   useEffect(() => {
-    let timeoutId;
-    if (isLoading) {
-      timeoutId = setTimeout(() => {
-        setIsLoading(false);
-        if (!videoError) {
-          setVideoError(true);
-          setErrorMessage('Video is taking too long to load. Please try again.');
-        }
-      }, 15000);
-    }
-    return () => {
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-  }, [isLoading, videoError]);
+    if (!playerActive) return undefined;
+
+    const timeoutId = setTimeout(() => {
+      setIsLoading(false);
+      if (!videoError) {
+        setVideoError(true);
+        setErrorMessage('Video is taking too long to load. Please try again.');
+      }
+    }, 15000);
+
+    return () => clearTimeout(timeoutId);
+  }, [playerActive, videoError]);
 
   if (!liveVideo.enabled) return null;
 
@@ -1333,6 +1356,7 @@ function LiveDarshan({ settings }) {
     setVideoError(false);
     setErrorMessage('');
     setIsLoading(true);
+    setPlayerActive(true);
 
     if (newRetryCount >= 2) {
       setUseAlternativeEmbed(true);
@@ -1361,21 +1385,15 @@ function LiveDarshan({ settings }) {
   return (
     <section className="text-white py-20 border-t border-line" style={{ background: "linear-gradient(160deg, #7A1F2B 0%, #5B1420 45%, #6b1f2b 100%)" }}>
       <div className="max-w-5xl mx-auto px-6 text-center">
-        <motion.h2
-          initial={{ opacity: 0, y: 26 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.7, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-          className="font-serif text-3xl sm:text-4xl text-white"
-        >
+        <SectionTitle tone="dark" delay={0.1}>
           {titleText}
-        </motion.h2>
+        </SectionTitle>
         <motion.p
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.7, delay: 0.2 }}
-          className="mt-3 text-white/70"
+          className="mt-4 text-white/70"
         >
           {descText}
         </motion.p>
@@ -1387,7 +1405,7 @@ function LiveDarshan({ settings }) {
           transition={{ duration: 0.8, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
           className="mt-8 aspect-video w-full overflow-hidden rounded-lg border border-white/20 bg-black relative"
         >
-          {isLoading && !videoError && (
+          {isLoading && !videoError && playerActive && (
             <div className="absolute inset-0 flex items-center justify-center z-10 bg-black/50">
               <div className="flex flex-col items-center gap-3">
                 <OmLoader size="lg" color="white" />
@@ -1397,19 +1415,19 @@ function LiveDarshan({ settings }) {
           )}
 
           {!videoError ? (
-            <iframe
-              key={`youtube-iframe-${retryCount}`}
-              ref={iframeRef}
-              className="w-full h-full"
-              src={currentEmbedUrl}
-              title="Live Darshan"
-              frameBorder="0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-              allowFullScreen
-              sandbox="allow-scripts allow-same-origin allow-presentation allow-forms allow-popups"
+            /*
+             * Facade: the YouTube player is ~2MB of JS and is only mounted once
+             * the visitor clicks. The section sits well below the fold, so
+             * loading it eagerly was the single largest cost on the home page.
+             */
+            <YoutubeFacade
+              videoId={videoId}
+              playlistId={playlistId}
+              embedUrl={currentEmbedUrl}
+              title={titleText || 'Live Darshan'}
+              onLoaded={handleIframeLoad}
               onError={handleIframeError}
-              onLoad={handleIframeLoad}
-              referrerPolicy="strict-origin-when-cross-origin"
+              onActivate={() => setPlayerActive(true)}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center flex-col gap-4 p-6 bg-black/90">
@@ -1486,12 +1504,56 @@ const HomePage = () => {
     fetchData();
   }, []);
 
+  /*
+ * Skeleton shown while settings load.
+ *
+ * A centred spinner made the page feel empty and forced a full reflow when the
+ * real content replaced it. A skeleton that mirrors the actual layout gives the
+ * content somewhere to land, so there is no layout shift on arrival.
+ */
   if (loading) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="text-center">
-          <OmLoader size="lg" color="vermilion" className="mx-auto mb-4" />
-          <p className="text-ink-soft text-sm">Loading...</p>
+      <div aria-busy="true" aria-label="Loading">
+        {/* Hero */}
+        <div className="relative w-full overflow-hidden rt-skeleton" style={{ height: '100svh', minHeight: 560 }}>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-6">
+            <div className="h-14 sm:h-20 w-4/5 sm:w-3/5 rounded-2xl rt-shimmer" />
+            <div className="h-5 w-2/3 sm:w-1/2 rounded-full rt-shimmer" />
+            <div className="h-9 w-48 rounded-full rt-shimmer" />
+          </div>
+        </div>
+
+        {/* Content sections, mirroring the real page rhythm */}
+        <div className="max-w-7xl mx-auto px-6 py-14 sm:py-16 space-y-14">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div className="space-y-4">
+              <div className="h-9 w-3/4 rounded-lg rt-shimmer" />
+              <div className="h-4 w-full rounded rt-shimmer" />
+              <div className="h-4 w-11/12 rounded rt-shimmer" />
+              <div className="h-4 w-4/5 rounded rt-shimmer" />
+              <div className="h-10 w-36 rounded-full rt-shimmer mt-4" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="h-64 rounded-lg rt-shimmer" />
+              <div className="h-64 rounded-lg rt-shimmer" />
+              <div className="col-span-2 h-64 rounded-lg rt-shimmer" />
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div className="h-9 w-1/2 mx-auto rounded-lg rt-shimmer" />
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="rounded-xl overflow-hidden">
+                  <div className="h-52 rt-shimmer" />
+                  <div className="p-5 space-y-2">
+                    <div className="h-4 w-3/4 rounded rt-shimmer" />
+                    <div className="h-3 w-full rounded rt-shimmer" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );

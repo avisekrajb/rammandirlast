@@ -31,6 +31,8 @@ const {
   // Bookings
   getAllBookings,
   updateBookingStatus,
+  deleteBooking,
+  deleteBookingsBulk,
   
   // Donations
   getAllDonations,
@@ -306,6 +308,10 @@ router.delete('/users/:id', deleteUser);
 // ---------- Booking Management ----------
 router.get('/bookings', getAllBookings);
 router.put('/bookings/:id/status', updateBookingStatus);
+// Bulk first: a DELETE to /bookings/:id would otherwise never be reached for
+// this path, and the single-id route must not be able to swallow it.
+router.delete('/bookings', deleteBookingsBulk);
+router.delete('/bookings/:id', deleteBooking);
 
 // ---------- Donation Management ----------
 router.get('/donations', getAllDonations);

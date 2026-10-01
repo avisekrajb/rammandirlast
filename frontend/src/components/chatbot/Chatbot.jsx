@@ -5,6 +5,7 @@ import api from '../../services/api';
 import { useChatbot } from '../../context/ChatbotContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import useHeroInView from '../../hooks/useHeroInView';
 
 const Chatbot = () => {
   const {
@@ -26,9 +27,22 @@ const Chatbot = () => {
 
   const [settings, setSettings] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
-  const [isVisible, setIsVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
-  const [isFooterVisible, setIsFooterVisible] = useState(true);
+  /*
+   * The launcher is visible across the whole site. It steps aside for two
+   * regions only, both of which own the full width of the screen:
+   *   - the footer, which is dense with its own links and controls
+   *   - the hero video, where a floating button sits on top of the temple name
+   *
+   * Both are detected with IntersectionObserver rather than scroll maths, so
+   * the decision costs nothing on the scroll path.
+   */
+  const [footerInView, setFooterInView] = useState(false);
+  /*
+   * The hero banner. Uses the shared hook because this component mounts above
+   * the router outlet while the page is lazy-loaded — a plain querySelector on
+   * mount finds no hero and the observer never attaches.
+   */
+  const heroInView = useHeroInView('any');
   const inputRef = useRef(null);
   const chatWindowRef = useRef(null);
   const { isAuthenticated } = useAuth();
@@ -45,32 +59,32 @@ const Chatbot = () => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Handle scroll events for visibility and footer detection
+  /*
+   * Step aside for the footer and the hero video.
+   *
+   * Previously the launcher only rendered near the bottom of the page: a local
+   * flag was set from a scroll-position calculation, so on any screen taller
+   * than the viewport the button was invisible for almost the entire journey
+   * and appeared only once the footer came into reach. It was also hidden
+   * while scrolling down, which meant it was hidden most of the time.
+   *
+   * Now it is visible everywhere except the two full-width regions noted
+   * above. IntersectionObserver answers this off the main thread and only wakes
+   * us when the answer changes, so there is no scroll listener here at all.
+   */
   useEffect(() => {
-    const handleScroll = () => {
-      const scrollY = window.scrollY;
-      const windowHeight = window.innerHeight;
-      const documentHeight = document.documentElement.scrollHeight;
+    if (typeof IntersectionObserver === 'undefined') return undefined;
 
-      // Check if footer is visible (bottom of page)
-      const bottomThreshold = 150;
-      const isFooterVisible = scrollY + windowHeight < documentHeight - bottomThreshold;
-      setIsFooterVisible(isFooterVisible);
+    const observer = new IntersectionObserver(
+      ([entry]) => setFooterInView(entry.isIntersecting),
+      { threshold: 0, rootMargin: '0px 0px -40px 0px' }
+    );
 
-      // Hide on scroll down, show on scroll up
-      if (scrollY > lastScrollY && scrollY > 100) {
-        setIsVisible(false);
-      } else {
-        setIsVisible(true);
-      }
+    const footer = document.querySelector('footer');
+    if (footer) observer.observe(footer);
 
-      setLastScrollY(scrollY);
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll();
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [lastScrollY]);
+    return () => observer.disconnect();
+  }, []);
 
   // Fetch admin settings for logo
   useEffect(() => {
@@ -154,8 +168,14 @@ const Chatbot = () => {
   const logoSettings = settings?.logo || {};
   const logoBgColor = logoSettings.bgColor || 'from-vermilion to-maroon-deep';
 
-  // Don't show to logged-out users, or if footer is NOT visible (at bottom) or not visible (scrolled down)
-  if (!isAuthenticated() || !isFooterVisible || !isVisible) {
+  /*
+   * Logged-out visitors do not get the assistant.
+   *
+   * The launcher is otherwise visible on every page, hiding only where the
+   * footer or a hero video is on screen. An already-open chat stays mounted so
+   * it is not yanked away mid-conversation if the page scrolls.
+   */
+  if (!isAuthenticated() || (footerInView && !isOpen) || (heroInView && !isOpen)) {
     return null;
   }
 

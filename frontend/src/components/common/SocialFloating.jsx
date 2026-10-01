@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Facebook, Youtube, Instagram, Twitter, MessageCircle, Linkedin, Mail, Phone, Globe, Share2 } from 'lucide-react';
 import api from '../../services/api';
+import useHeroInView from '../../hooks/useHeroInView';
 
 // Icon mapping for all platforms - same as admin
 const iconMap = {
@@ -48,7 +49,9 @@ const SocialFloating = () => {
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
+  // Previous scroll position in a ref, so the scroll effect never re-subscribes
+  // and never renders on its own.
+  const lastScrollY = useRef(0);
   const [isFooterVisible, setIsFooterVisible] = useState(true);
 
   // Check if mobile
@@ -112,33 +115,56 @@ const SocialFloating = () => {
 
   // Handle scroll events for visibility and footer detection
   useEffect(() => {
-    const handleScroll = () => {
+    let frame = 0;
+
+    const evaluate = () => {
+      frame = 0;
       const scrollY = window.scrollY;
-      const windowHeight = window.innerHeight;
-      const documentHeight = document.documentElement.scrollHeight;
-      
-      // Check if footer is visible (bottom of page)
-      const bottomThreshold = 150;
-      const isFooterVisible = scrollY + windowHeight < documentHeight - bottomThreshold;
-      setIsFooterVisible(isFooterVisible);
-      
-      // Hide on scroll down, show on scroll up
-      if (scrollY > lastScrollY && scrollY > 100) {
-        setIsVisible(false);
-      } else {
-        setIsVisible(true);
-      }
-      
-      setLastScrollY(scrollY);
+      const previous = lastScrollY.current;
+
+      // True while the page still has content below the fold. Named for what
+      // it means; the render guard below uses the inverse.
+      const aboveBottom =
+        scrollY + window.innerHeight <
+        document.documentElement.scrollHeight - 150;
+      setIsFooterVisible((prev) => (prev === aboveBottom ? prev : aboveBottom));
+
+      // Ignore sub-pixel jitter so only real movement toggles visibility.
+      if (Math.abs(scrollY - previous) < 4) return;
+
+      const nextVisible = scrollY > previous || scrollY <= 100;
+      setIsVisible((prev) => (prev === nextVisible ? prev : nextVisible));
+      lastScrollY.current = scrollY;
+    };
+
+    const handleScroll = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(evaluate);
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll();
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [lastScrollY]);
+    evaluate();
 
-  // Don't show if loading, no links, or footer is NOT visible (at bottom)
-  if (loading || socialLinks.length === 0 || !isFooterVisible || !isVisible) {
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, []);
+
+  /*
+   * Hide over the home page video banner.
+   *
+   * The icons are a fixed column on the right edge, so over a full-bleed hero
+   * they sit on top of the footage and the shloka. Scoped to the home hero, so
+   * the About page banner and every other section keep them.
+   */
+  const heroInView = useHeroInView('home');
+
+  /*
+   * Hidden while: loading, no links, at the very bottom of the page, scrolled
+   * down, or sitting over the home hero video banner.
+   */
+  if (loading || socialLinks.length === 0 || !isFooterVisible || !isVisible || heroInView) {
     return null;
   }
 

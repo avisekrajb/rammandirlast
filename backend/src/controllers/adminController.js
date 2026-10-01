@@ -22,26 +22,82 @@ const {
 } = require('../data/templeTeam');
 
 // ============ ADMIN ACTIVITY LOGGING ============
-// In-memory fallback cache; persistent source of truth is the AdminLog collection.
-let adminActivityLogs = [];
+//
+// The AdminLog collection is the only store. An earlier version also kept a
+// module-level `adminActivityLogs` array that was pushed to on every write but
+// never read by any query, so it only leaked memory and made the cap
+// meaningless. It has been removed; capping happens against the database.
+//
+// Keep only the newest ADMIN_LOG_LIMIT entries, newest first. Pruning on write
+// keeps the collection bounded without needing a cron job or TTL index.
+const ADMIN_LOG_LIMIT = 50;
 
-// @desc    Get admin activity logs
+/**
+ * Delete everything beyond the newest ADMIN_LOG_LIMIT documents.
+ * Safe to call after every write; a no-op when the collection is under the cap.
+ */
+const pruneAdminLogs = async () => {
+  try {
+    const total = await AdminLog.countDocuments();
+    if (total <= ADMIN_LOG_LIMIT) return;
+
+    // Find the _id of the oldest document we are allowed to keep, then drop
+    // everything strictly older than it.
+    const cutoff = await AdminLog.find({}, { _id: 1 })
+      .sort({ createdAt: -1 })
+      .skip(ADMIN_LOG_LIMIT - 1)
+      .limit(1)
+      .lean();
+
+    const cutoffId = cutoff[0]?._id;
+    if (!cutoffId) return;
+
+    const result = await AdminLog.deleteMany({
+      _id: { $lt: cutoffId },
+    });
+
+    if (result.deletedCount > 0) {
+      console.log(
+        `Admin logs pruned: removed ${result.deletedCount}, keeping latest ${ADMIN_LOG_LIMIT}`
+      );
+    }
+  } catch (error) {
+    // Pruning is housekeeping; never fail the admin action that triggered it.
+    console.error('Admin log prune error:', error.message);
+  }
+};
+
+// @desc    Get admin activity logs (latest only, newest first)
 // @route   GET /api/admin/activity
 // @access  Private/Admin
 exports.getAdminActivity = async (req, res) => {
   try {
-    const { limit = 100, search = '' } = req.query;
+    // `limit` is honoured but can never exceed the retention cap.
+    const requested = parseInt(req.query.limit, 10);
+    const limit = Math.min(
+      Number.isFinite(requested) && requested > 0 ? requested : ADMIN_LOG_LIMIT,
+      ADMIN_LOG_LIMIT
+    );
+
     const q = {};
+    const search = String(req.query.search || '').trim();
     if (search) {
-      const rx = new RegExp(search, 'i');
+      // Escape the input before building the regex, otherwise a search for
+      // "c++" or "(" throws and the whole log list fails to load.
+      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const rx = new RegExp(escaped, 'i');
       q.$or = [{ action: rx }, { 'user.name': rx }, { 'user.email': rx }];
     }
+
     const logs = await AdminLog.find(q)
       .sort({ createdAt: -1 })
-      .limit(Math.min(Number(limit) || 100, 500))
+      .limit(limit)
       .lean();
-    const mapped = logs.map(toFrontendLog);
-    res.json(mapped);
+
+    // Self-heal rows written before the cap existed.
+    if (!search) pruneAdminLogs();
+
+    res.json(logs.map(toFrontendLog));
   } catch (error) {
     console.error('Get admin activity error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -65,10 +121,8 @@ exports.addAdminLog = async (req, res) => {
       adminId: req.user.id,
     });
 
-    adminActivityLogs.push({ ...log.toObject(), timestamp: log.createdAt });
-    if (adminActivityLogs.length > 1000) {
-      adminActivityLogs = adminActivityLogs.slice(-1000);
-    }
+    // Drop the oldest entries so the collection never exceeds the cap.
+    await pruneAdminLogs();
 
     res.json({ success: true, data: toFrontendLog(log.toObject()) });
   } catch (error) {
@@ -83,7 +137,6 @@ exports.addAdminLog = async (req, res) => {
 exports.clearAdminLogs = async (req, res) => {
   try {
     await AdminLog.deleteMany({});
-    adminActivityLogs = [];
     res.json({ success: true, message: 'Logs cleared' });
   } catch (error) {
     console.error('Clear logs error:', error);
@@ -126,9 +179,21 @@ exports.getAdminLogStats = async (req, res) => {
       AdminLog.countDocuments({ createdAt: { $gte: monthAgo } }),
     ]);
 
+    /*
+     * `total` is capped at the retention limit because older entries are
+     * pruned. Without this the panel would show "Total 400" next to a list of
+     * 50 rows, which reads as missing data rather than retention.
+     */
     res.json({
       success: true,
-      data: { total, today: todayCount, thisWeek, thisMonth },
+      data: {
+        total: Math.min(total, ADMIN_LOG_LIMIT),
+        today: todayCount,
+        thisWeek,
+        thisMonth,
+        retained: total,
+        limit: ADMIN_LOG_LIMIT,
+      },
     });
   } catch (error) {
     console.error('Get stats error:', error);
@@ -146,41 +211,67 @@ const toFrontendLog = (log) => ({
   adminId: log.adminId,
 });
 
-// Helper function to log admin activity
+/**
+ * Helper to record admin activity.
+ *
+ * Fire-and-forget on purpose: this is called from the middle of settings and
+ * content updates, so a logging failure must never abort the admin's change.
+ * Pruning runs after the insert to hold the collection at the retention cap.
+ */
 const logAdminActivity = (adminId, action, details = {}) => {
-  const log = {
-    adminId,
-    action,
-    details,
-    timestamp: new Date().toISOString(),
-    user: { id: adminId, name: 'Admin', email: '' },
-  };
-  adminActivityLogs.push(log);
-  if (adminActivityLogs.length > 100) {
-    adminActivityLogs = adminActivityLogs.slice(-100);
-  }
-
-  // Persist to the AdminLog collection (fire-and-forget)
-  let name = 'Admin';
-  let email = '';
-  User.findById(adminId).select('name email').lean()
-    .then((u) => {
-      if (u) {
-        name = u.name;
-        email = u.email;
-        log.user = { id: adminId, name: u.name, email: u.email };
-      }
-      return AdminLog.create({
+  User.findById(adminId)
+    .select('name email')
+    .lean()
+    .then((u) =>
+      AdminLog.create({
         adminId,
         action,
         details,
-        user: { id: adminId, name, email },
-      }).catch((e) => console.error('AdminLog persist error:', e.message));
-    })
-    .catch(() => {});
+        user: { id: adminId, name: u?.name || 'Admin', email: u?.email || '' },
+      })
+    )
+    .then(() => pruneAdminLogs())
+    .catch((e) => console.error('AdminLog persist error:', e.message));
 };
 
 // ============ HELPER FUNCTIONS ============
+
+// ============ ABOUT SECTION TITLES ============
+//
+// Shown in two places: Admin → Home (aboutPreview, the homepage teaser) and
+// the About section on the homepage (about). Both carry the same heading, so
+// they share one constant.
+
+const DEFAULT_ABOUT_TITLE = {
+  en: 'Introduction to the Temple',
+  ne: 'श्री रामचन्द्र मन्दिरको परिचय',
+  hi: 'श्री रामचन्द्र मन्दिर का परिचय',
+  zh: '什里·拉姆钱德拉神庙简介',
+  ta: 'ஸ்ரீ ராமச்சந்திர கோயில் அறிமுகம்',
+};
+
+// Titles that shipped before the rename. Matched loosely because the wording
+// drifted across releases ("About the Temple" → "श्री रामचन्द्र मन्दिरको
+// बारेमा" → the current wording); an exact list kept missing whichever
+// variant an install happened to save. Only generic shapes are listed, so a
+// custom title a human wrote will not match.
+const LEGACY_ABOUT_TITLE_PATTERNS = [
+  /^about\s+(us|the\s+temple)$/i,
+  /^introduction\s+to\s+the\s+temple$/i,
+  /हाम्रो\s+बारेमा$/,
+  /मन्दिरको\s+बारेमा$/,
+  /मन्दिर\s+के\s+बारे\s+में$/,
+  /^关于我们$/,
+  /^关于神庙$/,
+  /^எங்களைப்\s+பற்றி$/,
+  /^கோவிலைப்\s+பற்றி$/,
+];
+
+const isLegacyAboutTitle = (value) => {
+  const text = String(value || '').trim();
+  if (!text) return false;
+  return LEGACY_ABOUT_TITLE_PATTERNS.some((re) => re.test(text));
+};
 
 // Helper: Get date key in YYYY-MM-DD format
 const getDateKey = (date) => {
@@ -195,6 +286,8 @@ const getDateKey = (date) => {
 exports.getSettings = async (req, res) => {
   try {
     const settings = await AdminSettings.getSettings();
+    // Batched into one save at the end, so a read does not write on every call.
+    let touched = false;
 
     /*
      * Keep the booking form in sync with the ceremonies the temple complex can
@@ -250,6 +343,32 @@ exports.getSettings = async (req, res) => {
       settings.eventsPageText = DEFAULT_EVENTS_PAGE_TEXT;
       await settings.save();
       console.log(`Settings: published ${DEFAULT_EVENTS_PAGE_TEXT.length} events page text row(s)`);
+    }
+
+    /*
+     * The "About" headings were renamed from "About the Temple" /
+     * "मन्दिरको बारेमा" to "…को परिचय" (an introduction). Rows still holding a
+     * placeholder are backfilled; a title the admin typed by hand is left
+     * alone. This runs on read so existing installs pick the change up without
+     * a migration script.
+     */
+    for (const field of ['about', 'aboutPreview']) {
+      const group = settings[field];
+      if (!group?.title) continue;
+
+      const values = Object.values(group.title).filter(Boolean).map((v) => String(v).trim());
+      const isPlaceholder =
+        values.length === 0 || values.every(isLegacyAboutTitle);
+
+      if (isPlaceholder) {
+        group.title = { ...DEFAULT_ABOUT_TITLE };
+        touched = true;
+      }
+    }
+
+    if (touched) {
+      await settings.save();
+      console.log('Settings: republished About section titles');
     }
 
     res.json(settings);
@@ -889,6 +1008,66 @@ exports.updateBookingStatus = async (req, res) => {
     res.json(booking);
   } catch (error) {
     console.error('Update booking status error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Delete one booking
+// @route   DELETE /api/admin/bookings/:id
+// @access  Private/Admin
+exports.deleteBooking = async (req, res) => {
+  try {
+    const booking = await Booking.findByIdAndDelete(req.params.id);
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+    logAdminActivity(req.user.id, 'Booking Deleted', {
+      bookingId: req.params.id,
+      bookingType: booking.type,
+      name: booking.name,
+      date: booking.date,
+    });
+    res.json({ success: true, message: 'Booking deleted' });
+  } catch (error) {
+    console.error('Delete booking error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Delete several bookings in one request
+// @route   DELETE /api/admin/bookings  (body: { ids: [...] })
+// @access  Private/Admin
+exports.deleteBookingsBulk = async (req, res) => {
+  try {
+    const { ids } = req.body || {};
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: 'No bookings selected' });
+    }
+
+    // A runaway selection should not be able to wipe the whole table; this is
+    // a UI convenience for picking rows, not a bulk wipe tool.
+    const MAX_BULK_DELETE = 200;
+    if (ids.length > MAX_BULK_DELETE) {
+      return res.status(400).json({
+        message: `Please delete at most ${MAX_BULK_DELETE} bookings at a time`,
+      });
+    }
+
+    const result = await Booking.deleteMany({ _id: { $in: ids } });
+
+    logAdminActivity(req.user.id, 'Bookings Deleted', {
+      count: result.deletedCount,
+      ids,
+    });
+
+    res.json({
+      success: true,
+      deletedCount: result.deletedCount,
+      message: `${result.deletedCount} booking(s) deleted`,
+    });
+  } catch (error) {
+    console.error('Bulk delete bookings error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };

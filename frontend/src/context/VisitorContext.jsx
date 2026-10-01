@@ -14,6 +14,18 @@ export const useVisitor = () => {
   return context;
 };
 
+/**
+ * Visitor tracking.
+ *
+ * `sessionId` is a per-tab UUID used to group a browsing session together. It
+ * is deliberately NOT what drives the visitor totals: every reload and every
+ * new tab mints a new sessionId, so counting distinct sessionIds inflates the
+ * numbers with no real visitor behind them.
+ *
+ * The real totals are counted per IP address per day on the server
+ * (see Visitor.distinctVisitorsByIp). One network = one visit, so a refresh
+ * loop or 20 tabs do not add 20 visitors.
+ */
 export const VisitorProvider = ({ children }) => {
   const location = useLocation();
   const [visitorId, setVisitorId] = useState(null);
@@ -23,7 +35,8 @@ export const VisitorProvider = ({ children }) => {
   const currentPage = useRef('');
   const isTracking = useRef(false);
 
-  // Generate or retrieve session ID
+  // Per-tab session ID. sessionStorage (not localStorage) is intentional:
+  // a new tab is a new session, which is what "session" means for analytics.
   useEffect(() => {
     try {
       let sessionId = sessionStorage.getItem('visitor_session_id');
@@ -33,15 +46,12 @@ export const VisitorProvider = ({ children }) => {
       }
       setVisitorId(sessionId);
 
-      const isNewSession = !sessionStorage.getItem('visitor_session_started');
-      if (isNewSession) {
-        sessionStorage.setItem('visitor_session_started', 'true');
-        sessionStorage.setItem('visitor_visit_count', '1');
-      } else {
-        const count = parseInt(sessionStorage.getItem('visitor_visit_count') || '1');
-        sessionStorage.setItem('visitor_visit_count', String(count + 1));
-      }
-      setTotalVisits(parseInt(sessionStorage.getItem('visitor_visit_count') || '1'));
+      // Visit counter for this tab. sessionStorage is cleared when the tab
+      // closes, so this resets naturally and never drifts upward.
+      const count = parseInt(sessionStorage.getItem('visitor_visit_count') || '0', 10) + 1;
+      sessionStorage.setItem('visitor_visit_count', String(count));
+      sessionStorage.setItem('visitor_session_started', 'true');
+      setTotalVisits(count);
     } catch (error) {
       console.error('Visitor session error:', error);
     }
@@ -86,21 +96,22 @@ export const VisitorProvider = ({ children }) => {
     const trackVisitor = async () => {
       try {
         isTracking.current = true;
-        const isNewSession = !sessionStorage.getItem('visitor_session_started');
-        
+
         await api.post('/visitors/track', {
           sessionId: visitorId,
           page: currentPath,
           pageTitle: pageTitle,
           referrer: document.referrer || '',
           userAgent: navigator.userAgent,
-          isNewVisitor: isNewSession,
-          visitCount: parseInt(sessionStorage.getItem('visitor_visit_count') || '1'),
+          // Whether this browser profile is seeing the site for the first
+          // time. Note this is a client-side flag only — the authoritative
+          // "new vs returning" decision is made server-side from the IP.
+          isNewVisitor: totalVisits <= 1,
+          visitCount: totalVisits,
         });
 
         entryTime.current = Date.now();
         currentPage.current = currentPath;
-        console.log('✅ Visitor tracked:', currentPath);
       } catch (error) {
         console.error('Error tracking visitor:', error);
       } finally {
@@ -113,6 +124,9 @@ export const VisitorProvider = ({ children }) => {
     return () => {
       clearTimeout(timeoutId);
     };
+    // totalVisits is read inside trackVisitor but the effect must only re-run
+    // when the page or the session changes, not on every counter bump.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location, visitorId]);
 
   // Track time spent on page when leaving

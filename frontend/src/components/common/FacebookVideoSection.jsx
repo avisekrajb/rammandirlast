@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import SectionTitle from './SectionTitle';
 import {
   extractFacebookVideoUrl,
   resolveFacebookVideoUrl,
@@ -277,6 +278,20 @@ function FacebookVideoCard({
 }) {
   const [cleanUrl, setCleanUrl] = useState('');
   const [loaded, setLoaded] = useState(false);
+  /*
+   * Lazy activation.
+   *
+   * Every card used to mount a live iframe immediately with loading="eager".
+   * A Facebook/YouTube embed frame is ~1.5-2.5MB of player JS plus segments,
+   * and a dozen cards on the home page meant a dozen of those in parallel.
+   *
+   * The iframe is now mounted only once the card is within 300px of the
+   * viewport, so off-screen cards cost nothing. It stays mounted afterwards:
+   * once a card has loaded, keeping it is cheaper than tearing down and
+   * rebuilding on every scroll pass.
+   */
+  const [inView, setInView] = useState(false);
+  const cardRef = useRef(null);
 
   useEffect(() => {
     let active = true;
@@ -326,12 +341,47 @@ function FacebookVideoCard({
   const isYT = isYouTubeUrl(cleanUrl);
 
   /*
+   * Mount the embed only when the card is close to the viewport.
+   *
+   * The rootMargin gives a 300px head start, so the player has finished
+   * fetching by the time the card is actually visible rather than popping in
+   * after it appears.
+   */
+  useEffect(() => {
+    if (inView) return undefined;
+
+    const node = cardRef.current;
+    if (!node || typeof IntersectionObserver === 'undefined') {
+      // No observer support: fall back to loading immediately.
+      setInView(true);
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setInView(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '300px' }
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [inView]);
+
+  /*
    * IMPORTANT:
    * Do not use a fake image/thumbnail here.
    * Facebook itself provides the video preview.
+   *
+   * That preview only arrives with the player itself, so it cannot be shown
+   * before the embed loads. The placeholder below is a plain gradient from the
+   * site palette, which costs no network request.
    */
   const embedSrc =
-    loaded && cleanUrl
+    loaded && cleanUrl && inView
       ? isYT
         ? buildYouTubeEmbedSrc(cleanUrl, false)
         : buildFacebookEmbedSrc(cleanUrl, false)
@@ -345,6 +395,7 @@ function FacebookVideoCard({
 
   return (
     <div
+      ref={cardRef}
       className="
         relative
         w-full
@@ -393,12 +444,30 @@ function FacebookVideoCard({
               web-share
             "
             allowFullScreen
-            loading="eager"
+            loading="lazy"
           />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center bg-black">
-            <div className="text-white/70 text-sm">
-              Loading video...
+          /*
+           * Placeholder cover. Shown until the card scrolls near the viewport
+           * and its embed has loaded. Pure CSS, so it adds no requests.
+           */
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div
+              className="absolute inset-0"
+              style={{
+                background:
+                  'linear-gradient(145deg, #2a1015 0%, #4a1a1a 45%, #1a0a0e 100%)',
+              }}
+            />
+            <div className="relative flex flex-col items-center gap-2">
+              <span className="w-11 h-11 rounded-full bg-white/10 border border-white/20 flex items-center justify-center">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path d="M8 5v14l11-7z" fill="#E8A93D" />
+                </svg>
+              </span>
+              <span className="text-white/45 text-[11px]">
+                {loaded ? 'Loading video...' : 'Tap to watch'}
+              </span>
             </div>
           </div>
         )}
@@ -553,22 +622,12 @@ function FacebookVideoSection({
         ====================================================== */}
 
         {!onlyReels && videos.length > 0 && (
-          <section className="mb-20">
+          <section className={hideReels ? '' : 'mb-14'}>
 
-            <div className="flex flex-col items-center mb-10">
-              <h2
-                className="
-                  font-serif
-                  text-3xl
-                  sm:text-4xl
-                  md:text-5xl
-                  text-center
-                  tracking-tight
-                "
-                style={{ color: '#7A0000' }}
-              >
+            <div className="mb-8 sm:mb-10">
+              <SectionTitle>
                 {t?.facebookVideoTitle || 'Watch on Facebook'}
-              </h2>
+              </SectionTitle>
             </div>
 
             <div className="relative">
@@ -644,21 +703,11 @@ function FacebookVideoSection({
         {!hideReels && reels.length > 0 && (
           <section>
 
-            <div className="flex flex-col items-center mb-4">
-              <h2
-                className="
-                  font-serif
-                  text-3xl
-                  sm:text-4xl
-                  md:text-5xl
-                  text-center
-                  tracking-tight
-                "
-                style={{ color: '#7A0000' }}
-              >
+            <div className="mb-8 sm:mb-10">
+              <SectionTitle>
                 {t?.facebookReelsTitle ||
                   'Reels & Short Videos'}
-              </h2>
+              </SectionTitle>
             </div>
 
             <div className="relative">

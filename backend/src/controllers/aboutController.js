@@ -1,6 +1,45 @@
 ﻿const About = require('../models/About');
 const { INTRO_TEXT, DEFAULT_SECTIONS, LEGACY_SECTION_KEYS } = require('../data/templeContent');
 
+/*
+ * Hero banner title. Kept in one place because it is used both as the seed for
+ * a brand-new About document and as the backfill for documents that still hold
+ * one of the old generic placeholders ("About Us" / "हाम्रो बारेमा" / ...).
+ */
+const DEFAULT_HERO_TITLE = {
+  en: 'Shree Ramchandra Temple — An Introduction',
+  ne: 'श्री रामचन्द्र मन्दिरको परिचय',
+  hi: 'श्री रामचन्द्र मन्दिर का परिचय',
+  zh: '什里·拉姆钱德拉神庙简介',
+  ta: 'ஸ்ரீ ராமச்சந்திர கோயில் அறிமுகம்',
+};
+
+// Placeholder titles written before the hero was renamed. Rows still holding
+// one of these are placeholders, not admin edits, so they get backfilled.
+//
+// Matched loosely rather than exactly: the wording drifted across releases
+// ("About Us" → "About the Temple" → "श्री रामचन्द्र मन्दिरको बारेमा"), and an
+// exact list kept missing whichever variant a given install happened to save.
+// Only the generic shapes are listed — a custom title a human wrote will not
+// match any of them.
+const LEGACY_HERO_TITLE_PATTERNS = [
+  /^about\s+(us|the\s+temple)$/i,
+  /^introduction\s+to\s+the\s+temple$/i,
+  /हाम्रो\s+बारेमा$/,
+  /मन्दिरको\s+बारेमा$/,
+  /मन्दिर\s+के\s+बारे\s+में$/,
+  /^关于我们$/,
+  /^关于神庙$/,
+  /^எங்களைப்\s+பற்றி$/,
+  /^கோவிலைப்\s+பற்றி$/,
+];
+
+const isLegacyHeroTitle = (value) => {
+  const text = String(value || '').trim();
+  if (!text) return false;
+  return LEGACY_HERO_TITLE_PATTERNS.some((re) => re.test(text));
+};
+
 // Get About content
 exports.getAbout = async (req, res) => {
   try {
@@ -11,13 +50,7 @@ exports.getAbout = async (req, res) => {
       about = await About.create({
         hero: {
           image: '/aboutusphoto.jpeg',
-          title: {
-            en: 'About Us',
-            ne: 'हाम्रो बारेमा',
-            hi: 'हमारे बारे में',
-            zh: '关于我们',
-            ta: 'எங்களைப் பற்றி'
-          }
+          title: { ...DEFAULT_HERO_TITLE },
           // Removed intro from hero - it will be separate
         },
         // Intro text field - below hero banner ("हाम्रो परिचय")
@@ -120,6 +153,21 @@ exports.getAbout = async (req, res) => {
       touched = true;
     }
 
+    // Hero banner: an empty value, or one of the old generic placeholders, is
+    // not a real admin edit. Republish the temple introduction title so the
+    // banner names the temple instead of saying "About Us". A title the admin
+    // has actually typed is preserved untouched.
+    const heroTitle = about.hero?.title || {};
+    const storedTitles = Object.values(heroTitle).filter(Boolean);
+    const isPlaceholder =
+      storedTitles.length === 0 ||
+      storedTitles.every(isLegacyHeroTitle);
+
+    if (isPlaceholder) {
+      about.hero = { ...about.hero, title: { ...DEFAULT_HERO_TITLE } };
+      touched = true;
+    }
+
     if (touched) {
       await about.save();
       console.log('About: published temple content');
@@ -147,9 +195,18 @@ exports.updateAbout = async (req, res) => {
     
     // Update fields if they exist in request
     if (hero) {
+      // An empty title from the form must not wipe a real one: fall back to the
+      // stored value, and to the default title if nothing is stored yet.
+      const nextTitle =
+        hero.title && Object.values(hero.title).some(Boolean)
+          ? hero.title
+          : (about.hero?.title && Object.values(about.hero.title).some(Boolean)
+              ? about.hero.title
+              : { ...DEFAULT_HERO_TITLE });
+
       about.hero = {
-        title: hero.title || {},
-        image: hero.image || ''
+        title: nextTitle,
+        image: hero.image || about.hero?.image || ''
       };
     }
     

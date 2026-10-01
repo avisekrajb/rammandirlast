@@ -131,5 +131,24 @@ visitorSchema.index({ page: 1, date: -1 });
 visitorSchema.index({ day: 1 });
 visitorSchema.index({ month: 1 });
 visitorSchema.index({ year: 1 });
+// "One network, one visit" counts run through these.
+visitorSchema.index({ ipAddress: 1, day: 1 });
+visitorSchema.index({ day: 1, ipAddress: 1 });
+
+/**
+ * Count distinct visitors by IP address.
+ *
+ * This is the authoritative visitor total. `sessionId` is a per-tab UUID, so
+ * counting it would treat every refresh and every new tab as a separate
+ * person. Counting distinct IPs per day means one device/network on one day
+ * contributes exactly one visit no matter how many pages it loads.
+ *
+ * Limitation worth knowing: people sharing an office/home/mobile-carrier NAT
+ * collapse into a single visitor, and a VPN or changing IP looks like a new
+ * visitor. It is the standard tradeoff and needs no cookies or fingerprinting.
+ */
+visitorSchema.statics.distinctVisitorsByIp = async function (query = {}) {
+  return this.distinct('ipAddress', query).then((ips) => ips.length);
+};
 
 module.exports = mongoose.model('Visitor', visitorSchema);

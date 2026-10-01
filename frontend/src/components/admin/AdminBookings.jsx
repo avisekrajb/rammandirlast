@@ -26,6 +26,10 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
   const [sortBy, setSortBy] = useState('newest');
+
+  // Row selection for bulk delete
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [deleting, setDeleting] = useState(false);
   
   const [pujaTypes, setPujaTypes] = useState([]);
   const [newPujaType, setNewPujaType] = useState('');
@@ -43,6 +47,15 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
   const [bookingContent, setBookingContent] = useState([]);
   const [contentLang, setContentLang] = useState('ne');
   const [savingContent, setSavingContent] = useState(false);
+  /*
+   * Which content section's editor is open.
+   *
+   * Every section used to render its full editor at once - four paragraph
+   * boxes plus a bullet list per section - so the panel became a wall of forms
+   * that was slow to scan. Now the table shows one summary line per section and
+   * only the expanded row reveals its editor.
+   */
+  const [expandedSection, setExpandedSection] = useState(null);
   
   // Background Photo State
   const [bookingBgPhoto, setBookingBgPhoto] = useState('/4.jpg');
@@ -492,6 +505,76 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
 
   const toggleSort = (key) => setSortBy(sortBy === key ? 'newest' : key);
 
+  // ===== Bulk delete =====
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+
+  const toggleSelect = (id) =>
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+
+  // Selects every booking on the current page, not just the filtered view.
+  const allOnPageSelected =
+    pagedBookings.length > 0 && pagedBookings.every((b) => selectedSet.has(b._id));
+  const someOnPageSelected =
+    pagedBookings.some((b) => selectedSet.has(b._id)) && !allOnPageSelected;
+
+  const toggleSelectAllOnPage = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allOnPageSelected) {
+        pagedBookings.forEach((b) => next.delete(b._id));
+      } else {
+        pagedBookings.forEach((b) => next.add(b._id));
+      }
+      return Array.from(next);
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (
+      !window.confirm(
+        `Delete ${selectedIds.length} booking(s)? This cannot be undone.`
+      )
+    ) {
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      const res = await api.delete('/admin/bookings', { data: { ids: selectedIds } });
+      const removed =
+        res.data?.deletedCount ?? selectedIds.length;
+
+      // Drop the deleted rows locally so the table reflects the change without
+      // waiting for a refetch, and reconcile the current page after removal.
+      const remaining = bookings.filter((b) => !selectedSet.has(b._id));
+      setBookings(remaining);
+      setSelectedIds([]);
+
+      showToast(`${removed} booking(s) deleted`, 'success');
+    } catch (error) {
+      console.error('Bulk delete error:', error);
+      showToast(
+        error.response?.data?.message || 'Failed to delete bookings',
+        'error'
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Clear a selection that points at rows no longer on screen (e.g. filtered out).
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      if (prev.length === 0) return prev;
+      const live = new Set(bookings.map((b) => b._id));
+      const next = prev.filter((id) => live.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [bookings]);
+
   return (
     <div className="space-y-6">
       {/* Background Photo Management - Mini Square Grid */}
@@ -748,153 +831,327 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
           {bookingContent.length === 0 ? (
             <p className="text-sm text-gray-400 py-6 text-center">No content sections yet.</p>
           ) : (
-            <div className="space-y-4">
-              {bookingContent.map((section, i) => (
-                <div key={section.key || i} className="border border-gray-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-xs font-mono text-gray-400 w-6">{i + 1}</span>
-                      <span className="text-sm font-semibold text-gray-700 truncate">
-                        {getLocalizedValue(section.title, contentLang) || 'Untitled section'}
-                      </span>
-                      {section.showForm && (
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#7A0000] bg-[#7A0000]/10 rounded-full px-2 py-0.5">
-                          booking form
-                        </span>
-                      )}
-                      {section.enabled === false && (
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">
-                          hidden
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => moveContentSection(i, -1)}
-                        disabled={i === 0}
-                        className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"
-                        title="Move up"
-                      >
-                        <ChevronUp size={14} />
-                      </button>
-                      <button
-                        onClick={() => moveContentSection(i, 1)}
-                        disabled={i === bookingContent.length - 1}
-                        className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"
-                        title="Move down"
-                      >
-                        <ChevronDown size={14} />
-                      </button>
-                      <button
-                        onClick={() => toggleContentSection(i, 'enabled')}
-                        className="p-1.5 rounded hover:bg-gray-100"
-                        title={section.enabled === false ? 'Show' : 'Hide'}
-                      >
-                        {section.enabled === false ? <Eye size={14} /> : <EyeOff size={14} />}
-                      </button>
-                      <button
-                        onClick={() => toggleContentSection(i, 'showForm')}
-                        className="p-1.5 rounded hover:bg-gray-100"
-                        title="Render the booking form at this section"
-                      >
-                        <CalendarDays size={14} />
-                      </button>
-                      <button
-                        onClick={() => removeContentSection(i)}
-                        className="p-1.5 rounded hover:bg-red-100 text-red-500"
-                        title="Remove"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
+            <div className="overflow-x-auto -mx-6 px-6">
+              <table className="w-full text-sm border-collapse min-w-[720px]">
+                <thead>
+                  <tr className="bg-gray-50 border-y border-gray-100">
+                    <th className="w-10 py-2.5 pl-2 pr-0" />
+                    <th className="text-left py-2.5 px-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider w-14">
+                      #
+                    </th>
+                    <th className="text-left py-2.5 px-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                      Title
+                    </th>
+                    <th className="text-left py-2.5 px-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider hidden lg:table-cell">
+                      Headings
+                    </th>
+                    <th className="text-left py-2.5 px-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-center w-16">
+                      Paras
+                    </th>
+                    <th className="text-left py-2.5 px-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-center w-16">
+                      Points
+                    </th>
+                    <th className="text-left py-2.5 px-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-center w-32">
+                      Flags
+                    </th>
+                    <th className="text-left py-2.5 pl-3 pr-2 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-right w-36">
+                      Order
+                    </th>
+                  </tr>
+                </thead>
 
-                  <input
-                    type="text"
-                    value={getLocalizedValue(section.title, contentLang)}
-                    onChange={(e) => updateContentField(i, 'title', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm mb-2"
-                    placeholder="Section title..."
-                  />
+                <tbody>
+                  {bookingContent.map((section, i) => {
+                    const titleText =
+                      getLocalizedValue(section.title, contentLang) ||
+                      'Untitled section';
+                    const paragraphsFilled = ['p1', 'p2', 'p3', 'p4'].filter(
+                      (k) => getLocalizedValue(section.paragraphs?.[k], contentLang).trim()
+                    ).length;
+                    const pointsFilled = (section.points || []).filter((p) =>
+                      getLocalizedValue(p, contentLang).trim()
+                    ).length;
 
-                  <div className="grid sm:grid-cols-2 gap-2 mb-2">
-                    <input
-                      type="text"
-                      value={getLocalizedValue(section.group, contentLang)}
-                      onChange={(e) => updateContentField(i, 'group', e.target.value)}
-                      className="px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
-                      placeholder="Parent heading (optional)"
-                    />
-                    <input
-                      type="text"
-                      value={getLocalizedValue(section.listTitle, contentLang)}
-                      onChange={(e) => updateContentField(i, 'listTitle', e.target.value)}
-                      className="px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
-                      placeholder="List heading (optional)"
-                    />
-                  </div>
-
-                  {['p1', 'p2', 'p3', 'p4'].map((pKey) => (
-                    <textarea
-                      key={pKey}
-                      rows={2}
-                      value={getLocalizedValue(section.paragraphs?.[pKey], contentLang)}
-                      onChange={(e) => updateContentParagraph(i, pKey, e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm resize-none mb-2"
-                      placeholder={`Paragraph ${pKey}...`}
-                    />
-                  ))}
-
-                  <div className="flex items-center justify-between mt-1 mb-2">
-                    <label className="text-xs font-bold text-gray-600">Bullet Points</label>
-                    <button
-                      onClick={() => addContentPoint(i)}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#7A0000]/10 text-[#7A0000] text-[11px] font-semibold hover:bg-[#7A0000]/20 transition-all"
-                    >
-                      <Plus size={12} /> Add Point
-                    </button>
-                  </div>
-
-                  {(section.points || []).length === 0 ? (
-                    <p className="text-[11px] text-gray-400">No bullet points.</p>
-                  ) : (
-                    (section.points || []).map((point, pi) => (
-                      <div key={pi} className="flex items-start gap-1.5 mb-1.5">
-                        <input
-                          type="text"
-                          value={getLocalizedValue(point, contentLang)}
-                          onChange={(e) => updateContentPoint(i, pi, e.target.value)}
-                          className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
-                          placeholder={`Point ${pi + 1}...`}
-                        />
-                        <button
-                          onClick={() => moveContentPoint(i, pi, -1)}
-                          disabled={pi === 0}
-                          className="p-2 rounded hover:bg-gray-100 disabled:opacity-30"
-                          title="Move up"
+                    return (
+                      <React.Fragment key={section.key || i}>
+                        {/* Summary row - always visible, one line per section */}
+                        <tr
+                          key={section.key || i}
+                          className="border-b border-gray-100 hover:bg-gray-50/70 transition-colors cursor-pointer"
+                          onClick={() =>
+                            setExpandedSection(
+                              expandedSection === (section.key || i) ? null : section.key || i
+                            )
+                          }
                         >
-                          <ChevronUp size={13} />
-                        </button>
-                        <button
-                          onClick={() => moveContentPoint(i, pi, 1)}
-                          disabled={pi === section.points.length - 1}
-                          className="p-2 rounded hover:bg-gray-100 disabled:opacity-30"
-                          title="Move down"
-                        >
-                          <ChevronDown size={13} />
-                        </button>
-                        <button
-                          onClick={() => removeContentPoint(i, pi)}
-                          className="p-2 rounded hover:bg-red-100 text-red-500"
-                          title="Remove"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              ))}
+                          <td className="py-2.5 pl-2 pr-0">
+                            <ChevronDown
+                              size={15}
+                              className={`text-gray-400 transition-transform ${
+                                expandedSection === (section.key || i)
+                                  ? 'rotate-0'
+                                  : '-rotate-90'
+                              }`}
+                            />
+                          </td>
+                          <td className="py-2.5 px-3 font-mono text-xs text-gray-400">
+                            {i + 1}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className="font-semibold text-gray-700 block truncate max-w-[260px]">
+                              {titleText}
+                            </span>
+                          </td>
+
+                          <td className="py-2.5 px-3 hidden lg:table-cell">
+                            <span className="text-xs text-gray-500 truncate block max-w-[160px]">
+                              {getLocalizedValue(section.listTitle, contentLang) || '—'}
+                            </span>
+                          </td>
+
+                          <td className="py-2.5 px-3 text-center">
+                            <span
+                              className={`inline-flex items-center justify-center min-w-[26px] px-1.5 py-0.5 rounded-full text-[11px] font-bold ${
+                                paragraphsFilled > 0
+                                  ? 'bg-gray-100 text-gray-700'
+                                  : 'bg-gray-50 text-gray-300'
+                              }`}
+                            >
+                              {paragraphsFilled}/4
+                            </span>
+                          </td>
+
+                          <td className="py-2.5 px-3 text-center">
+                            <span
+                              className={`inline-flex items-center justify-center min-w-[26px] px-1.5 py-0.5 rounded-full text-[11px] font-bold ${
+                                pointsFilled > 0
+                                  ? 'bg-[#7A0000]/10 text-[#7A0000]'
+                                  : 'bg-gray-50 text-gray-300'
+                              }`}
+                            >
+                              {pointsFilled}
+                            </span>
+                          </td>
+
+                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                            {section.showForm && (
+                              <span className="inline-block text-[10px] font-bold uppercase tracking-wider text-[#7A0000] bg-[#7A0000]/10 rounded-full px-2 py-0.5 mr-1">
+                                form
+                              </span>
+                            )}
+                            {section.enabled === false && (
+                              <span className="inline-block text-[10px] font-bold uppercase tracking-wider text-gray-500 bg-gray-100 rounded-full px-2 py-0.5">
+                                hidden
+                              </span>
+                            )}
+                            {!section.showForm && section.enabled !== false && (
+                              <span className="text-[11px] text-gray-300">—</span>
+                            )}
+                          </td>
+
+                          <td className="py-2.5 pl-3 pr-2">
+                            <div className="flex items-center justify-end gap-0.5">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  moveContentSection(i, -1);
+                                }}
+                                disabled={i === 0}
+                                className="p-1 rounded hover:bg-gray-100 disabled:opacity-30"
+                                title="Move up"
+                              >
+                                <ChevronUp size={14} />
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  moveContentSection(i, 1);
+                                }}
+                                disabled={i === bookingContent.length - 1}
+                                className="p-1 rounded hover:bg-gray-100 disabled:opacity-30"
+                                title="Move down"
+                              >
+                                <ChevronDown size={14} />
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleContentSection(i, 'enabled');
+                                }}
+                                className="p-1 rounded hover:bg-gray-100"
+                                title={section.enabled === false ? 'Show' : 'Hide'}
+                              >
+                                {section.enabled === false ? (
+                                  <Eye size={14} />
+                                ) : (
+                                  <EyeOff size={14} />
+                                )}
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleContentSection(i, 'showForm');
+                                }}
+                                className="p-1 rounded hover:bg-gray-100"
+                                title="Render the booking form at this section"
+                              >
+                                <CalendarDays size={14} />
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeContentSection(i);
+                                }}
+                                className="p-1 rounded hover:bg-red-100 text-red-500"
+                                title="Remove"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+
+                        {/* Editor row - only for the expanded section, so the list
+                            stays scannable instead of being a wall of forms */}
+                        {expandedSection === (section.key || i) && (
+                          <tr className="border-b border-gray-100 bg-[#7A0000]/[0.03]">
+                            <td colSpan={8} className="px-4 py-4">
+                              <div className="grid md:grid-cols-2 gap-3">
+                                <div>
+                                  <label className="text-xs font-semibold text-gray-600 block mb-1">
+                                    Section title
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={getLocalizedValue(section.title, contentLang)}
+                                    onChange={(e) =>
+                                      updateContentField(i, 'title', e.target.value)
+                                    }
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
+                                    placeholder="Section title..."
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="text-xs font-semibold text-gray-600 block mb-1">
+                                    Parent heading (optional)
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={getLocalizedValue(section.group, contentLang)}
+                                    onChange={(e) =>
+                                      updateContentField(i, 'group', e.target.value)
+                                    }
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
+                                    placeholder="Parent heading"
+                                  />
+                                </div>
+
+                                <div className="md:col-span-2">
+                                  <label className="text-xs font-semibold text-gray-600 block mb-1">
+                                    List heading (optional)
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={getLocalizedValue(section.listTitle, contentLang)}
+                                    onChange={(e) =>
+                                      updateContentField(i, 'listTitle', e.target.value)
+                                    }
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
+                                    placeholder="List heading"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Paragraphs as a compact 2-column grid rather
+                                  than four full-width stacked boxes */}
+                              <div className="mt-3 grid md:grid-cols-2 gap-2">
+                                {['p1', 'p2', 'p3', 'p4'].map((pKey) => (
+                                  <div key={pKey}>
+                                    <label className="text-[11px] font-semibold text-gray-500 block mb-1">
+                                      Paragraph {pKey.slice(1)}
+                                    </label>
+                                    <textarea
+                                      rows={3}
+                                      value={getLocalizedValue(
+                                        section.paragraphs?.[pKey],
+                                        contentLang
+                                      )}
+                                      onChange={(e) =>
+                                        updateContentParagraph(i, pKey, e.target.value)
+                                      }
+                                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm resize-y"
+                                      placeholder={`Paragraph ${pKey.slice(1)}...`}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+
+                              <div className="flex items-center justify-between mt-3 mb-1.5">
+                                <label className="text-xs font-bold text-gray-600">
+                                  Bullet Points
+                                </label>
+                                <button
+                                  onClick={() => addContentPoint(i)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#7A0000]/10 text-[#7A0000] text-[11px] font-semibold hover:bg-[#7A0000]/20 transition-all"
+                                >
+                                  <Plus size={12} /> Add Point
+                                </button>
+                              </div>
+
+                              {(section.points || []).length === 0 ? (
+                                <p className="text-[11px] text-gray-400">No bullet points.</p>
+                              ) : (
+                                <div className="space-y-1.5">
+                                  {(section.points || []).map((point, pi) => (
+                                    <div
+                                      key={pi}
+                                      className="flex items-start gap-1.5"
+                                    >
+                                      <input
+                                        type="text"
+                                        value={getLocalizedValue(point, contentLang)}
+                                        onChange={(e) =>
+                                          updateContentPoint(i, pi, e.target.value)
+                                        }
+                                        className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
+                                        placeholder={`Point ${pi + 1}...`}
+                                      />
+                                      <button
+                                        onClick={() => moveContentPoint(i, pi, -1)}
+                                        disabled={pi === 0}
+                                        className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"
+                                        title="Move up"
+                                      >
+                                        <ChevronUp size={13} />
+                                      </button>
+                                      <button
+                                        onClick={() => moveContentPoint(i, pi, 1)}
+                                        disabled={pi === section.points.length - 1}
+                                        className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"
+                                        title="Move down"
+                                      >
+                                        <ChevronDown size={13} />
+                                      </button>
+                                      <button
+                                        onClick={() => removeContentPoint(i, pi)}
+                                        className="p-1.5 rounded hover:bg-red-100 text-red-500"
+                                        title="Remove"
+                                      >
+                                        <Trash2 size={13} />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
@@ -1098,6 +1355,37 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
           })}
         </div>
 
+        {/* Bulk action bar - only present while rows are selected */}
+        {selectedIds.length > 0 && (
+          <div className="px-6 py-3 bg-[#7A0000]/[0.06] border-b border-[#7A0000]/20 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm">
+              <Check size={16} className="text-[#7A0000]" />
+              <span className="font-semibold text-gray-700">
+                {selectedIds.length} selected
+              </span>
+              <button
+                onClick={() => setSelectedIds([])}
+                className="text-xs text-gray-500 hover:text-[#7A0000] underline underline-offset-2 transition-colors"
+              >
+                Clear
+              </button>
+            </div>
+
+            <button
+              onClick={handleBulkDelete}
+              disabled={deleting}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-red-600 text-white text-xs font-semibold hover:bg-red-700 transition-all disabled:opacity-50"
+            >
+              {deleting ? (
+                <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <Trash2 size={14} />
+              )}
+              {deleting ? 'Deleting...' : 'Delete selected'}
+            </button>
+          </div>
+        )}
+
         {/* Body */}
         {sortedBookings.length === 0 ? (
           <div className="py-16 text-center">
@@ -1118,6 +1406,21 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="bg-gray-50/80 border-y border-gray-100">
+                  <th className="py-3 pl-4 pr-0 w-10">
+                    <input
+                      type="checkbox"
+                      checked={allOnPageSelected}
+                      ref={(el) => {
+                        // Third state: checked-looking but indeterminate when
+                        // only some rows on the page are selected.
+                        if (el) el.indeterminate = someOnPageSelected;
+                      }}
+                      onChange={toggleSelectAllOnPage}
+                      disabled={pagedBookings.length === 0}
+                      aria-label="Select all on this page"
+                      className="w-4 h-4 rounded border-gray-300 text-[#7A0000] focus:ring-[#7A0000]/30 cursor-pointer disabled:opacity-40"
+                    />
+                  </th>
                   <th className="text-left py-3 px-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
                     Devotee
                   </th>
@@ -1152,9 +1455,27 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
                       <tr
                         onClick={() => setExpandedId(isOpen ? null : booking._id)}
                         className={`border-b border-gray-100 cursor-pointer transition-colors ${
-                          isOpen ? 'bg-[#7A0000]/[0.04]' : 'hover:bg-gray-50/70'
+                          selectedSet.has(booking._id)
+                            ? 'bg-[#7A0000]/[0.07]'
+                            : isOpen
+                            ? 'bg-[#7A0000]/[0.04]'
+                            : 'hover:bg-gray-50/70'
                         }`}
                       >
+                        {/* Select */}
+                        <td
+                          className="py-3 pl-4 pr-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedSet.has(booking._id)}
+                            onChange={() => toggleSelect(booking._id)}
+                            aria-label={`Select booking for ${booking.name}`}
+                            className="w-4 h-4 rounded border-gray-300 text-[#7A0000] focus:ring-[#7A0000]/30 cursor-pointer"
+                          />
+                        </td>
+
                         {/* Devotee */}
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-3 min-w-0">
@@ -1226,7 +1547,7 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
                       {/* Expanded detail row */}
                       {isOpen && (
                         <tr className="bg-[#7A0000]/[0.02]">
-                          <td colSpan={6} className="px-4 pb-5 pt-1">
+                          <td colSpan={7} className="px-4 pb-5 pt-1">
                             <div className="rounded-xl border border-[#7A0000]/15 bg-white p-5 shadow-sm">
                               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
                                 <div>

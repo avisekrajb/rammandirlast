@@ -16,6 +16,7 @@ import {
   BS_MONTHS,
   GREGORIAN_MONTHS,
 } from '../utils/nepaliCalendar';
+import PageHeader from '../components/common/PageHeader';
 
 const pad = (n) => String(n).padStart(2, '0');
 
@@ -671,15 +672,10 @@ const CalendarPage = () => {
   return (
     <div className="min-h-screen bg-slate-50 pt-28 sm:pt-32 pb-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-8">
-        <div className="text-center mb-8">
-          <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight" style={{ color: '#7A1F2B' }}>
+        <div className="mb-8">
+          <PageHeader sub={t.calendarSubtitle || 'Nepali Bikram Sambat calendar with festivals and public holidays, in your language.'}>
             {t.calendarTitle || 'Shree Ramchandra Mandir Calendar'}
-          </h1>
-          <div className="w-24 h-1 mx-auto mt-5 rounded-full" style={{ background: 'linear-gradient(90deg,#7A1F2B,#C1440E)' }} />
-          <p className="mt-5 text-ink-soft text-base sm:text-lg max-w-2xl mx-auto leading-relaxed">
-            {t.calendarSubtitle ||
-              'Nepali Bikram Sambat calendar with festivals and public holidays, in your language.'}
-          </p>
+          </PageHeader>
         </div>
 
         {/* Toolbar */}

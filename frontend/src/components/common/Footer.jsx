@@ -243,7 +243,7 @@ const Footer = () => {
             {/* Navigation Buttons - MODERN CLEAN LINK LIST */}
             {footer.showQuickLinks !== false && navButtons && navButtons.length > 0 && (
               <div>
-                <h5 className={`text-xs font-extrabold uppercase tracking-wider mb-5 ${hasBg ? 'text-white' : 'text-gray-900'}`}>
+                <h5 className={`text-sm font-extrabold uppercase tracking-wider mb-5 ${hasBg ? 'text-white' : 'text-gray-900'}`}>
                   {t.navigation || 'Quick Navigation'}
                 </h5>
                 <div className="grid grid-cols-2 gap-y-3 gap-x-4">
@@ -266,7 +266,7 @@ const Footer = () => {
             {/* Contact Info - Clickable */}
             {footer.showContact !== false && (
               <div>
-                <h5 className={`text-xs font-extrabold uppercase tracking-wider mb-5 ${hasBg ? 'text-white' : 'text-gray-900'}`}>
+                <h5 className={`text-sm font-extrabold uppercase tracking-wider mb-5 ${hasBg ? 'text-white' : 'text-gray-900'}`}>
                   {t.contactInfo || 'Get in Touch'}
                 </h5>
                 <ul className="space-y-3">
@@ -294,7 +294,7 @@ const Footer = () => {
               {/* Subscribe Section - Modern */}
               {footer.showSubscribe !== false && (
                 <div>
-                  <h5 className={`text-xs font-extrabold uppercase tracking-wider mb-5 ${hasBg ? 'text-white' : 'text-gray-900'}`}>
+                  <h5 className={`text-sm font-extrabold uppercase tracking-wider mb-5 ${hasBg ? 'text-white' : 'text-gray-900'}`}>
                     {t.subscribe || 'Stay Updated'}
                   </h5>
                   {isSubscribed ? (
@@ -341,7 +341,7 @@ const Footer = () => {
               {/* Map Section - with error handling */}
               {footer.showMap !== false && (
                 <div>
-                  <h5 className={`text-xs font-extrabold uppercase tracking-wider mb-3 ${hasBg ? 'text-white' : 'text-gray-900'}`}>
+                  <h5 className={`text-sm font-extrabold uppercase tracking-wider mb-3 ${hasBg ? 'text-white' : 'text-gray-900'}`}>
                     {t.location || 'Find Us'}
                   </h5>
                   <div className={`rounded-xl overflow-hidden border ${hasBg ? 'border-white/10' : 'border-gray-200'} shadow-lg`}>
@@ -373,30 +373,30 @@ const Footer = () => {
                 {lang === 'ne' ? 'सर्वाधिकार सुरक्षित।' : 'All rights reserved.'}
               </p>
 
-              {/* Operated by */}
+              {/* Developed by */}
               <a
                 href="https://www.zeroinfinitytechnologies.com/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="order-1 md:order-2 inline-flex items-center gap-1.5 self-center px-4 py-2 rounded-full bg-white/10 border border-white/15 text-[11px] font-medium tracking-wide text-white/80 hover:bg-white/20 hover:text-white hover:border-white/30 transition-all duration-300"
+                className="order-1 md:order-2 inline-flex items-center gap-1.5 self-center px-4 py-2 rounded-full bg-white/10 border border-white/15 text-xs font-medium tracking-wide text-white/80 hover:bg-white/20 hover:text-white hover:border-white/30 transition-all duration-300"
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-300" />
-                {lang === 'ne' ? 'ZeroInfinity द्वारा संचालित' : 'Operated by ZeroInfinity'}
+                {t.footerPowered || 'Developed by ZeroInfinity'}
               </a>
 
               {/* Legal Links */}
               <div className="order-3 flex items-center justify-center gap-2">
                 <Link
                   to="/privacy"
-                  className="px-3.5 py-1.5 rounded-full text-[11px] font-medium text-white/70 hover:text-white hover:bg-white/10 transition-all duration-300"
+                  className="px-4 py-1.5 rounded-full text-[13px] font-medium text-white/70 hover:text-white hover:bg-white/10 transition-all duration-300"
                 >
-                  {lang === 'ne' ? 'गोपनीयता नीति' : 'Privacy Policy'}
+                  {t.footerPrivacy || 'Privacy Policy'}
                 </Link>
                 <Link
                   to="/terms"
-                  className="px-3.5 py-1.5 rounded-full text-[11px] font-medium text-white/70 hover:text-white hover:bg-white/10 transition-all duration-300"
+                  className="px-4 py-1.5 rounded-full text-[13px] font-medium text-white/70 hover:text-white hover:bg-white/10 transition-all duration-300"
                 >
-                  {lang === 'ne' ? 'सेवा सर्तहरू' : 'Terms of Service'}
+                  {t.footerTerms || 'Terms of Service'}
                 </Link>
               </div>
 

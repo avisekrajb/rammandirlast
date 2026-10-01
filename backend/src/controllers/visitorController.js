@@ -1,6 +1,26 @@
 const Visitor = require('../models/Visitor');
 const axios = require('axios');
 
+// Placeholder rows written before the IP dedupe fix. Their `0.0.0.0` address
+// collapses every affected network into one bogus "visitor", so they are
+// excluded from all counts rather than silently skewing the totals.
+const isRealAddress = (ip) =>
+  !!ip && ip !== '0.0.0.0' && ip !== '::1' && ip !== 'localhost' && ip !== '127.0.0.1';
+
+/** Resolve the caller's IP, unwrapping proxy headers and the IPv4-mapped prefix. */
+const getClientIp = (req) => {
+  let ip =
+    req.headers['x-forwarded-for'] ||
+    req.headers['x-real-ip'] ||
+    req.connection?.remoteAddress ||
+    req.socket?.remoteAddress ||
+    req.ip ||
+    '0.0.0.0';
+
+  if (ip && ip.includes(',')) ip = ip.split(',')[0].trim();
+  return ip.replace(/^::ffff:/, '');
+};
+
 // Try to load geoip-lite, but don't fail if not available
 let geoip;
 try {
@@ -15,69 +35,75 @@ try {
 // @access  Public
 exports.trackVisitor = async (req, res) => {
   try {
-    const { 
-      sessionId, 
-      page, 
-      pageTitle, 
-      referrer, 
-      userAgent, 
-      isNewVisitor,
-      visitCount 
+    const {
+      sessionId,
+      page,
+      pageTitle,
+      referrer,
+      userAgent,
+      visitCount
     } = req.body;
 
-    console.log('📊 Tracking visitor:', { sessionId, page, pageTitle });
-
-    // Get IP address
-    let ipAddress = req.headers['x-forwarded-for'] || 
-                    req.headers['x-real-ip'] ||
-                    req.connection?.remoteAddress || 
-                    req.socket?.remoteAddress ||
-                    req.ip ||
-                    '0.0.0.0';
-
-    // Handle multiple IPs in x-forwarded-for
-    if (ipAddress && ipAddress.includes(',')) {
-      ipAddress = ipAddress.split(',')[0].trim();
-    }
-
-    // Clean IP (remove IPv6 prefix if present)
-    const cleanIp = ipAddress.replace(/^::ffff:/, '');
-
-    console.log('📍 IP Address:', cleanIp);
+    const cleanIp = getClientIp(req);
 
     // Get location from IP
-    let location = await getLocationFromIP(cleanIp);
-    console.log('📍 Location found:', location);
+    const location = await getLocationFromIP(cleanIp);
 
     // Parse user agent
     const deviceInfo = parseUserAgent(userAgent);
 
-    // Check if visitor already exists for this session and page today
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    /*
+     * Dedupe key: IP + page + today.
+     *
+     * The previous key was sessionId + page + today, but sessionId is a
+     * per-tab UUID that the browser mints on every load. Because rows are
+     * written per page, one person browsing 8 pages produced 8 documents and
+     * `distinct(sessionId)` counted all of them. Keying on the IP instead
+     * means a refresh or a new tab updates the existing row rather than
+     * inserting another, so "one device, one count" holds.
+     *
+     * visitCount on the row still tracks real page loads, which is what the
+     * page-views metric should use.
+     */
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const day = new Date().toISOString().split('T')[0];
 
     const existingVisitor = await Visitor.findOne({
-      sessionId,
+      ipAddress: cleanIp,
       page,
-      date: { $gte: today },
+      date: { $gte: startOfToday },
     });
 
     if (existingVisitor) {
-      // Update visit count
       existingVisitor.visitCount = (existingVisitor.visitCount || 0) + 1;
-      existingVisitor.ipAddress = cleanIp;
+      existingVisitor.sessionId = sessionId;
+      existingVisitor.pageTitle = pageTitle || existingVisitor.pageTitle;
+      existingVisitor.referrer = referrer || existingVisitor.referrer;
+      existingVisitor.userAgent = userAgent || existingVisitor.userAgent;
+      existingVisitor.deviceType = deviceInfo.deviceType;
+      existingVisitor.browser = deviceInfo.browser;
+      existingVisitor.os = deviceInfo.os;
       existingVisitor.location = location;
-      existingVisitor.timeSpent = 0;
+      existingVisitor.exitPage = page;
+      existingVisitor.isNewVisitor = false;
+      // timeSpent is written on unload, so don't reset it here
       await existingVisitor.save();
-      
-      return res.json({ 
-        success: true, 
+
+      return res.json({
+        success: true,
         visitor: existingVisitor,
-        isNew: false 
+        isNew: false,
       });
     }
 
-    // Create new visitor
+    // A network seen before today is a returning visitor, not a new one.
+    // The client-sent flag is only a hint, so it is not trusted here.
+    const seenBefore = await Visitor.exists({
+      ipAddress: cleanIp,
+      date: { $lt: startOfToday },
+    });
+
     const visitor = await Visitor.create({
       sessionId,
       ipAddress: cleanIp,
@@ -89,22 +115,20 @@ exports.trackVisitor = async (req, res) => {
       browser: deviceInfo.browser,
       os: deviceInfo.os,
       location,
-      isNewVisitor: isNewVisitor !== false,
+      isNewVisitor: !seenBefore,
       visitCount: visitCount || 1,
       entryPage: page,
       exitPage: page,
       date: new Date(),
-      day: new Date().toISOString().split('T')[0],
+      day,
       month: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`,
       year: new Date().getFullYear(),
     });
 
-    console.log('✅ Visitor tracked:', visitor._id);
-
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       visitor,
-      isNew: true 
+      isNew: !seenBefore,
     });
   } catch (error) {
     console.error('❌ Track visitor error:', error);
@@ -122,11 +146,30 @@ exports.updateTimeSpent = async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    await Visitor.findOneAndUpdate(
+    /*
+     * Match on sessionId first, then fall back to IP + page.
+     *
+     * Rows are now keyed by IP, and a long-lived tab can outlive the
+     * sessionId its row was written under (the row keeps the most recent
+     * sessionId seen for that network). Preferring the sessionId and falling
+     * back keeps the write landing on the right row in both cases, whereas
+     * matching only on sessionId silently dropped timeSpent whenever the two
+     * disagreed.
+     */
+    let visitor = await Visitor.findOneAndUpdate(
       { sessionId, page, date: { $gte: today } },
       { $set: { timeSpent } },
       { new: true }
     );
+
+    if (!visitor && page) {
+      const ipAddress = getClientIp(req);
+      visitor = await Visitor.findOneAndUpdate(
+        { ipAddress, page, date: { $gte: today } },
+        { $set: { timeSpent } },
+        { new: true }
+      );
+    }
 
     res.json({ success: true });
   } catch (error) {
@@ -141,61 +184,75 @@ exports.updateTimeSpent = async (req, res) => {
 exports.getVisitorStats = async (req, res) => {
   try {
     const { days = 30 } = req.query;
+    const windowDays = Math.max(1, parseInt(days, 10) || 30);
     const startDate = new Date();
-    startDate.setDate(startDate.getDate() - parseInt(days));
+    startDate.setHours(0, 0, 0, 0);
+    startDate.setDate(startDate.getDate() - (windowDays - 1));
 
-    console.log('📊 Fetching visitor stats for last', days, 'days');
+    // Placeholder rows carry no usable address, so they are dropped up front
+    // rather than counted as one giant fake visitor.
+    const rangeQuery = {
+      date: { $gte: startDate },
+      ipAddress: { $nin: ['0.0.0.0', '::1', 'localhost', '127.0.0.1'] },
+    };
 
     // Get all visitors in date range
-    const visitors = await Visitor.find({
-      date: { $gte: startDate }
-    }).sort({ date: 1 });
+    const visitors = await Visitor.find(rangeQuery).sort({ date: 1 });
 
-    console.log('📊 Total visitors found:', visitors.length);
+    /*
+     * "Total Visitors" = distinct IPs in the window. This is the honest
+     * one-device-one-count number; the old code counted distinct sessionIds,
+     * which grew with every reload and tab.
+     */
+    const totalVisitors = new Set(
+      visitors.map((v) => v.ipAddress).filter(isRealAddress)
+    ).size;
 
-    // Total visitors (unique by session)
-    const uniqueSessions = new Set();
-    visitors.forEach(v => uniqueSessions.add(v.sessionId));
-    const totalVisitors = uniqueSessions.size;
-
-    // Today's visitors
+    // Today's visitors, also deduped by IP (not raw row count)
     const today = new Date().toISOString().split('T')[0];
-    const todayVisitors = await Visitor.countDocuments({ day: today });
+    const todayRows = visitors.filter((v) => (v.day || '') === today);
+    const todayVisitors = new Set(todayRows.map((v) => v.ipAddress)).size;
 
-    // Unique visitors (by IP)
-    const uniqueIPs = new Set();
-    visitors.forEach(v => {
-      if (v.ipAddress) uniqueIPs.add(v.ipAddress);
+    // Unique IPs seen on exactly one day vs multiple days in the window
+    const daysSeenByIp = new Map();
+    visitors.forEach((v) => {
+      const ip = v.ipAddress;
+      if (!isRealAddress(ip)) return;
+      const seen = daysSeenByIp.get(ip) || new Set();
+      seen.add(v.day || new Date(v.date).toISOString().split('T')[0]);
+      daysSeenByIp.set(ip, seen);
     });
-    const uniqueVisitors = uniqueIPs.size;
+    const uniqueVisitors = daysSeenByIp.size;
 
-    // Daily stats
+    // Daily stats: `count` is distinct IPs that day (the visitor number the
+    // chart should show); `pageViews` is the raw row/visit total.
     const dailyStats = visitors.reduce((acc, v) => {
       const day = v.day || v.date.toISOString().split('T')[0];
       if (!acc[day]) {
-        acc[day] = { date: day, count: 0, sessions: 0, uniqueIPs: new Set() };
+        acc[day] = { date: day, count: 0, pageViews: 0, uniqueIPs: new Set() };
       }
       acc[day].count += 1;
-      acc[day].sessions += 1;
-      if (v.ipAddress) acc[day].uniqueIPs.add(v.ipAddress);
+      acc[day].pageViews += v.visitCount || 1;
+      if (isRealAddress(v.ipAddress)) acc[day].uniqueIPs.add(v.ipAddress);
       return acc;
     }, {});
 
     const dailyStatsArray = Object.values(dailyStats).map(d => ({
       date: d.date,
-      count: d.count,
-      sessions: d.sessions,
+      count: d.uniqueIPs.size,
+      pageViews: d.pageViews,
+      sessions: d.uniqueIPs.size,
       uniqueIPs: d.uniqueIPs.size,
     }));
 
-    // Page-wise stats
+    // Page-wise stats. `count` is raw page views; `uniqueVisitors` dedupes by IP.
     const pageStats = visitors.reduce((acc, v) => {
       const page = v.page || '/';
       if (!acc[page]) {
         acc[page] = { page, count: 0, uniqueIPs: new Set(), timeSpent: 0 };
       }
-      acc[page].count += 1;
-      if (v.ipAddress) acc[page].uniqueIPs.add(v.ipAddress);
+      acc[page].count += v.visitCount || 1;
+      if (isRealAddress(v.ipAddress)) acc[page].uniqueIPs.add(v.ipAddress);
       acc[page].timeSpent += (v.timeSpent || 0);
       return acc;
     }, {});
@@ -242,7 +299,7 @@ exports.getVisitorStats = async (req, res) => {
           };
         }
         acc[key].count += 1;
-        if (v.sessionId) acc[key].visitors.add(v.sessionId);
+        if (isRealAddress(v.ipAddress)) acc[key].visitors.add(v.ipAddress);
         if (v.location.latitude && v.location.longitude) {
           acc[key].locations.push({
             lat: v.location.latitude,
@@ -262,8 +319,15 @@ exports.getVisitorStats = async (req, res) => {
       locations: l.locations.slice(0, 5),
     })).sort((a, b) => b.count - a.count);
 
-    // Recent visitors (last 50)
-    const recentVisitors = await Visitor.find()
+    /*
+     * Recent visitors: newest first, one row per IP per page.
+     *
+     * With IP dedupe on write there is already one row per network per page,
+     * so this is a straight descending read. Placeholder rows are excluded.
+     */
+    const recentVisitors = await Visitor.find({
+      ipAddress: { $nin: ['0.0.0.0', '::1', 'localhost', '127.0.0.1'] },
+    })
       .sort({ date: -1 })
       .limit(50)
       .populate('userId', 'name email');
@@ -279,17 +343,28 @@ exports.getVisitorStats = async (req, res) => {
     const totalTimeSpent = visitors.reduce((sum, v) => sum + (v.timeSpent || 0), 0);
     const avgTimeSpent = visitors.length > 0 ? Math.round(totalTimeSpent / visitors.length) : 0;
 
-    // Bounce rate (visitors with only 1 page view)
-    const pageViewCounts = visitors.reduce((acc, v) => {
-      const sessionId = v.sessionId;
-      if (!acc[sessionId]) acc[sessionId] = new Set();
-      acc[sessionId].add(v.page);
+    /*
+     * Bounce rate, measured per network per day.
+     *
+     * Grouping by sessionId counted every reload as a separate one-page
+     * session, so almost everything looked like a bounce. Grouping by
+     * (ip, day) asks the question that actually matters: did this visitor
+     * look at more than one page on a given day?
+     */
+    const pagesByVisitorDay = visitors.reduce((acc, v) => {
+      if (!isRealAddress(v.ipAddress)) return acc;
+      const key = `${v.ipAddress}|${v.day || new Date(v.date).toISOString().split('T')[0]}`;
+      if (!acc[key]) acc[key] = new Set();
+      acc[key].add(v.page);
       return acc;
     }, {});
-    
-    const bounceCount = Object.values(pageViewCounts).filter(pages => pages.size <= 1).length;
-    const bounceRate = Object.keys(pageViewCounts).length > 0 
-      ? Math.round((bounceCount / Object.keys(pageViewCounts).length) * 100) 
+
+    const visitorDayKeys = Object.keys(pagesByVisitorDay);
+    const bounceCount = visitorDayKeys.filter(
+      (k) => pagesByVisitorDay[k].size <= 1
+    ).length;
+    const bounceRate = visitorDayKeys.length > 0
+      ? Math.round((bounceCount / visitorDayKeys.length) * 100)
       : 0;
 
     // Most popular entry pages
@@ -304,22 +379,22 @@ exports.getVisitorStats = async (req, res) => {
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
 
-    console.log('📍 Location stats found:', locationStatsArray.length);
-
     // Return comprehensive stats
     res.json({
       success: true,
       data: {
         // Overview
+        // totalVisitors / todayVisitors are distinct IPs (one device = one
+        // count). totalPageViews is the sum of real page loads.
         totalVisitors,
         todayVisitors,
         uniqueVisitors,
-        totalPageViews: visitors.length,
+        totalPageViews: visitors.reduce((sum, v) => sum + (v.visitCount || 1), 0),
         avgTimeSpent,
         bounceRate,
-        
+
         // Time series
-        dailyStats: dailyStatsArray.slice(-parseInt(days)),
+        dailyStats: dailyStatsArray.slice(-windowDays),
         weeklyStats: [],
         monthlyStats: [],
         hourlyStats,
@@ -396,6 +471,125 @@ exports.getLocationFromIP = async (req, res) => {
   }
 };
 
+/*
+ * Language by country.
+ *
+ * Only the five languages the site actually ships are ever returned. Anything
+ * outside these regions falls back to English rather than guessing, so a
+ * visitor in, say, Germany is not shown Tamil.
+ *
+ * Note this is a *suggestion*, not a setting: the client only applies it when
+ * the visitor has never chosen a language themselves.
+ */
+const COUNTRY_LANGUAGE = {
+  // Nepali is the primary language of the temple's own country.
+  NP: 'ne',
+  // Hindi covers India, Nepal's southern neighbour and a Nepali diaspora.
+  IN: 'hi',
+  LK: 'ta',
+  // Tamil Nadu is in India, so it is matched before the IN default below.
+  CN: 'zh',
+  // Fallbacks for the languages that are common outside their home region.
+  // Placed after the exact matches on purpose.
+  default: 'en',
+};
+
+// Indian states and regions where Tamil is the main language, so a visitor
+// from Chennai is offered Tamil instead of the all-India Hindi default.
+const TAMIL_REGIONS = new Set(['TN', 'PY', 'KL']);
+
+const languageForLocation = (location) => {
+  const code = String(location?.countryCode || '').toUpperCase();
+  if (!code) return COUNTRY_LANGUAGE.default;
+
+  if (code === 'IN') {
+    const region = String(location?.regionCode || '').toUpperCase();
+    if (TAMIL_REGIONS.has(region)) return 'ta';
+    return COUNTRY_LANGUAGE.IN;
+  }
+
+  return COUNTRY_LANGUAGE[code] || COUNTRY_LANGUAGE.default;
+};
+
+/*
+ * @desc    Detect the visitor's country and suggest a starting language
+ * @route   GET /api/visitors/detect
+ * @access  Public
+ *
+ * Called once on a visitor's very first visit. Returns the detected country
+ * plus the language that country maps to, so a visitor in Nepal lands on the
+ * Nepali site immediately instead of English.
+ */
+exports.detectLanguage = async (req, res) => {
+  try {
+    const cleanIp = getClientIp(req);
+    const location = await getLocationFromIP(cleanIp);
+    const lang = languageForLocation(location);
+
+    res.json({
+      success: true,
+      data: {
+        country: location.country,
+        countryCode: location.countryCode,
+        city: location.city,
+        lang,
+        // Only true when we actually recognised the country. The client uses
+        // this to avoid switching a visitor away from a language they can read.
+        detected: !!location.countryCode,
+      },
+    });
+  } catch (error) {
+    console.error('Detect language error:', error);
+    // A failed detection must never block the page: fall back to English.
+    res.json({
+      success: true,
+      data: { country: null, countryCode: null, city: null, lang: 'en', detected: false },
+    });
+  }
+};
+
+/*
+ * @desc    Get the public visitor counters
+ * @route   GET /api/visitors/count
+ * @access  Public
+ *
+ * "One device, one count": each distinct IP contributes exactly one visit per
+ * day regardless of how many pages it loads or how often it refreshes. Used for
+ * any visitor number shown on the site.
+ */
+exports.getPublicVisitorCount = async (req, res) => {
+  try {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const day = new Date().toISOString().split('T')[0];
+
+    const realQuery = {
+      ipAddress: { $nin: ['0.0.0.0', '::1', 'localhost', '127.0.0.1'] },
+    };
+
+    const [today, allTime, pageViewsToday] = await Promise.all([
+      Visitor.distinct('ipAddress', { ...realQuery, day }),
+      Visitor.distinct('ipAddress', realQuery),
+      Visitor.aggregate([
+        { $match: { ...realQuery, date: { $gte: startOfToday } } },
+        { $group: { _id: null, total: { $sum: { $ifNull: ['$visitCount', 1] } } } },
+      ]),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        today: today.length,
+        allTime: allTime.length,
+        pageViewsToday: pageViewsToday[0]?.total || 0,
+      },
+    });
+  } catch (error) {
+    console.error('Get public visitor count error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 // ============================================
 // HELPER FUNCTIONS
 // ============================================
@@ -407,16 +601,17 @@ async function getLocationFromIP(ip) {
   // Default location
   const defaultLocation = {
     country: 'Unknown',
+    countryCode: '',
     city: 'Unknown',
     region: '',
+    regionCode: '',
     latitude: 0,
     longitude: 0,
     timezone: '',
     isp: '',
   };
 
-  if (!ip || ip === '0.0.0.0' || ip === '::1' || ip === 'localhost' || ip === '127.0.0.1') {
-    console.log('📍 Local/Invalid IP detected');
+  if (!isRealAddress(ip)) {
     return defaultLocation;
   }
 
@@ -428,11 +623,14 @@ async function getLocationFromIP(ip) {
     try {
       const geo = geoip.lookup(cleanIp);
       if (geo && geo.country) {
-        console.log(`📍 GeoIP found: ${geo.country}, ${geo.city || 'Unknown'}`);
+        // Resolved locally; no logging needed on the hot path.
         return {
           country: geo.country || 'Unknown',
+          // ISO 3166-1 alpha-2, needed to map a country to a site language.
+          countryCode: geo.country || '',
           city: geo.city || 'Unknown',
           region: geo.region || '',
+          regionCode: '',
           latitude: geo.ll?.[0] || 0,
           longitude: geo.ll?.[1] || 0,
           timezone: geo.timezone || '',
@@ -446,16 +644,18 @@ async function getLocationFromIP(ip) {
 
   // Fallback: Use ip-api.com
   try {
-    const response = await axios.get(`http://ip-api.com/json/${cleanIp}?fields=status,country,city,regionName,lat,lon,timezone,isp`, {
+    const response = await axios.get(`http://ip-api.com/json/${cleanIp}?fields=status,country,countryCode,city,region,regionName,lat,lon,timezone,isp`, {
       timeout: 5000,
     });
     const data = response.data;
     if (data && data.status === 'success') {
-      console.log(`📍 IP-API found: ${data.country}, ${data.city || 'Unknown'}`);
       return {
         country: data.country || 'Unknown',
+        countryCode: data.countryCode || '',
         city: data.city || 'Unknown',
         region: data.regionName || '',
+        // Indian state code, used to tell Tamil Nadu apart from the rest of India.
+        regionCode: data.region || '',
         latitude: data.lat || 0,
         longitude: data.lon || 0,
         timezone: data.timezone || '',

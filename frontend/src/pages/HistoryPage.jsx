@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
 import api from '../services/api';
 import OmLoader from '../components/common/OmLoader';
+import PageHeader from '../components/common/PageHeader';
 import { Clock } from 'lucide-react';
 
 // Helper to get localized text
@@ -33,14 +34,9 @@ function TimelineSection({ items, lang, heading }) {
     <div className="pt-32 sm:pt-36 pb-24 px-4 sm:px-6">
       <div className="max-w-5xl mx-auto">
         {heading && (
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-            className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold text-center text-maroon leading-tight mb-14"
-          >
-            {heading}
-          </motion.h1>
+          <div className="mb-12 sm:mb-14">
+            <PageHeader>{heading}</PageHeader>
+          </div>
         )}
         <div className="space-y-24">
           {filteredItems.map((item, index) => {

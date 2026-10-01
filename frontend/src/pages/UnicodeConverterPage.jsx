@@ -20,6 +20,7 @@ import {
   romanToTamil,
   englishToChinese,
 } from '../utils/unicodeConvert';
+import PageHeader from '../components/common/PageHeader';
 
 const BS_YEARS = Object.keys(BS_MONTH_DAYS).map(Number);
 
@@ -768,17 +769,11 @@ const UnicodeConverterPage = () => {
       `}</style>
 
       <div className="max-w-6xl mx-auto">
-        <motion.div
-          initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
-          className="text-center mb-12"
-        >
-          <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl text-slate-900 leading-tight">
+        <div className="mb-12">
+          <PageHeader sub={isNe ? 'विनिमय दर, मिति र पाठ — सबै एकै ठाउँमा।' : 'Currency, date and text — all in one place.'}>
             {isNe ? 'रूपान्तरण उपकरण' : 'Conversion Tools'}
-          </h1>
-          <p className="mt-4 text-slate-500 text-base sm:text-lg max-w-lg mx-auto leading-relaxed">
-            {isNe ? 'विनिमय दर, मिति र पाठ — सबै एकै ठाउँमा।' : 'Currency, date and text — all in one place.'}
-          </p>
-        </motion.div>
+          </PageHeader>
+        </div>
 
         <div className="space-y-8">
           {DIVS.map((d, i) => (

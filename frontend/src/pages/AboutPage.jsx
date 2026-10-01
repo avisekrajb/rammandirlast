@@ -5,6 +5,8 @@ import api from '../services/api';
 import { handleImageError } from '../utils/imageFallback';
 import OmLoader from '../components/common/OmLoader';
 import FacebookVideoSection from '../components/common/FacebookVideoSection';
+import SectionTitle from '../components/common/SectionTitle';
+import { getSectionTitle } from '../utils/sectionTitle';
 
 const getLocalizedText = (obj, lang) => {
   if (!obj) return '';
@@ -14,7 +16,7 @@ const getLocalizedText = (obj, lang) => {
 
 // ===== HERO COMPONENT =====
 function AboutHero({ hero }) {
-  const { lang } = useLanguage();
+  const { t, lang } = useLanguage();
   const ref = useRef(null);
 
   const { scrollYProgress } = useScroll({
@@ -28,11 +30,27 @@ function AboutHero({ hero }) {
   const textY = useTransform(smooth, [0, 1], ["0%", "-26%"]);
   const textOpacity = useTransform(smooth, [0, 0.5], [1, 0]);
 
-  const titleText = getLocalizedText(hero?.title, lang) || 'About Us';
+  /*
+ * The hero banner title comes from Admin → About, so a saved empty value
+ * would otherwise fall back to the generic 'About Us'. Fall back to the
+ * localized "Shree Ramchandra Temple — introduction" line instead so the
+ * banner always names the temple in the visitor's own language.
+ *
+ * getSectionTitle also discards an older placeholder saved before the rename
+ * (e.g. "श्री रामचन्द्र मन्दिरको बारेमा"), so this shows the current wording
+ * without waiting for the backend backfill to run.
+ */
+  const titleText =
+    getSectionTitle(hero?.title, lang) || t.aboutHeroTitle;
   const imageSrc = hero?.image || '/aboutusphoto.jpeg';
 
   return (
-    <div ref={ref} className="relative w-full overflow-hidden" style={{ height: "100svh", minHeight: 520 }}>
+    <div
+      ref={ref}
+      className="relative w-full overflow-hidden"
+      data-hero-section="about"
+      style={{ height: "100svh", minHeight: 520 }}
+    >
       <motion.img
         src={imageSrc}
         alt=""
@@ -49,7 +67,7 @@ function AboutHero({ hero }) {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
-          className="font-serif text-5xl sm:text-6xl lg:text-7xl text-white font-light leading-tight drop-shadow-2xl"
+          className="temple-heading"
         >
           {titleText}
         </motion.h1>
@@ -91,12 +109,18 @@ function IntroText({ introText }) {
       className="bg-white py-16 px-6 border-b border-gray-100"
     >
       <div className="max-w-4xl mx-auto text-center">
-        <div className="flex items-center justify-center gap-4 mb-6">
-          <div className="h-px w-16 bg-gradient-to-r from-transparent to-maroon/50" />
-          <span className="text-xs font-bold uppercase tracking-[0.2em] text-maroon/80 font-serif">
+        {/*
+           "परिचय" sits directly below the hero banner and introduces the intro
+           text. It was text-xs (12px) with wide tracking, which is too small to
+           register as a heading - it read as a stray label. Bumped to text-base
+           / text-lg with slightly tighter tracking.
+         */}
+        <div className="flex items-center justify-center gap-3 sm:gap-4 mb-6">
+          <div className="h-px w-10 sm:w-16 bg-gradient-to-r from-transparent to-maroon/50" />
+          <span className="font-serif font-bold text-maroon text-base sm:text-lg lg:text-xl tracking-[0.12em] leading-[1.7]">
             {t.aboutIntroduction || 'Introduction'}
           </span>
-          <div className="h-px w-16 bg-gradient-to-l from-transparent to-maroon/50" />
+          <div className="h-px w-10 sm:w-16 bg-gradient-to-l from-transparent to-maroon/50" />
         </div>
 
         <p className="font-serif text-base sm:text-lg md:text-xl lg:text-2xl leading-relaxed text-gray-700 max-w-3xl mx-auto text-justify">
@@ -197,15 +221,8 @@ function ActivitiesSection({ activities }) {
 
   return (
     <section className="py-16">
-      <div className="max-w-4xl mx-auto px-6 text-center mb-12">
-        <div className="flex items-center justify-center gap-4 mb-4">
-          <div className="h-px flex-1 bg-gradient-to-r from-transparent to-amber-300" />
-          <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-          <div className="h-px flex-1 bg-gradient-to-l from-transparent to-amber-300" />
-        </div>
-        <h2 className="font-serif text-3xl sm:text-4xl" style={{ color: "#1a0a00" }}>
-          {t.activitiesPrograms || 'Activities & Programs'}
-        </h2>
+      <div className="max-w-4xl mx-auto px-6 mb-12">
+        <SectionTitle>{t.activitiesPrograms || 'Activities & Programs'}</SectionTitle>
       </div>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6">

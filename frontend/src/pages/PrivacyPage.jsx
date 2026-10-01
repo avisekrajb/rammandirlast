@@ -1,5 +1,6 @@
 import React from 'react';
 import { useLanguage } from '../context/LanguageContext';
+import PageHeader from '../components/common/PageHeader';
 
 const PrivacyPage = () => {
   const { t, lang } = useLanguage();
@@ -7,9 +8,9 @@ const PrivacyPage = () => {
   return (
     <div className="min-h-screen bg-white pt-24 px-6">
       <div className="max-w-3xl mx-auto py-12">
-        <h1 className="text-3xl font-serif font-bold text-maroon mb-6">
-          {t.privacyTitle || 'Privacy Policy'}
-        </h1>
+        <div className="mb-10">
+          <PageHeader>{t.privacyTitle || 'Privacy Policy'}</PageHeader>
+        </div>
         
         <div className="prose prose-slate max-w-none space-y-4">
           <p className="text-sm text-ink-soft">

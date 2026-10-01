@@ -1,9 +1,21 @@
-﻿import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { X, ArrowRight, QrCode, Phone, MapPin, Heart, Globe } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
 import api from '../../services/api';
+
+/**
+ * Mobile-only notice behaviour:
+ *  - Renders as a compact ~45vh bottom sheet instead of a near-fullscreen
+ *    sheet, so it never swallows the whole page on a phone.
+ *  - Slides up on open and slides back down when it closes or auto-hides.
+ *  - Auto-hides after 10s, and because it calls handleClose() the notice is
+ *    recorded as seen — it is dismissed for the rest of the browser session.
+ * Desktop keeps the original centred dialog and stays until the user closes it.
+ */
+const MOBILE_QUERY = '(max-width: 767px)';
+const MOBILE_AUTO_HIDE_MS = 10000;
 
 // Using sessionStorage instead of localStorage to show on every refresh
 // but only once per browser session (tab)
@@ -18,6 +30,17 @@ const NoticeModal = () => {
   const [displayLang, setDisplayLang] = useState('en');
   const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [noticeIndex, setNoticeIndex] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Track the mobile/desktop breakpoint so the auto-hide timer and the sheet
+  // layout only ever apply on phones.
+  useEffect(() => {
+    const media = window.matchMedia(MOBILE_QUERY);
+    const sync = () => setIsMobile(media.matches);
+    sync();
+    media.addEventListener('change', sync);
+    return () => media.removeEventListener('change', sync);
+  }, []);
 
   // Language options
   const languages = [
@@ -220,11 +243,23 @@ const NoticeModal = () => {
   const notice = allNotices[noticeIndex] || {};
   const qrPhoto = settings?.donate?.qrPhoto || null;
 
-  const handleClose = () => {
-    dismissNotice(notice.id);
+  const handleClose = useCallback(() => {
+    dismissNotice(notice?.id);
     setOpen(false);
     setLangMenuOpen(false);
-  };
+  }, [dismissNotice, notice?.id]);
+
+  // Mobile only: auto-hide after 10s. handleClose() is reused on purpose so the
+  // notice is marked as seen and will not return during this session.
+  useEffect(() => {
+    if (!open || !isMobile) return undefined;
+
+    const timer = setTimeout(() => {
+      handleClose();
+    }, MOBILE_AUTO_HIDE_MS);
+
+    return () => clearTimeout(timer);
+  }, [open, isMobile, handleClose]);
 
   const moveToNextNotice = useCallback(() => {
     if (allNotices[noticeIndex]) dismissNotice(allNotices[noticeIndex].id);
@@ -270,9 +305,6 @@ const NoticeModal = () => {
   const devFont = { fontFamily: "'Noto Serif Devanagari', 'Hind', serif" };
   const bodyFont = isDevLocale ? devFont : {};
 
-  // Don't show if not open
-  if (!open) return null;
-
   return (
     <AnimatePresence>
       {open && (
@@ -287,25 +319,46 @@ const NoticeModal = () => {
           {/* Backdrop */}
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
-          {/* Modal - Bottom sheet on mobile, centered on desktop */}
+          {/* Modal - compact half-sheet on mobile, centered dialog on desktop */}
           <motion.div
-            initial={{ scale: 0.9, opacity: 0, y: 20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.95, opacity: 0, y: 10 }}
-            transition={{ duration: 0.35, ease: 'easeOut' }}
+            initial={isMobile ? { y: '100%' } : { scale: 0.9, opacity: 0, y: 20 }}
+            animate={isMobile ? { y: 0 } : { scale: 1, opacity: 1, y: 0 }}
+            exit={isMobile ? { y: '100%' } : { scale: 0.95, opacity: 0, y: 10 }}
+            transition={isMobile
+              ? { type: 'spring', stiffness: 320, damping: 34 }
+              : { duration: 0.35, ease: 'easeOut' }}
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-2xl max-h-[92vh] md:max-h-[90vh] overflow-y-auto rounded-t-2xl md:rounded-2xl shadow-2xl md:mx-4"
-            style={{ 
+            className={
+              isMobile
+                ? 'relative w-full max-h-[68vh] overflow-y-auto overscroll-contain rounded-t-2xl shadow-[0_-12px_40px_rgba(0,0,0,0.25)]'
+                : 'relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl md:mx-4'
+            }
+            role="dialog"
+            aria-modal="true"
+            aria-label={getText(notice.title) || 'Notice'}
+            style={{
               background: 'linear-gradient(180deg, #fdf8e8 0%, #fcf4d6 100%)',
               marginTop: 'auto',
             }}
           >
             {/* Drag handle - mobile only */}
-            <div className="md:hidden flex justify-center pt-2 pb-1 sticky top-0 bg-transparent z-10">
+            <div
+              className={`md:hidden flex justify-center sticky top-0 bg-transparent z-10 ${
+                isMobile ? 'pt-2 pb-0.5' : 'pt-2 pb-1'
+              }`}
+            >
               <div className="w-12 h-1 rounded-full bg-gray-400/60" />
             </div>
 
-            {/* Close button - hidden on mobile (use drag or backdrop to close) */}
+            {/* Mobile: countdown hint so the auto-hide is not a surprise */}
+            {isMobile && (
+              <p className="md:hidden text-center text-[10px] text-red-900/55 pb-1.5">
+                {t.noticeAutoHideHint || 'यी सूचना १० सेकेण्डपछि आफैँ हराउँछ'}
+              </p>
+            )}
+
+            {/* Close button - desktop only. On mobile the sheet auto-hides after
+                10s, but an explicit control is still needed for accessibility. */}
             <button
               onClick={handleClose}
               className="absolute top-3 right-3 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-black/10 hover:bg-black/20 transition-colors hidden md:flex"
@@ -347,8 +400,8 @@ const NoticeModal = () => {
               </div>
             </div>
 
-            {/* Mobile Language Dropdown - Bottom */}
-            <div className="md:hidden absolute top-3 right-3 z-10">
+            {/* Mobile: language picker (left) + close (right) in one compact row */}
+            <div className="md:hidden absolute top-2.5 right-3 left-3 z-10 flex items-center justify-between">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -359,12 +412,24 @@ const NoticeModal = () => {
                 <Globe size={12} className="text-ink-soft" />
                 <span className="font-bold text-ink">{displayLang.toUpperCase()}</span>
               </button>
+
+              <button
+                onClick={handleClose}
+                aria-label="Close"
+                className="w-7 h-7 flex items-center justify-center rounded-full bg-black/10 active:bg-black/20 transition-colors"
+              >
+                <X className="w-3.5 h-3.5 text-gray-700" />
+              </button>
+
               {langMenuOpen && (
-                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[140px] p-1.5 z-50 animate-fadeIn">
+                <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[140px] p-1.5 z-50 animate-fadeIn">
                   {languages.map((l) => (
                     <button
                       key={l.code}
-                      onClick={() => handleLangSelect(l.code)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleLangSelect(l.code);
+                      }}
                       className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-[11px] font-medium hover:bg-panel transition-colors duration-200 ${
                         displayLang === l.code ? 'text-vermilion font-bold bg-vermilion/5' : 'text-ink'
                       }`}
@@ -404,7 +469,11 @@ const NoticeModal = () => {
               </div>
             )}
 
-            <div className="px-4 sm:px-8 py-4 sm:py-8">
+            <div
+              className={`px-4 sm:px-8 ${
+                isMobile ? 'py-2.5' : 'py-4 sm:py-8'
+              }`}
+            >
               {/* Language indicator - mobile */}
               <div className="md:hidden flex justify-end mb-2">
                 <span className="text-[9px] text-ink-soft/60 bg-white/50 px-2 py-0.5 rounded-full">
@@ -419,16 +488,24 @@ const NoticeModal = () => {
               {/* Title - smaller on mobile */}
               <h2
                 style={bodyFont}
-                className="text-center text-xl sm:text-3xl font-bold text-red-900 mb-3 sm:mb-4"
+                className={`text-center font-bold text-red-900 mb-2.5 sm:mb-4 ${
+                isMobile ? 'text-base leading-tight' : 'text-xl sm:text-3xl'
+              }`}
               >
                 {getText(notice.title) || 'Heartfelt Request'}
               </h2>
 
-              {/* Banner - smaller on mobile */}
-              <div className="bg-red-800 rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 mb-4 sm:mb-5 shadow-md">
+              {/* Banner - compact on the mobile sheet */}
+              <div
+                className={`bg-red-800 rounded-xl px-3 sm:px-4 shadow-md ${
+                  isMobile ? 'py-2 mb-2.5' : 'py-2.5 sm:py-3 mb-4 sm:mb-5'
+                }`}
+              >
                 <p
                   style={bodyFont}
-                  className="text-center text-white text-base sm:text-xl font-bold leading-relaxed"
+                  className={`text-center text-white font-bold leading-relaxed ${
+                    isMobile ? 'text-sm' : 'text-base sm:text-xl'
+                  }`}
                 >
                   {getText(notice.banner) || "Let's participate in installing the 'Lift'."}
                 </p>
@@ -436,16 +513,23 @@ const NoticeModal = () => {
 
               {/* Notice Photo */}
               {notice.photo && (
-                <div className="mb-4 sm:mb-5 rounded-xl overflow-hidden border border-red-200 shadow-md">
+                <div
+                  className={`rounded-xl overflow-hidden border border-red-200 shadow-md ${
+                    isMobile ? 'mb-2.5' : 'mb-4 sm:mb-5'
+                  }`}
+                >
                   <img
                     src={notice.photo}
                     alt={getText(notice.title) || 'Notice'}
-                    className="w-full max-h-72 sm:max-h-96 object-contain bg-white"
+                    className={`w-full object-contain bg-white ${
+                      isMobile ? 'max-h-40' : 'max-h-72 sm:max-h-96'
+                    }`}
                   />
                 </div>
               )}
 
-              {/* Content - hide lift illustrations on mobile */}
+              {/* Content - the lift illustrations stay desktop-only so the mobile sheet
+                  keeps its width for the text */}
               <div className="flex gap-3 sm:gap-6">
                 {/* Left lift illustration - hidden on mobile */}
                 <div className="hidden sm:flex flex-col items-center justify-center shrink-0">
@@ -473,7 +557,11 @@ const NoticeModal = () => {
                   </p>
 
                   {/* Cost highlight - smaller on mobile */}
-                  <div className="bg-amber-50 border border-amber-300 rounded-lg px-3 sm:px-4 py-2 sm:py-3 mb-3 sm:mb-4">
+                  <div
+                    className={`bg-amber-50 border border-amber-300 rounded-lg px-3 sm:px-4 ${
+                      isMobile ? 'py-1.5 mb-2' : 'py-2 sm:py-3 mb-3 sm:mb-4'
+                    }`}
+                  >
                     <p
                       style={bodyFont}
                       className="text-gray-800 text-xs sm:text-base font-semibold"
@@ -508,7 +596,11 @@ const NoticeModal = () => {
               </div>
 
               {/* Divider */}
-              <div className="my-4 sm:my-5 h-px bg-gradient-to-r from-transparent via-red-300 to-transparent" />
+              <div
+                className={`h-px bg-gradient-to-r from-transparent via-red-300 to-transparent ${
+                  isMobile ? 'my-2.5' : 'my-4 sm:my-5'
+                }`}
+              />
 
               {/* QR + Contact Section - stacked on mobile */}
               <div
@@ -517,9 +609,17 @@ const NoticeModal = () => {
               >
                 <div className="flex flex-col sm:flex-row">
                   {/* QR Code section - smaller on mobile */}
-                  <div className="flex items-center justify-center p-3 sm:p-5 sm:border-r border-b sm:border-b-0 border-white/20">
+                  <div
+                    className={`flex items-center justify-center sm:border-r border-b sm:border-b-0 border-white/20 ${
+                      isMobile ? 'p-2.5' : 'p-3 sm:p-5'
+                    }`}
+                  >
                     <div className="text-center">
-                      <div className="w-20 h-20 sm:w-28 sm:h-28 bg-white rounded-lg flex items-center justify-center mx-auto shadow-md overflow-hidden">
+                      <div
+                        className={`bg-white rounded-lg flex items-center justify-center mx-auto shadow-md overflow-hidden ${
+                          isMobile ? 'w-16 h-16' : 'w-20 h-20 sm:w-28 sm:h-28'
+                        }`}
+                      >
                         <div className="text-center px-2 w-full h-full flex items-center justify-center">
                           {qrPhoto ? (
                             <img src={qrPhoto} alt="QR" className="w-full h-full object-cover" />
@@ -538,7 +638,11 @@ const NoticeModal = () => {
                   </div>
 
                   {/* Contact info - smaller on mobile */}
-                  <div className="flex-1 p-3 sm:p-5 flex flex-col justify-center">
+                  <div
+                    className={`flex-1 flex flex-col justify-center ${
+                      isMobile ? 'p-2.5' : 'p-3 sm:p-5'
+                    }`}
+                  >
                     <p className="text-amber-300 text-[11px] sm:text-sm font-bold mb-1.5 sm:mb-2" style={bodyFont}>
                       {getText(notice.applicant) || 'Applicant'}
                     </p>
@@ -558,7 +662,7 @@ const NoticeModal = () => {
               </div>
 
               {/* Donate Button - smaller on mobile */}
-              <div className="mt-4 sm:mt-5 text-center">
+              <div className={`text-center ${isMobile ? 'mt-2.5' : 'mt-4 sm:mt-5'}`}>
                 <button
                   onClick={handleDonateClick}
                   className="inline-flex items-center gap-2 sm:gap-3 px-5 sm:px-8 py-2.5 sm:py-3.5 rounded-xl text-white font-bold text-xs sm:text-sm shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]"
@@ -574,7 +678,11 @@ const NoticeModal = () => {
               </div>
 
               {/* Language hint - smaller on mobile */}
-              <p className="text-center text-[8px] sm:text-[10px] text-ink-soft/50 mt-2 sm:mt-3">
+              <p
+                className={`text-center text-[8px] sm:text-[10px] text-ink-soft/50 ${
+                  isMobile ? 'mt-1.5' : 'mt-2 sm:mt-3'
+                }`}
+              >
                 {displayLang === 'ne' ? 'नेपालीमा देखाइएको' :
                  displayLang === 'hi' ? 'हिन्दी में दिखाया गया' :
                  displayLang === 'zh' ? '以中文显示' :

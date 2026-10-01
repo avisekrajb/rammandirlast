@@ -1,4 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap');
+/*
+ * Webfonts are loaded via <link> tags in public/index.html rather than with an
+ * @import here. A CSS @import is only discovered after this stylesheet has been
+ * downloaded and parsed, which puts the font request in the critical path and
+ * delays first paint.
+ */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -1194,6 +1199,320 @@ body.modal-open {
   
   .hero-section p {
     font-size: 0.95rem !important;
+  }
+}
+
+/* ============================================
+   TEMPLE HEADING - hero title on the home page
+   video hero and the About hero banner.
+
+   Poppins carries the Latin/Chinese text, Mukta carries the
+   Devanagari (Nepali/Hindi) and Tamil text, so one rule covers
+   every language instead of a per-language override. clamp() keeps
+   the title proportional: it grows with the viewport but stays
+   readable on a 320px phone and never overflows a wide desktop.
+
+   Deliberately not `!important`: the legacy `.hero-section h1`
+   rules above pin a fixed size on small screens, which would
+   otherwise defeat the clamp.
+   ============================================ */
+
+.temple-heading {
+  font-family: 'Poppins', 'Mukta', sans-serif;
+  font-weight: 800;
+  font-size: clamp(3rem, 6vw, 6rem);
+  line-height: 1.1;
+  color: #ffffff;
+  text-align: center;
+  text-shadow: 0px 10px 20px rgba(0, 0, 0, 0.6),
+               0px 4px 6px rgba(0, 0, 0, 0.4);
+  letter-spacing: -0.02em;
+  /* Devanagari/Tamil matras sit outside the Latin cap/box metrics, so
+     give them a little breathing room or the top of the glyphs clips. */
+  overflow: visible;
+  padding: 0.06em 0;
+}
+
+html[lang='ne'] .temple-heading,
+html[lang='hi'] .temple-heading,
+html[lang='ta'] .temple-heading {
+  line-height: 1.22;
+  letter-spacing: 0;
+}
+
+/* ============================================
+   HERO TAGLINE
+
+   "Where devotion meets the sacred banks of Bagmati". It was
+   `text-white/70` at text-base/text-lg with no weight, so it read as an
+   afterthought next to the temple name. Bumped a step, made semibold, and
+   given full contrast.
+
+   It sits directly under the temple name inside the hero banner, so the
+   banner reads as name + tagline rather than a lone title.
+
+   The location pill that used to sit under this ("Battisputali, Kathmandu")
+   was removed from the hero entirely; the address is still shown in the
+   About section, on the Contact page and in the footer.
+   ============================================ */
+
+.hero-tagline {
+  color: #ffffff;
+  font-family: 'Poppins', 'Mukta', sans-serif;
+  font-weight: 600;
+  font-size: 1.05rem;
+  line-height: 1.6;
+  margin-inline: auto;
+  padding: 0 0.25rem;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.55);
+  overflow: visible;
+}
+
+@media (min-width: 640px) {
+  .hero-tagline {
+    font-size: 1.2rem;
+  }
+}
+
+/* Devanagari and Tamil need a taller box or the matras clip at these sizes. */
+html[lang='ne'] .hero-tagline,
+html[lang='hi'] .hero-tagline,
+html[lang='ta'] .hero-tagline {
+  line-height: 1.75;
+}
+
+/* ============================================
+   SCROLL PERFORMANCE
+
+   The page felt sticky while scrolling. Three contributors, all addressed
+   here:
+
+   1. `scroll-behavior: smooth` makes programmatic scrolls animate, and gives
+      anchor jumps a smooth ride instead of an instant teleport.
+   2. `overflow-anchor: none` stops the browser from re-flowing content under
+      the viewport as lazy images load. Those reflows fight the scroll and are a
+      common source of visible jitter.
+   3. `text-size-adjust` prevents iOS from inflating text mid-scroll, which
+      triggers a full re-layout.
+   ============================================ */
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/*
+ * Respect the OS "reduce motion" setting. The marquees are continuous
+ * transforms, which are the most expensive thing on the page to animate and
+ * also the most likely to trigger nausea.
+ */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .marquee-card,
+  .marquee-row {
+    animation: none !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/*
+ * Sections far below the fold are skipped during layout and paint until they
+ * approach the viewport. Without this, the browser lays out and paints every
+ * section on every scroll frame even though only one is visible.
+ *
+ * `contain-intrinsic-size` supplies a placeholder height so the scrollbar
+ * length stays stable while the real content is unskipped.
+ */
+.rt-deferred-section {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 800px;
+}
+
+/* ============================================
+   HERO SHLOKA
+
+   Replaces the temple name and tagline that used to sit over the home hero
+   video. Sized and weighted to be plainly readable over moving footage rather
+   than sitting back as an inscription: the verse is the focus, the two labels
+   above it are smaller and gold so they read as headings.
+
+   No scrim or panel sits behind it — legibility comes from the text-shadow
+   alone, so the video is left unobstructed. If a particular video frame is
+   too bright, the fix belongs in that video, not in an overlay.
+
+   Mukta carries the Devanagari (it is already loaded for the headings); the
+   rest of the stack is a fallback in case the webfont is still in flight.
+
+   Line heights are generous on purpose. Bold Devanagari sits taller than
+   regular, and the matras above and below the baseline clip at tighter
+   values.
+   ============================================ */
+
+.hero-shloka {
+  position: relative;
+  max-width: 42rem;
+  margin-inline: auto;
+  text-align: center;
+  font-family: 'Mukta', 'Noto Serif Devanagari', serif;
+  color: #fff;
+  padding: 1.75rem 1.25rem;
+  overflow: visible;
+}
+
+.hero-shloka__label {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 2;
+  letter-spacing: 0.14em;
+  color: #f2e2b4;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.9);
+  overflow: visible;
+}
+
+/* Short gradient rule that separates the labels from the verse. */
+.hero-shloka__rule {
+  width: 7rem;
+  height: 2px;
+  margin: 1rem auto 1.1rem;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(242, 226, 180, 0.9),
+    transparent
+  );
+}
+
+.hero-shloka__verse {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.hero-shloka__line {
+  font-size: 1.45rem;
+  font-weight: 600;
+  line-height: 1.95;
+  letter-spacing: 0.005em;
+  color: #ffffff;
+  text-shadow:
+    0 2px 14px rgba(0, 0, 0, 0.95),
+    0 0 3px rgba(0, 0, 0, 0.7);
+  overflow: visible;
+}
+
+@media (min-width: 640px) {
+  .hero-shloka__label {
+    font-size: 1.1rem;
+  }
+
+  .hero-shloka__line {
+    font-size: 1.7rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .hero-shloka {
+    padding: 1.25rem 0.75rem;
+  }
+
+  .hero-shloka__label {
+    font-size: 0.9rem;
+    letter-spacing: 0.08em;
+  }
+
+  .hero-shloka__line {
+    font-size: 1.15rem;
+    line-height: 2;
+  }
+}
+
+/* ============================================
+   OM LOADER
+
+   Only the ring rotates; the ॐ inside is static so it stays readable.
+   Declared here rather than with Tailwind's animate-spin so the easing can be
+   set and so the animation is transform-only - the compositor runs it without
+   touching layout or paint, which matters because the loader is often on
+   screen while the page is scrolling.
+   ============================================ */
+
+@keyframes rt-om-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.rt-om-spin {
+  animation: rt-om-spin 1.2s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  will-change: transform;
+}
+
+/* The mark must not be the only thing moving for someone who asked it not to be. */
+@media (prefers-reduced-motion: reduce) {
+  .rt-om-spin {
+    animation: none;
+  }
+}
+
+/* ============================================
+   SKELETON LOADING
+
+   Used while settings/data are in flight. The shimmer is a background-position
+   animation on a single element (compositor-friendly, no layout or paint
+   thrash) rather than an element that changes width every frame.
+   ============================================ */
+
+.rt-skeleton {
+  background: linear-gradient(180deg, #f4f4f6 0%, #ececef 100%);
+}
+
+.rt-shimmer {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, #f4f4f6 0%, #ececef 100%);
+}
+
+/* Moving highlight, drawn on the compositor only. */
+.rt-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.65) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: rt-shimmer-sweep 1.4s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes rt-shimmer-sweep {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rt-shimmer::after {
+    animation: none;
+    opacity: 0;
   }
 }
 

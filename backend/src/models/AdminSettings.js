@@ -113,14 +113,14 @@ const adminSettingsSchema = new mongoose.Schema({
   // ============================================
   // ABOUT SECTION (Multi-language)
   // ============================================
-  about: {
+about: {
     photo: { type: String, default: null },
     title: {
-      en: { type: String, default: 'About the Temple' },
-      ne: { type: String, default: 'मन्दिरको बारेमा' },
-      hi: { type: String, default: 'मंदिर के बारे में' },
-      zh: { type: String, default: '关于神庙' },
-      ta: { type: String, default: 'கோயிலைப் பற்றி' },
+      en: { type: String, default: 'Introduction to the Temple' },
+      ne: { type: String, default: 'श्री रामचन्द्र मन्दिरको परिचय' },
+      hi: { type: String, default: 'श्री रामचन्द्र मन्दिर का परिचय' },
+      zh: { type: String, default: '什里·拉姆钱德拉神庙简介' },
+      ta: { type: String, default: 'ஸ்ரீ ராமச்சந்திர கோயில் அறிமுகம்' },
     },
     text: {
       en: { type: String, default: 'Nestled in the heart of Gaushala, Shree Ramchandra Temple has stood as a beacon of devotion for generations, welcoming devotees of Lord Ram with open doors and open hearts.' },
@@ -150,14 +150,14 @@ const adminSettingsSchema = new mongoose.Schema({
   // ============================================
   // ABOUT PREVIEW (Homepage Only)
   // ============================================
-  aboutPreview: {
+aboutPreview: {
     enabled: { type: Boolean, default: true },
     title: {
-      en: { type: String, default: 'About the Temple' },
-      ne: { type: String, default: 'मन्दिरको बारेमा' },
-      hi: { type: String, default: 'मंदिर के बारे में' },
-      zh: { type: String, default: '关于神庙' },
-      ta: { type: String, default: 'கோயிலைப் பற்றி' },
+      en: { type: String, default: 'Introduction to the Temple' },
+      ne: { type: String, default: 'श्री रामचन्द्र मन्दिरको परिचय' },
+      hi: { type: String, default: 'श्री रामचन्द्र मन्दिर का परिचय' },
+      zh: { type: String, default: '什里·拉姆钱德拉神庙简介' },
+      ta: { type: String, default: 'ஸ்ரீ ராமச்சந்திர கோயில் அறிமுகம்' },
     },
     text: {
       en: { type: String, default: 'Nestled in the heart of Gaushala, Shree Ramchandra Temple has stood as a beacon of devotion for generations, welcoming devotees of Lord Ram with open doors and open hearts.' },

@@ -1,9 +1,9 @@
 // pages/TeamPage.jsx - Updated with Founder/Patron hero section (no icons, no view profile button)
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../context/LanguageContext';
-import { motion } from 'framer-motion';
 import api from '../services/api';
 import OmLoader from '../components/common/OmLoader';
+import PageHeader from '../components/common/PageHeader';
 
 const TeamPage = () => {
   const { t, lang } = useLanguage();
@@ -141,20 +141,11 @@ const TeamPage = () => {
   return (
     <div className="min-h-screen bg-gray-50 pt-24 px-6">
       <div className="max-w-7xl mx-auto py-12">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="text-center mb-12"
-        >
-          <h1 className="text-4xl md:text-5xl font-serif font-bold text-[#7A0000]">
+        <div className="mb-12">
+          <PageHeader sub={t.teamSubtitle || 'Meet the dedicated individuals behind Shree Ramchandra Temple'}>
             {pageTitle}
-          </h1>
-          <div className="w-20 h-1 bg-[#7A0000] mx-auto mt-4 rounded-full" />
-          <p className="text-gray-600 mt-4 max-w-2xl mx-auto">
-            {t.teamSubtitle || 'Meet the dedicated individuals behind Shree Ramchandra Temple'}
-          </p>
-        </motion.div>
+          </PageHeader>
+        </div>
 
         {/* ===== COMMITTEE CONTENT (from Admin → Team) ===== */}
         {teamContent.map((section, sIndex) => {

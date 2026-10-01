@@ -4,6 +4,8 @@ import { useLanguage } from '../context/LanguageContext';
 import api from '../services/api';
 import { handleImageError } from '../utils/imageFallback';
 import OmLoader from '../components/common/OmLoader';
+import PageHeader from '../components/common/PageHeader';
+import SectionTitle from '../components/common/SectionTitle';
 
 const getLocalizedText = (obj, lang) => {
   if (!obj) return '';
@@ -63,10 +65,7 @@ const FestivalCards = ({ events, lang, title }) => {
   return (
     <section className="w-full">
       <div className="max-w-7xl mx-auto px-6 pt-10 pb-4">
-        <h2 className="font-serif text-3xl sm:text-4xl text-center leading-tight" style={{ color: ACCENT }}>
-          {title}
-        </h2>
-        <div className="w-20 h-1 mx-auto mt-4 rounded-full" style={{ background: `linear-gradient(90deg, ${ACCENT}, ${ACCENT_2})` }} />
+        <SectionTitle>{title}</SectionTitle>
       </div>
 
       <div className="max-w-7xl mx-auto px-6 pb-16">
@@ -227,19 +226,9 @@ const ProgramsText = ({ events, lang, title }) => {
   return (
     <section className="w-full">
       <div className="max-w-7xl mx-auto px-6 pt-10 pb-24">
-        <motion.h2
-          initial={{ opacity: 0, y: 18 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
-          className="font-serif text-3xl sm:text-4xl lg:text-5xl text-center leading-tight"
-          style={{ color: ACCENT }}
-        >
-          {title}
-        </motion.h2>
-        <div className="w-24 h-1 mx-auto mt-5 rounded-full" style={{ background: `linear-gradient(90deg, ${ACCENT}, ${ACCENT_2})` }} />
+        <SectionTitle>{title}</SectionTitle>
 
-        <div className="grid lg:grid-cols-2 gap-x-14 gap-y-2 mt-14">
+        <div className="grid lg:grid-cols-2 gap-x-14 gap-y-2 mt-12">
           {columns.map((col, ci) => (
             <div key={ci}>
               {col.map((item) => renderItem(item, items.indexOf(item)))}
@@ -319,11 +308,9 @@ const EventsPage = () => {
   return (
     <div className="min-h-screen bg-white">
       {/* Heading */}
-      <section className="w-full pt-32 sm:pt-36 pb-6">
-        <div className="max-w-7xl mx-auto px-6 text-center">
-          <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight" style={{ color: ACCENT }}>
-            {txt('page-title')}
-          </h1>
+      <section className="w-full pt-28 sm:pt-32 pb-6">
+        <div className="max-w-7xl mx-auto px-6">
+          <PageHeader>{txt('page-title')}</PageHeader>
         </div>
       </section>
 

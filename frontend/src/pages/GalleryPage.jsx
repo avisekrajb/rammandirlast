@@ -8,6 +8,8 @@ import api from '../services/api';
 import { handleImageError } from '../utils/imageFallback';
 import OmLoader from '../components/common/OmLoader';
 import FacebookVideoSection from '../components/common/FacebookVideoSection';
+import PageHeader from '../components/common/PageHeader';
+import { optimizeImageCached } from '../utils/imageOptimize';
 
 // Fallback images for when API fails
 const fallbackImages = [
@@ -318,8 +320,9 @@ function LightboxModal({ items, index, t, lang, onClose, onPrev, onNext }) {
           />
         ) : (
           <img
-            src={item.photo}
+            src={optimizeImageCached(item.photo, { width: 1600, quality: 'high' })}
             alt={caption}
+            decoding="async"
             className="max-w-full max-h-[82vh] object-contain rounded-lg"
               onError={(e) => { handleImageError(e, '/1.jpg'); }}
             />
@@ -455,19 +458,8 @@ const GalleryPage = () => {
   return (
     <div className="min-h-screen" style={{ background: '#ffffff' }}>
       {/* Header */}
-      <div className="pt-28 pb-6 text-center px-4">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7 }}
-        >
-          <h1
-            className="text-4xl sm:text-5xl lg:text-6xl font-light leading-tight font-serif"
-            style={{ color: "#7A0000" }}
-          >
-            {t.galleryTitle || 'Photo Gallery'}
-          </h1>
-        </motion.div>
+      <div className="pt-28 pb-6 px-4">
+        <PageHeader>{t.galleryTitle || 'Photo Gallery'}</PageHeader>
       </div>
 
       {/* Tab Navigation */}
@@ -523,13 +515,16 @@ const GalleryPage = () => {
                       muted
                     />
                   ) : (
-                    <img
-                      src={item.photo}
-                      alt={caption}
-                      loading="lazy"
-                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-500 ease-out"
+<img
+                        src={optimizeImageCached(item.photo, { width: 640 })}
+                        alt={caption}
+                        loading="lazy"
+                        decoding="async"
+                        width={640}
+                        height={640}
+                        className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-500 ease-out"
                         onError={(e) => { handleImageError(e, '/1.jpg'); }}
-                    />
+                      />
                   )}
                   
                   {/* Hover Overlay */}

@@ -252,6 +252,11 @@ const AdminSettings = () => {
     thisMonth: stats?.thisMonth || 0,
   };
 
+  // The server prunes to the newest N entries; surface that so the panel does
+  // not look like it is showing a partial history.
+  const logLimit = stats?.limit || 50;
+  const retained = stats?.retained || logs.length;
+
   const filteredLogs = Array.isArray(logs) ? logs.filter(log => {
     const term = searchTerm.toLowerCase();
     const detailsText = JSON.stringify(log.details || {}).toLowerCase();
@@ -602,7 +607,9 @@ const AdminSettings = () => {
             <div className="grid grid-cols-4 gap-2 mb-4">
               <div className="text-center p-2 bg-gray-50 rounded-lg">
                 <p className="text-lg font-bold text-ink">{safeStats.total}</p>
-                <p className="text-[10px] text-ink-soft">Total</p>
+                <p className="text-[10px] text-ink-soft">
+                  Latest {logLimit}
+                </p>
               </div>
               <div className="text-center p-2 bg-blue-50 rounded-lg">
                 <p className="text-lg font-bold text-blue-600">{safeStats.today}</p>
@@ -657,9 +664,9 @@ const AdminSettings = () => {
                 {searchTerm ? 'No logs match your search' : 'No admin activity recorded yet'}
               </p>
             ) : (
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {filteredLogs.slice(0, 30).map((log, index) => (
-                  <div key={index} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors border border-gray-50">
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {filteredLogs.map((log, index) => (
+                  <div key={log._id || index} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors border border-gray-50">
                     <div className="w-8 h-8 rounded-full bg-vermilion/10 text-vermilion flex items-center justify-center flex-shrink-0">
                       <Activity size={16} />
                     </div>
@@ -685,6 +692,12 @@ const AdminSettings = () => {
                 ))}
               </div>
             )}
+
+            {/* Retention note: only the newest entries are kept */}
+            <p className="mt-3 text-[10px] text-ink-soft/70">
+              Showing the {Math.min(retained, logLimit)} most recent entries of a
+              maximum {logLimit}. Older activity is removed automatically.
+            </p>
           </div>
         </div>
       </div>

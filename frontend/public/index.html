@@ -10,6 +10,43 @@
     <meta name="theme-color" content="#7A1F2B" />
     <meta name="description" content="Shree Ramchandra Temple - Gaushala, Kathmandu - A sacred place of devotion and community service" />
     <title>Shree Ramchandra Temple - Gaushala, Kathmandu</title>
+
+    <!-- ==============================================================
+         PRECONNECT / DNS PREFETCH
+
+         The first render needs three third-party origins: Google Fonts
+         (CSS, then the font files), the API host, and Cloudinary for
+         gallery photos. Opening the sockets during HTML parse instead of
+         waiting for CSS/JS to execute removes a serial round trip from
+         the critical path.
+
+         crossorigin is required on font preconnects: font files are
+         fetched with CORS, and a preconnect opened without it is not
+         reused, which quietly defeats it.
+         ============================================================== -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="dns-prefetch" href="https://res.cloudinary.com" />
+    <link rel="preconnect" href="https://res.cloudinary.com" />
+
+    <!--
+      Webfonts are linked directly from the HTML rather than @import-ed from
+      index.css.
+
+      A CSS @import is only discovered after the importing stylesheet has been
+      downloaded AND parsed, so with the import in index.css the chain was
+      HTML -> main.css -> parse -> fonts.googleapis.com, putting the font
+      request squarely in the critical path and delaying first paint. A <link>
+      is discovered during HTML parse, so it downloads in parallel with the JS
+      bundle.
+
+      Keep this list in sync with the .temple-heading / .hero-tagline rules in
+      index.css, which also reference Poppins and Mukta.
+    -->
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&family=Mukta:wght@400;600;700;800&display=swap"
+    />
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

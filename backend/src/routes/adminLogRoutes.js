@@ -10,10 +10,15 @@ const {
   getAdminLogStats,
 } = require('../controllers/adminController');
 
-// All admin activity routes share the same in-memory store as adminController
-// so logs recorded by logAdminActivity() (backend) and via POST /log are unified.
+// Route order matters: `/:id` would otherwise swallow `/stats` and try to
+// delete a log whose id is the string "stats".
 
-// @desc    Get admin activity logs
+// @desc    Get admin activity stats
+// @route   GET /api/admin/activity/stats
+// @access  Private/Admin
+router.get('/stats', protect, admin, getAdminLogStats);
+
+// @desc    Get admin activity logs (latest only, newest first)
 // @route   GET /api/admin/activity
 // @access  Private/Admin
 router.get('/', protect, admin, getAdminActivity);
@@ -23,19 +28,14 @@ router.get('/', protect, admin, getAdminActivity);
 // @access  Private/Admin
 router.post('/log', protect, admin, addAdminLog);
 
-// @desc    Delete a single admin activity log
-// @route   DELETE /api/admin/activity/:id
-// @access  Private/Admin
-router.delete('/:id', protect, admin, deleteAdminLog);
-
 // @desc    Clear admin activity logs
 // @route   DELETE /api/admin/activity
 // @access  Private/Admin
 router.delete('/', protect, admin, clearAdminLogs);
 
-// @desc    Get admin activity stats
-// @route   GET /api/admin/activity/stats
+// @desc    Delete a single admin activity log
+// @route   DELETE /api/admin/activity/:id
 // @access  Private/Admin
-router.get('/stats', protect, admin, getAdminLogStats);
+router.delete('/:id', protect, admin, deleteAdminLog);
 
 module.exports = router;

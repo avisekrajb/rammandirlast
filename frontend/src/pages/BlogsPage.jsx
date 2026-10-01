@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
+import PageHeader from '../components/common/PageHeader';
 import api from '../services/api';
 import OmLoader from '../components/common/OmLoader';
 import { 
@@ -115,19 +116,11 @@ const BlogsPage = () => {
           <div className="absolute top-1/4 left-1/4 w-64 h-64 rounded-full bg-vermilion/20 blur-3xl" />
           <div className="absolute bottom-1/4 right-1/3 w-96 h-96 rounded-full bg-marigold/20 blur-3xl" />
         </div>
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, ease: [0.25, 1, 0.5, 1] }}
-          className="relative z-10"
-        >
-          <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl font-light" style={{ color: '#7A0000' }}>
+        <div className="relative z-10">
+          <PageHeader sub={t.blogsSubtitle || 'Stories and spiritual reflections from Shree Ramchandra Temple'}>
             {t.blogsTitle || 'Temple Blogs'}
-          </h1>
-          <p className="mt-4 text-base sm:text-lg text-mute max-w-xl mx-auto leading-relaxed">
-            {t.blogsSubtitle || 'Stories and spiritual reflections from Shree Ramchandra Temple'}
-          </p>
-        </motion.div>
+          </PageHeader>
+        </div>
       </div>
 
       {/* Search Bar - Only search, no box wrapper */}

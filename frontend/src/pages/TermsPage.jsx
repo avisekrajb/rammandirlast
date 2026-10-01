@@ -2,6 +2,7 @@ import React from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { motion } from 'framer-motion';
 import { Shield, CheckCircle, FileText, Users, CreditCard, Clock } from 'lucide-react';
+import PageHeader from '../components/common/PageHeader';
 
 const TermsPage = () => {
   const { t, lang } = useLanguage();
@@ -215,19 +216,9 @@ const TermsPage = () => {
     <div className="min-h-screen bg-white pt-24 px-6">
       <div className="max-w-4xl mx-auto py-12">
         {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="text-center mb-12"
-        >
-          <h1 className="text-3xl md:text-4xl font-serif font-bold text-maroon">
-            {content.title}
-          </h1>
-          <p className="text-ink-soft text-sm mt-2 max-w-2xl mx-auto">
-            {content.subtitle}
-          </p>
-        </motion.div>
+        <div className="mb-12">
+          <PageHeader sub={content.subtitle}>{content.title}</PageHeader>
+        </div>
 
         {/* Content */}
         <div className="space-y-8">
