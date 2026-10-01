@@ -1303,18 +1303,23 @@ html {
 }
 
 /*
- * Respect the OS "reduce motion" setting. The marquees are continuous
- * transforms, which are the most expensive thing on the page to animate and
- * also the most likely to trigger nausea.
+ * Respect the OS "reduce motion" setting: transitions, hover lifts and the
+ * ornamental loops are toned down or switched off.
+ *
+ * The gallery marquee is the exception. The blanket rule below can never be
+ * beaten by an inline `animation`, so with "reduce motion" on (Android's
+ * "Remove animations" ships enabled) the strip used to play a single 0.01ms
+ * frame and sit frozen. A class selector outranks `*`, so re-asserting the
+ * track's own duration and iteration count keeps it looping.
  */
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
   }
 
-  .marquee-card,
   .marquee-row {
-    animation: none !important;
+    animation-duration: var(--marquee-duration, 30s) !important;
+    animation-iteration-count: infinite !important;
   }
 
   *,

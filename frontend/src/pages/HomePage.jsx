@@ -1080,9 +1080,9 @@ function GalleryTeaser({ settings }) {
   // One full loop = one set width (33.333% of the tripled container)
   const DURATION = Math.max(28, items.length * 5);
 
-  const renderCard = (img) => (
+  const renderCard = (img, i) => (
     <div
-      key={img.key}
+      key={`${img.key}-${i}`}
       className="group relative flex-shrink-0 marquee-card rounded-2xl overflow-hidden shadow-lg"
     >
       {/*
@@ -1123,15 +1123,18 @@ function GalleryTeaser({ settings }) {
 
         <div
           className="relative"
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
+          // Only a real mouse pauses the scroll. Touch devices emulate
+          // mouseenter on tap, which used to freeze the marquee on mobile.
+          onPointerEnter={(e) => { if (e.pointerType === 'mouse') setIsHovered(true); }}
+          onPointerLeave={(e) => { if (e.pointerType === 'mouse') setIsHovered(false); }}
         >
           {/* Row 1 - scrolls right → left */}
           <div className="overflow-hidden pb-5">
             <div
-              className="flex gap-4"
+              className="marquee-row flex gap-4"
               style={{
                 width: 'max-content',
+                '--marquee-duration': `${DURATION}s`,
                 animation: isHovered ? 'none' : `scroll-left ${DURATION}s linear infinite`,
                 willChange: 'transform',
               }}
@@ -1143,9 +1146,10 @@ function GalleryTeaser({ settings }) {
           {/* Row 2 - scrolls left → right */}
           <div className="overflow-hidden">
             <div
-              className="flex gap-4"
+              className="marquee-row flex gap-4"
               style={{
                 width: 'max-content',
+                '--marquee-duration': `${DURATION}s`,
                 animation: isHovered ? 'none' : `scroll-right ${DURATION}s linear infinite`,
                 willChange: 'transform',
               }}
