@@ -28,6 +28,50 @@ const DEFAULT_HERO_TAGLINE = {
   ta: 'பக்தி பாக்மதியின் புனித கரையில் சந்திக்கும் இடம்',
 };
 
+const DEFAULT_HERO_SHLOKA = {
+  invocation: {
+    en: 'Salutations to Lord Shri Ramachandra.',
+    ne: 'श्रीरामचन्द्राय नमः',
+    hi: 'श्रीरामचन्द्राय नमः',
+    zh: '向 श्री罗摩旃陀罗致敬。',
+    ta: 'ஸ்ரீ ராமச்சந்திராய நமः',
+  },
+  stutiLabel: {
+    en: 'Hymn to Shri Rama:',
+    ne: 'श्रीरामस्तुति:',
+    hi: 'श्रीराम स्तुति:',
+    zh: 'श्री罗摩赞颂：',
+    ta: 'ஸ்ரீ ராம ஸ்துதி:',
+  },
+  verse: {
+    en: 'I seek refuge in Lord Shri Ramachandra, who is beloved of all, courageous on the battlefield, lotus-eyed, and the Lord of the Raghu dynasty; who embodies compassion and is the bestower of mercy.',
+    ne: 'लोकाभिरामं रणरङ्गधीरं राजीवनेत्रं रघुवंशनाथम्।\nकारुण्यरूपं करुणाकरं तं श्रीरामचन्द्रं शरणं प्रपद्ये॥',
+    hi: 'लोकाभिरामं रणरङ्गधीरं राजीवनेत्रं रघुवंशनाथम्।\nकारुण्यरूपं करुणाकरं तं श्रीरामचन्द्रं शरणं प्रपद्ये॥',
+    zh: '我皈依于 श्री罗摩旃陀罗，他令人世间喜爱，战场上英勇无畏，拥有如莲花般的双眼，是拉古王朝之主；他是慈悲的化身，是施予慈悲与恩典之主。',
+    ta: 'உலகத்தாரால் நேசிக்கப்படுபவரும், போர்க்களத்தில் வீரமும் துணிவும் கொண்டவரும், தாமரை போன்ற கண்களையுடையவரும், ரகு வம்சத்தின் தலைவருமான ஸ்ரீ ராமச்சந்திரரை நான் சரணடைகிறேன். அவர் கருணையின் வடிவமாகவும், அருளை வழங்குபவராகவும் விளங்குகிறார்.',
+  },
+};
+
+/*
+ * Blank stored values are skipped so the form always opens on the seeded text:
+ * an empty banner is never saved by accident, and clearing a language here
+ * leaves it on the default rather than removing it from the home page.
+ */
+const withDefaults = (defaults, stored) => {
+  const merged = { ...defaults };
+  for (const [code, value] of Object.entries(stored || {})) {
+    if (String(value ?? '').trim()) merged[code] = value;
+  }
+  return merged;
+};
+
+const seedShloka = (stored) => ({
+  enabled: stored?.enabled !== false,
+  invocation: withDefaults(DEFAULT_HERO_SHLOKA.invocation, stored?.invocation),
+  stutiLabel: withDefaults(DEFAULT_HERO_SHLOKA.stutiLabel, stored?.stutiLabel),
+  verse: withDefaults(DEFAULT_HERO_SHLOKA.verse, stored?.verse),
+});
+
 const AdminHero = ({ settings, updateSettings, t }) => {
   const { showToast } = useToast();
   const fileInputRef = useRef(null);
@@ -36,13 +80,17 @@ const AdminHero = ({ settings, updateSettings, t }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [heroTitle, setHeroTitle] = useState({ ...(settings?.heroTitle || DEFAULT_HERO_TITLE) });
   const [heroTagline, setHeroTagline] = useState({ ...(settings?.heroTagline || DEFAULT_HERO_TAGLINE) });
+  const [heroShloka, setHeroShloka] = useState(() => seedShloka(settings?.heroShloka));
   const [textLang, setTextLang] = useState('en');
   const [textSaving, setTextSaving] = useState(false);
+
+  const setShlokaText = (part, value) =>
+    setHeroShloka((prev) => ({ ...prev, [part]: { ...prev[part], [textLang]: value } }));
 
   const handleSaveText = async () => {
     setTextSaving(true);
     try {
-      await updateSettings({ heroTitle, heroTagline });
+      await updateSettings({ heroTitle, heroTagline, heroShloka });
       showToast(t.heroTextSaved || 'Hero text updated successfully', 'success');
     } catch (error) {
       console.error('Save hero text error:', error);
@@ -238,7 +286,7 @@ const AdminHero = ({ settings, updateSettings, t }) => {
           <h4 className="text-sm font-serif font-semibold text-ink">
             {t.heroText || 'Hero Banner Text'}
           </h4>
-          <p className="text-xs text-ink-soft">Title & tagline shown on the home page hero</p>
+          <p className="text-xs text-ink-soft">{t.heroTextHint || 'Title & tagline shown on the home page hero'}</p>
         </div>
 
         <div className="flex flex-wrap gap-1.5 mb-4">
@@ -281,6 +329,75 @@ const AdminHero = ({ settings, updateSettings, t }) => {
               className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-vermilion/40 focus:border-vermilion resize-none"
               placeholder="Where devotion meets the sacred banks of Bagmati"
             />
+          </div>
+        </div>
+
+        {/* Invocation / hymn — the three lines printed over the home page banner */}
+        <div className="mt-5 border-t border-gray-100 pt-5">
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div>
+              <p className="text-xs font-bold text-ink">
+                {t.heroShlokaText || 'Invocation & Hymn'}
+              </p>
+              <p className="text-[11px] text-ink-soft mt-0.5">
+                {t.heroShlokaHint || 'Shown over the home page banner, under the title'}
+              </p>
+            </div>
+            <label className="flex items-center gap-1.5 cursor-pointer shrink-0">
+              <input
+                type="checkbox"
+                checked={heroShloka.enabled}
+                onChange={(e) => setHeroShloka((prev) => ({ ...prev, enabled: e.target.checked }))}
+                className="w-4 h-4 accent-[#7A1F2B] cursor-pointer"
+              />
+              <span className="text-xs text-ink-soft font-medium whitespace-nowrap">
+                {t.heroShlokaShow || 'Show on banner'}
+              </span>
+            </label>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-ink-soft mb-1.5">
+                {t.heroInvocationLabel || 'Invocation'}
+              </label>
+              <input
+                type="text"
+                value={heroShloka.invocation[textLang] || ''}
+                onChange={(e) => setShlokaText('invocation', e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-vermilion/40 focus:border-vermilion"
+                placeholder={DEFAULT_HERO_SHLOKA.invocation[textLang]}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-ink-soft mb-1.5">
+                {t.heroStutiLabel || 'Hymn heading'}
+              </label>
+              <input
+                type="text"
+                value={heroShloka.stutiLabel[textLang] || ''}
+                onChange={(e) => setShlokaText('stutiLabel', e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-vermilion/40 focus:border-vermilion"
+                placeholder={DEFAULT_HERO_SHLOKA.stutiLabel[textLang]}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-ink-soft mb-1.5">
+                {t.heroVerseLabel || 'Hymn text'}
+              </label>
+              <textarea
+                rows={3}
+                value={heroShloka.verse[textLang] || ''}
+                onChange={(e) => setShlokaText('verse', e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-vermilion/40 focus:border-vermilion resize-none leading-relaxed"
+                placeholder={DEFAULT_HERO_SHLOKA.verse[textLang]}
+              />
+              <p className="text-[11px] text-ink-soft/70 mt-1">
+                {t.heroVerseHint || 'Each line is displayed as a separate line on the banner'}
+              </p>
+            </div>
           </div>
         </div>
 

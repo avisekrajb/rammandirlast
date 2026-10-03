@@ -8,8 +8,14 @@ const localizedStringSchema = new mongoose.Schema({
   ta: { type: String, default: '' },
 }, { _id: false });
 
+/*
+ * A year/date is held per language so the History page can show "2050" to an
+ * English reader and "२०५०" to a Nepali one. Records saved before this field
+ * was localized stored a single string; those are widened on read (see
+ * getHistory in adminController).
+ */
 const yearEntrySchema = new mongoose.Schema({
-  year: { type: String, default: '' },
+  year: { type: localizedStringSchema, default: () => ({}) },
   text: { type: localizedStringSchema, default: () => ({}) },
 }, { _id: false });
 
@@ -51,9 +57,10 @@ const historySchema = new mongoose.Schema({
   points: { type: [localizedStringSchema], default: () => [] },
   // Optional year-by-year list, e.g. the conservation sequence
   entries: { type: [yearEntrySchema], default: () => [] },
+  // Badge shown on the photo, per language for the same reason as above.
   year: {
-    type: String,
-    default: '',
+    type: localizedStringSchema,
+    default: () => ({}),
   },
   // Marks an entry that ships with the app, so it is only ever seeded once.
   seedKey: {

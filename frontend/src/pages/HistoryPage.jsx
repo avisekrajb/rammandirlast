@@ -1,11 +1,11 @@
-// pages/HistoryPage.jsx - Updated with Glowing Gas/Aura effects on photos and text-justify alignment
+// pages/HistoryPage.jsx - Updated: counting numbers + Clock icon removed
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
 import api from '../services/api';
 import OmLoader from '../components/common/OmLoader';
 import PageHeader from '../components/common/PageHeader';
-import { Clock } from 'lucide-react';
+import getLocalizedYear from '../utils/localizedYear';
 
 // Helper to get localized text
 const getLocalizedText = (obj, lang) => {
@@ -47,7 +47,6 @@ function TimelineSection({ items, lang, heading }) {
             const descText = getLocalizedText(item.desc, lang) || '';
             const periodText = getLocalizedText(item.period, lang) || '';
             const imageSrc = item.photo || '';
-            const formattedNumber = String(index + 1).padStart(2, '0');
 
             // paragraphs is a list; older records stored a fixed { p1..p4 } object
             const paragraphs = Array.isArray(item.paragraphs)
@@ -67,7 +66,7 @@ function TimelineSection({ items, lang, heading }) {
               : [];
             const yearEntries = Array.isArray(item.entries)
               ? item.entries
-                  .map((e) => ({ year: e.year || '', text: getLocalizedText(e.text, lang) }))
+                  .map((e) => ({ year: getLocalizedYear(e.year, lang), text: getLocalizedText(e.text, lang) }))
                   .filter((e) => e.text || e.year)
               : [];
 
@@ -90,20 +89,20 @@ function TimelineSection({ items, lang, heading }) {
                   <div className="relative w-full h-80 rounded-xl overflow-hidden">
                     {/* Outer glow layer - yellow/golden gas effect */}
                     <div className="absolute -inset-4 rounded-2xl bg-gradient-to-r from-yellow-400/30 via-amber-400/40 to-yellow-500/30 blur-2xl animate-pulse" />
-                    
+
                     {/* Second glow layer for more gas effect */}
                     <div className="absolute -inset-2 rounded-xl bg-gradient-to-tr from-amber-300/20 via-yellow-200/30 to-orange-300/20 blur-xl" />
-                    
+
                     {/* Inner glow layer */}
                     <div className="absolute -inset-1 rounded-xl bg-gradient-to-br from-yellow-500/20 via-amber-400/20 to-yellow-600/20 blur-lg" />
-                    
+
                     {/* Image container with border */}
                     <div className="relative w-full h-full rounded-xl overflow-hidden border-2 border-[#8B3A3A] shadow-[0_0_40px_rgba(255,200,0,0.15)]">
                       {imageSrc ? (
-                        <img 
-                          src={imageSrc} 
+                        <img
+                          src={imageSrc}
                           alt={titleText}
-                          loading="lazy" 
+                          loading="lazy"
                           className="w-full h-full object-cover"
                           onError={(e) => {
                             e.target.style.display = 'none';
@@ -121,7 +120,7 @@ function TimelineSection({ items, lang, heading }) {
                       )}
                       {item.year && (
                         <div className="absolute top-4 right-4 bg-black/60 text-white px-3 py-1 rounded-lg text-xs font-bold z-10">
-                          {item.year}
+                          {getLocalizedYear(item.year, lang)}
                         </div>
                       )}
                     </div>
@@ -129,23 +128,15 @@ function TimelineSection({ items, lang, heading }) {
                 </motion.div>
 
                 <div className="flex flex-col justify-center space-y-4">
-                  <div className="flex items-center gap-3">
-                    <span 
-                      className="text-4xl sm:text-5xl font-serif font-bold tracking-wider"
-                      style={{ 
-                        color: '#8a5a2b',
-                        opacity: 0.85,
-                        textShadow: '0 1px 0 rgba(255, 245, 220, 0.6)'
-                      }}
-                    >
-                      {formattedNumber}
-                    </span>
-                    <span className="w-12 h-px bg-maroon/20" />
-                    <Clock size={16} className="text-ink-soft" />
-                    {periodText && (
-                      <span className="text-sm text-ink-soft font-medium">{periodText}</span>
-                    )}
-                  </div>
+                  {/* Period row — counting number and clock icon removed */}
+                  {periodText && (
+                    <div className="flex items-center gap-3">
+                      <span className="w-10 h-px bg-maroon/20" />
+                      <span className="text-sm text-ink-soft font-medium tracking-wide">
+                        {periodText}
+                      </span>
+                    </div>
+                  )}
                   <h2 className="font-serif text-2xl sm:text-3xl text-maroon font-bold leading-tight">
                     {titleText}
                   </h2>
@@ -245,10 +236,10 @@ const HistoryPage = () => {
   }
 
   return (
-    <div 
+    <div
       className="w-full overflow-hidden"
-      style={{ 
-        background: '#ffffff' 
+      style={{
+        background: '#ffffff'
       }}
     >
       {/* Timeline */}

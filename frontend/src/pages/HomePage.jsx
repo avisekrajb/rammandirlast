@@ -171,6 +171,14 @@ function Hero({ settings }) {
   // heroTagline is no longer rendered in the hero: the banner now shows the
   // invocation and stuti instead (see HeroShloka). The setting is still
   // available in Admin → Home should the tagline be wanted back.
+  // All three banner lines are edited per language from Admin → Hero.
+  const heroShloka = settings?.heroShloka;
+  const shlokaProps = {
+    enabled: heroShloka?.enabled !== false,
+    invocation: getLocalizedText(heroShloka?.invocation, lang),
+    stutiLabel: getLocalizedText(heroShloka?.stutiLabel, lang),
+    verse: getLocalizedText(heroShloka?.verse, lang),
+  };
   const timings = settings?.timings || { open: '05:00 AM', close: '08:00 PM' };
 
   const { scrollYProgress } = useScroll({
@@ -211,7 +219,7 @@ function Hero({ settings }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1], delay: 0.35 }}
           >
-            <HeroShloka templeName={heroTitle} />
+            <HeroShloka templeName={heroTitle} {...shlokaProps} />
           </motion.div>
         </div>
       </section>
@@ -290,7 +298,7 @@ function Hero({ settings }) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1], delay: 0.35 }}
         >
-          <HeroShloka templeName={heroTitle} />
+          <HeroShloka templeName={heroTitle} {...shlokaProps} />
         </motion.div>
       </motion.div>
 

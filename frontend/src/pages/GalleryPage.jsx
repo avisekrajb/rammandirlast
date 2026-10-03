@@ -11,6 +11,7 @@ import FacebookVideoSection from '../components/common/FacebookVideoSection';
 import PageHeader from '../components/common/PageHeader';
 import { optimizeImageCached } from '../utils/imageOptimize';
 
+
 // Fallback images for when API fails
 const fallbackImages = [
   { _id: '1', photo: '/1.jpg', cap: { en: 'Temple View' }, type: 'photo', category: 'temple' },

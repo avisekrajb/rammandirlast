@@ -250,6 +250,34 @@ const DEFAULT_ABOUT_TITLE = {
   ta: 'ஸ்ரீ ராமச்சந்திர கோயில் அறிமுகம்',
 };
 
+// The invocation and stuti printed over the home page hero banner, in the five
+// languages the site supports. Backfilled into installs that predate the
+// Admin → Hero shloka fields; an invocation, heading or verse an admin has
+// since typed is never overwritten.
+const DEFAULT_HERO_SHLOKA = {
+  invocation: {
+    en: 'Salutations to Lord Shri Ramachandra.',
+    ne: 'श्रीरामचन्द्राय नमः',
+    hi: 'श्रीरामचन्द्राय नमः',
+    zh: '向 श्री罗摩旃陀罗致敬。',
+    ta: 'ஸ்ரீ ராமச்சந்திராய நமः',
+  },
+  stutiLabel: {
+    en: 'Hymn to Shri Rama:',
+    ne: 'श्रीरामस्तुति:',
+    hi: 'श्रीराम स्तुति:',
+    zh: 'श्री罗摩赞颂：',
+    ta: 'ஸ்ரீ ராம ஸ்துதி:',
+  },
+  verse: {
+    en: 'I seek refuge in Lord Shri Ramachandra, who is beloved of all, courageous on the battlefield, lotus-eyed, and the Lord of the Raghu dynasty; who embodies compassion and is the bestower of mercy.',
+    ne: 'लोकाभिरामं रणरङ्गधीरं राजीवनेत्रं रघुवंशनाथम्।\nकारुण्यरूपं करुणाकरं तं श्रीरामचन्द्रं शरणं प्रपद्ये॥',
+    hi: 'लोकाभिरामं रणरङ्गधीरं राजीवनेत्रं रघुवंशनाथम्।\nकारुण्यरूपं करुणाकरं तं श्रीरामचन्द्रं शरणं प्रपद्ये॥',
+    zh: '我皈依于 श्री罗摩旃陀罗，他令人世间喜爱，战场上英勇无畏，拥有如莲花般的双眼，是拉古王朝之主；他是慈悲的化身，是施予慈悲与恩典之主。',
+    ta: 'உலகத்தாரால் நேசிக்கப்படுபவரும், போர்க்களத்தில் வீரமும் துணிவும் கொண்டவரும், தாமரை போன்ற கண்களையுடையவரும், ரகு வம்சத்தின் தலைவருமான ஸ்ரீ ராமச்சந்திரரை நான் சரணடைகிறேன். அவர் கருணையின் வடிவமாகவும், அருளை வழங்குபவராகவும் விளங்குகிறார்.',
+  },
+};
+
 // Titles that shipped before the rename. Matched loosely because the wording
 // drifted across releases ("About the Temple" → "श्री रामचन्द्र मन्दिरको
 // बारेमा" → the current wording); an exact list kept missing whichever
@@ -366,9 +394,38 @@ exports.getSettings = async (req, res) => {
       }
     }
 
+    /*
+     * The hero banner's invocation / stuti heading / verse are editable from
+     * Admin → Hero. Installations that predate those fields get the defaults
+     * row by row, so one missing language is filled in without disturbing what
+     * an admin has already written. The group is reassigned rather than
+     * mutated in place, otherwise Mongoose would not mark it as changed.
+     */
+    const shloka = settings.heroShloka;
+    if (shloka) {
+      const filled = { enabled: shloka.enabled !== false };
+      let shlokaChanged = false;
+
+      for (const part of ['invocation', 'stutiLabel', 'verse']) {
+        const stored = shloka[part] || {};
+        filled[part] = {};
+
+        for (const [code, fallback] of Object.entries(DEFAULT_HERO_SHLOKA[part])) {
+          const kept = String(stored[code] ?? '').trim();
+          filled[part][code] = kept || fallback;
+          if (!kept) shlokaChanged = true;
+        }
+      }
+
+      if (shlokaChanged) {
+        settings.set('heroShloka', filled);
+        touched = true;
+      }
+    }
+
     if (touched) {
       await settings.save();
-      console.log('Settings: republished About section titles');
+      console.log('Settings: republished seeded content');
     }
 
     res.json(settings);
@@ -1160,6 +1217,34 @@ exports.deleteDonation = async (req, res) => {
  * (never deleted, so their photos stay available) and can be re-enabled from
  * Admin → History at any time.
  */
+
+// ---- Shared year normalisation for History ----
+const DEVANAGARI_DIGITS = '०१२३४५६७८९';
+
+const toDevanagariYear = (v) =>
+  String(v).replace(/[0-9]/g, (d) => DEVANAGARI_DIGITS[parseInt(d, 10)]);
+
+const toAsciiYear = (v) =>
+  String(v).replace(/[०-९]/g, (d) => String(DEVANAGARI_DIGITS.indexOf(d)));
+
+const normalizeYearLocalized = (y) => {
+  if (!y) return {};
+  if (typeof y === 'string') {
+    const t = y.trim();
+    const en = toAsciiYear(t);
+    const ne = toDevanagariYear(t);
+    return { en, ne, hi: toDevanagariYear(t), zh: en, ta: en };
+  }
+  if (typeof y === 'object') {
+    const out = { en: '', ne: '', hi: '', zh: '', ta: '' };
+    for (const k of ['en', 'ne', 'hi', 'zh', 'ta']) {
+      out[k] = String(y[k] ?? '').trim();
+    }
+    return out;
+  }
+  return {};
+};
+
 let historySeedPromise = null;
 
 const ensureSeedHistory = async () => {
@@ -1194,7 +1279,18 @@ const ensureSeedHistory = async () => {
 exports.getHistory = async (req, res) => {
   try {
     await ensureSeedHistory();
-    const history = await History.find().sort({ order: 1, createdAt: 1 });
+    const docs = await History.find().sort({ order: 1, createdAt: 1 });
+    const history = docs.map((doc) => {
+      const obj = doc.toObject();
+      if (obj.year) obj.year = normalizeYearLocalized(obj.year);
+      if (Array.isArray(obj.entries)) {
+        obj.entries = obj.entries.map((e) => ({
+          year: normalizeYearLocalized(e.year),
+          text: e.text || {},
+        }));
+      }
+      return obj;
+    });
     res.json(history);
   } catch (error) {
     console.error('Get history error:', error);
@@ -1204,10 +1300,18 @@ exports.getHistory = async (req, res) => {
 
 exports.addHistory = async (req, res) => {
   try {
-    const history = await History.create(req.body);
-    logAdminActivity(req.user.id, 'History Entry Added', { 
+    const body = { ...req.body };
+    if (body.year) body.year = normalizeYearLocalized(body.year);
+    if (Array.isArray(body.entries)) {
+      body.entries = body.entries.map((e) => ({
+        ...e,
+        year: normalizeYearLocalized(e.year),
+      }));
+    }
+    const history = await History.create(body);
+    logAdminActivity(req.user.id, 'History Entry Added', {
       historyId: history._id,
-      title: history.title 
+      title: history.title,
     });
     res.status(201).json(history);
   } catch (error) {
@@ -1219,16 +1323,24 @@ exports.addHistory = async (req, res) => {
 exports.updateHistory = async (req, res) => {
   try {
     const { id } = req.params;
-    const history = await History.findByIdAndUpdate(id, req.body, { 
-      new: true, 
-      runValidators: true 
+    const body = { ...req.body };
+    if (body.year) body.year = normalizeYearLocalized(body.year);
+    if (Array.isArray(body.entries)) {
+      body.entries = body.entries.map((e) => ({
+        ...e,
+        year: normalizeYearLocalized(e.year),
+      }));
+    }
+    const history = await History.findByIdAndUpdate(id, body, {
+      new: true,
+      runValidators: true,
     });
     if (!history) {
       return res.status(404).json({ message: 'History entry not found' });
     }
-    logAdminActivity(req.user.id, 'History Entry Updated', { 
+    logAdminActivity(req.user.id, 'History Entry Updated', {
       historyId: id,
-      title: history.title 
+      title: history.title,
     });
     res.json(history);
   } catch (error) {
@@ -1244,9 +1356,9 @@ exports.deleteHistory = async (req, res) => {
     if (!history) {
       return res.status(404).json({ message: 'History entry not found' });
     }
-    logAdminActivity(req.user.id, 'History Entry Deleted', { 
+    logAdminActivity(req.user.id, 'History Entry Deleted', {
       historyId: id,
-      title: history.title 
+      title: history.title,
     });
     res.json({ success: true, message: 'History entry deleted' });
   } catch (error) {
@@ -2329,4 +2441,4 @@ exports.getRecentActivity = async (req, res) => {
     console.error('Get recent activity error:', error);
     res.status(500).json({ message: 'Server error' });
   }
-};
+};  

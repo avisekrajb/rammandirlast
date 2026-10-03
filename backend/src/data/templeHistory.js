@@ -19,8 +19,34 @@ const P = (p1 = '', p2 = '', p3 = '', p4 = '') => ({
   p4: L(p4, ''),
 });
 
+/**
+ * A year is stored per language so the History page can show "2050" to an
+ * English reader and "२०५०" to a Nepali one. Only the digits are swapped, so
+ * ranges ("२०६४ र २०६८"), era prefixes ("वि.सं. २०४९ देखि") and free text
+ * ("Present") survive untouched. Any language can be retyped from
+ * Admin → History.
+ */
+const DEVANAGARI_DIGITS = '०१२३४५६७८९';
+
+const toDevanagariDigits = (value) =>
+  String(value).replace(/[0-9]/g, (d) => DEVANAGARI_DIGITS[Number(d)]);
+
+const toAsciiDigits = (value) =>
+  String(value).replace(/[०-९]/g, (d) => String(DEVANAGARI_DIGITS.indexOf(d)));
+
+const YEAR = (value = '') => {
+  const text = String(value).trim();
+  return {
+    en: toAsciiDigits(text),
+    ne: toDevanagariDigits(text),
+    hi: toDevanagariDigits(text),
+    zh: toAsciiDigits(text),
+    ta: toAsciiDigits(text),
+  };
+};
+
 /** Build a year entry; `en` is left to be filled in from admin. */
-const Y = (year, ne) => ({ year, text: L(ne, '') });
+const Y = (year, ne) => ({ year: YEAR(year), text: L(ne, '') });
 
 const DEFAULT_HISTORY = [
   {
@@ -28,7 +54,7 @@ const DEFAULT_HISTORY = [
     order: 0,
     title: L('श्रीरामचन्द्रमन्दिरको स्थापना', 'The Founding of Shree Ramchandra Temple'),
     period: L('वि.सं. १९२८', '1928 VS'),
-    year: '1928',
+    year: YEAR('1928'),
     desc: L(
       'काठमाडौंको बत्तीसपुतलीस्थित श्रीरामचन्द्रमन्दिर धार्मिक, ऐतिहासिक, सांस्कृतिक तथा पुरातात्त्विक दृष्टिले महत्वपूर्ण तीर्थस्थल हो। यो मन्दिर पशुपतिक्षेत्रको दक्षिण–पश्चिमतर्फ रहेको थुम्कोमा अवस्थित छ।',
       'Shree Ramchandra Temple in Battisputali, Kathmandu, is an important pilgrimage site of religious, historical, cultural and archaeological significance. The temple is located in Thumka, to the south-west of the Pashupati area.'
@@ -51,7 +77,7 @@ const DEFAULT_HISTORY = [
       'Family and Historical Background of the Founder Sanaksinh Tandan'
     ),
     period: L('ऐतिहासिक पृष्ठभूमि', 'Historical Background'),
-    year: '',
+    year: YEAR(),
     desc: L(
       'मन्दिरका संस्थापक कम्याण्डर कर्णेल सनकसिंह टण्डनको वंशपरम्परालाई शशिधर क्षत्री/परशुराम क्षत्री तथा जंगबहादुर राणासँग जोडिएको उल्लेख पाइन्छ।',
       'The lineage of the founder Commander Karnel Sanaksinh Tandan is recorded as being linked to Shashidhar Kshatri/Parashuram Kshatri and Jang Bahadur Rana.'
@@ -72,7 +98,7 @@ const DEFAULT_HISTORY = [
       'Local Legend Behind the Name Battisputali'
     ),
     period: L('स्थानीय किंवदन्ती', 'Local Legend'),
-    year: '',
+    year: YEAR(),
     desc: L(
       'स्थानीय किंवदन्तीअनुसार विक्रमादित्यको सिंहासन अप्सराहरूले ल्याएर यस थुम्कोमा गाडेका थिए। उक्त सिंहासनमा ३२ जना अप्सराका आकृति रहेका कारण यस स्थानको नाम बत्तीसपुतली रहन गएको भनाइ छ।',
       'According to local legend, the throne of Vikramaditya with its apsaras was brought here and buried in this Thumka. Because the throne carried the figures of 32 apsaras, the place came to be known as Battisputali.'
@@ -90,7 +116,7 @@ const DEFAULT_HISTORY = [
     order: 3,
     title: L('पुरातात्त्विक तथा कलात्मक महत्व', 'Archaeological and Artistic Significance'),
     period: L('पुरातात्त्विक महत्व', 'Archaeological Significance'),
-    year: '',
+    year: YEAR(),
     desc: L(
       'मन्दिर परिसर वरिपरि लिच्छविकालीन अवशेष तथा पुरातात्त्विक सामग्रीहरू भेटिएको उल्लेख छ। मुख्य गर्भगृहमा रामायणसँग सम्बन्धित आधुनिक भित्तेचित्रहरू पनि रहेका छन्।',
       'Lichchhavi-period remains and archaeological material have been found around the temple complex. Modern murals related to the Ramayana are also present in the main sanctum.'
@@ -108,7 +134,7 @@ const DEFAULT_HISTORY = [
     order: 4,
     title: L('समयसँगै आएको परिवर्तन', 'Change Over Time'),
     period: L('समयसँगै आएको परिवर्तन', 'Change Over Time'),
-    year: '',
+    year: YEAR(),
     desc: L(
       'पहिले श्रीरामचन्द्रमन्दिरबाट काठमाडौं उपत्यकाका विभिन्न स्थानको फराकिलो दृश्य देखिन्थ्यो। तर पछिल्लो समयमा बढ्दै गएको शहरीकरण तथा अग्ला भवनका कारण ती दृश्यहरू धेरै हदसम्म छेकिएका छन्।',
       'In the past, a wide view of various places in the Kathmandu valley could be seen from Shree Ramchandra Temple. However, growing urbanisation and tall buildings have blocked those views to a large extent.'
@@ -129,7 +155,7 @@ const DEFAULT_HISTORY = [
       'The Temple\'s Dilapidated State and the Start of Conservation'
     ),
     period: L('वि.सं. २०४७/४८', '2047/48 VS'),
-    year: '',
+    year: YEAR(),
     desc: L(
       'वि.सं. २०४७/४८ सम्म आइपुग्दा मन्दिर परिसरका धेरै सत्तलहरू जीर्ण भई भत्किएका थिए। मन्दिर तथा परिसर संरक्षण र व्यवस्थापनको आवश्यकता बढ्दै गएको थियो।',
       'By 2047/48 VS many structures in the temple complex had become dilapidated and had collapsed. The need for conservation and management of the temple and its complex kept growing.'
@@ -150,7 +176,7 @@ const DEFAULT_HISTORY = [
       'Shree Ramchandra Temple Renovation and Conservation Committee'
     ),
     period: L('वि.सं. २०४८', '2048 VS'),
-    year: '',
+    year: YEAR(),
     desc: L(
       'श्रीरामचन्द्रमन्दिरको संरक्षण, जीर्णोद्धार तथा प्रवर्द्धनका लागि वि.सं. २०४८ मा श्रीरामचन्द्रमन्दिर जीर्णोद्धार तथा संवर्द्धन समिति गठन तथा दर्ता गरिएको थियो।',
       'For the conservation, renovation and development of Shree Ramchandra Temple, the Shree Ramchandra Temple Renovation and Development Committee was formed and registered in 2048 VS.'
@@ -173,7 +199,7 @@ const DEFAULT_HISTORY = [
     order: 7,
     title: L('संरक्षण तथा जीर्णोद्धारको क्रम', 'Sequence of Conservation and Renovation'),
     period: L('वि.सं. २०४९ – २०८१', '2049 – 2081 VS'),
-    year: '',
+    year: YEAR(),
     desc: L(
       'वि.सं. २०४९ देखि मन्दिरमा वार्षिक रूपमा रंगरोगन गर्ने कार्य हुँदै आएको उल्लेख छ।',
       'From 2049 VS, annual painting of the temple has been carried out regularly.'
@@ -219,7 +245,7 @@ const DEFAULT_HISTORY = [
     order: 8,
     title: L('भूकम्प तथा मन्दिर संरक्षण', 'Earthquakes and Temple Conservation'),
     period: L('वि.सं. १९९० र २०७२', '1990 and 2072 VS'),
-    year: '',
+    year: YEAR(),
     desc: L(
       'नेपालमा वि.सं. १९९० तथा वि.सं. २०७२ मा आएको भूकम्पले विभिन्न संरचनामा प्रभाव पारेको थियो। वि.सं. २०७२ को भूकम्पमा श्रीरामचन्द्रमन्दिरको मुख्य संरचनामा चिरा परेको भए पनि ठूलो क्षति हुन पाएन।',
       'The earthquakes of 1990 and 2072 VS affected various structures in Nepal. Although cracks appeared in the main structure of Shree Ramchandra Temple in the 2072 VS earthquake, no major damage occurred.'
@@ -237,7 +263,7 @@ const DEFAULT_HISTORY = [
     order: 9,
     title: L('धार्मिक तथा सामाजिक व्यवस्थापन', 'Religious and Social Management'),
     period: L('', ''),
-    year: '',
+    year: YEAR(),
     desc: L(
       'मन्दिर संरक्षण तथा व्यवस्थापनका लागि भक्तजन, दाता तथा शुभेच्छुकहरूबाट प्राप्त सहयोग महत्वपूर्ण रहेको उल्लेख छ।',
       'Support received from devotees, donors and well-wishers has been important for the conservation and management of the temple.'
@@ -256,7 +282,7 @@ const DEFAULT_HISTORY = [
     order: 10,
     title: L('वर्तमान संरक्षण तथा भविष्यको योजना', 'Current Conservation and Future Plans'),
     period: L('वर्तमान तथा भविष्य', 'Present and Future'),
-    year: '',
+    year: YEAR(),
     desc: L(
       'मन्दिरको पहिलो चरणको मास्टर प्लान पूरा भएको उल्लेख छ।',
       'The first phase master plan of the temple has been completed.'
@@ -283,7 +309,7 @@ const DEFAULT_HISTORY = [
       'Institutions and Donors Supporting the Conservation'
     ),
     period: L('', ''),
-    year: '',
+    year: YEAR(),
     desc: L(
       'मन्दिरको संरक्षण, जीर्णोद्धार तथा व्यवस्थापनमा विभिन्न सरकारी निकाय, संघ–संस्था, दाता, भक्तजन तथा शुभेच्छुकहरूको सहयोग रहेको उल्लेख छ।',
       'The conservation, renovation and management of the temple has been supported by various government bodies, organisations, donors, devotees and well-wishers.'

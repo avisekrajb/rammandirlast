@@ -45,6 +45,35 @@ const adminSettingsSchema = new mongoose.Schema({
     zh: { type: String, default: '虔诚与巴格马蒂圣河相遇之处' },
     ta: { type: String, default: 'பக்தி பாக்மதியின் புனித கரையில் சந்திக்கும் இடம்' },
   },
+  /*
+   * The invocation and stuti shown over the home page hero banner. Edited from
+   * Admin → Hero in all five languages. The verse is one string per language;
+   * newlines split it into the separate lines the banner renders.
+   */
+  heroShloka: {
+    enabled: { type: Boolean, default: true },
+    invocation: {
+      en: { type: String, default: 'Salutations to Lord Shri Ramachandra.' },
+      ne: { type: String, default: 'श्रीरामचन्द्राय नमः' },
+      hi: { type: String, default: 'श्रीरामचन्द्राय नमः' },
+      zh: { type: String, default: '向 श्री罗摩旃陀罗致敬。' },
+      ta: { type: String, default: 'ஸ்ரீ ராமச்சந்திராய நமः' },
+    },
+    stutiLabel: {
+      en: { type: String, default: 'Hymn to Shri Rama:' },
+      ne: { type: String, default: 'श्रीरामस्तुति:' },
+      hi: { type: String, default: 'श्रीराम स्तुति:' },
+      zh: { type: String, default: 'श्री罗摩赞颂：' },
+      ta: { type: String, default: 'ஸ்ரீ ராம ஸ்துதி:' },
+    },
+    verse: {
+      en: { type: String, default: 'I seek refuge in Lord Shri Ramachandra, who is beloved of all, courageous on the battlefield, lotus-eyed, and the Lord of the Raghu dynasty; who embodies compassion and is the bestower of mercy.' },
+      ne: { type: String, default: 'लोकाभिरामं रणरङ्गधीरं राजीवनेत्रं रघुवंशनाथम्।\nकारुण्यरूपं करुणाकरं तं श्रीरामचन्द्रं शरणं प्रपद्ये॥' },
+      hi: { type: String, default: 'लोकाभिरामं रणरङ्गधीरं राजीवनेत्रं रघुवंशनाथम्।\nकारुण्यरूपं करुणाकरं तं श्रीरामचन्द्रं शरणं प्रपद्ये॥' },
+      zh: { type: String, default: '我皈依于 श्री罗摩旃陀罗，他令人世间喜爱，战场上英勇无畏，拥有如莲花般的双眼，是拉古王朝之主；他是慈悲的化身，是施予慈悲与恩典之主。' },
+      ta: { type: String, default: 'உலகத்தாரால் நேசிக்கப்படுபவரும், போர்க்களத்தில் வீரமும் துணிவும் கொண்டவரும், தாமரை போன்ற கண்களையுடையவரும், ரகு வம்சத்தின் தலைவருமான ஸ்ரீ ராமச்சந்திரரை நான் சரணடைகிறேன். அவர் கருணையின் வடிவமாகவும், அருளை வழங்குபவராகவும் விளங்குகிறார்.' },
+    },
+  },
   
   // ============================================
   // HISTORY BANNER

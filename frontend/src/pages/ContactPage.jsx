@@ -2,28 +2,31 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
 import { useToast } from '../context/ToastContext';
-import {
-  MapPin, Phone, Mail, Send, User, AtSign, MessageSquare,
-  Clock, Building2, Sparkles, HeartHandshake, Compass, ArrowUpRight, Loader2,
-} from 'lucide-react';
+import { Send, Loader2, MapPin } from 'lucide-react';
 import api from '../services/api';
 import PageHeader from '../components/common/PageHeader';
 
-// Battisputali, Kathmandu. Used for the map marker and the directions link.
-const TEMPLE_LAT = 27.7036;
-const TEMPLE_LNG = 85.3099;
-const MAPS_QUERY = 'Shree+Ramchandra+Mandir,+Battisputali,+Kathmandu,+Nepal';
-const DIRECTIONS_URL = `https://www.google.com/maps/dir/?api=1&destination=${TEMPLE_LAT},${TEMPLE_LNG}`;
+// ── Map configuration ────────────────────────────────────────────────
+// Temple coordinates (Battisputali, Kathmandu, Nepal)
+const TEMPLE_LAT = 27.70426855;
+const TEMPLE_LNG = 85.342925;
 
-// Bounding box for the embedded map, padded around the marker.
+// Canonical Google Maps short link (opens app on mobile, web on desktop)
+const DIRECTIONS_URL = 'https://maps.app.goo.gl/h3c1HpR4vQpCxGLD8';
+
+// Real embed — Google Maps (primary)
+const GOOGLE_EMBED =
+  'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d7064.843056298416!2d85.342925!3d27.70426855!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x39eb199d17032265%3A0xc7e605b267b03e75!2sBattisputali%2C%20Kathmandu%2C%20Bagmati%20Province%2044600!5e0!3m2!1sen!2snp!4v1791003263092!5m2!1sen!2snp';
+
+// Fallback embed — OpenStreetMap (used if Google iframe fails)
 const MAP_BBOX = [
-  (TEMPLE_LNG - 0.006).toFixed(4),
-  (TEMPLE_LAT - 0.004).toFixed(4),
-  (TEMPLE_LNG + 0.006).toFixed(4),
-  (TEMPLE_LAT + 0.004).toFixed(4),
+  (TEMPLE_LNG - 0.005).toFixed(4),
+  (TEMPLE_LAT - 0.003).toFixed(4),
+  (TEMPLE_LNG + 0.005).toFixed(4),
+  (TEMPLE_LAT + 0.003).toFixed(4),
 ].join('%2C');
 
-const OSM_EMBED = `https://www.openstreetmap.org/export/embed.html?bbox=${MAP_BBOX}&layer=mapnik&marker=${TEMPLE_LAT},${TEMPLE_LNG}`;
+const FALLBACK_EMBED = `https://www.openstreetmap.org/export/embed.html?bbox=${MAP_BBOX}&layer=mapnik&marker=${TEMPLE_LAT},${TEMPLE_LNG}`;
 
 const MAX_MESSAGE = 1000;
 
@@ -34,6 +37,9 @@ const ContactPage = () => {
   const [errors, setErrors] = useState({});
   const [focused, setFocused] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Which map is currently shown: 'primary' (Google) or 'fallback' (OSM)
+  const [mapSource, setMapSource] = useState('primary');
 
   const validate = () => {
     const newErrors = {};
@@ -73,7 +79,6 @@ const ContactPage = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    // Cap the textarea so the counter and the stored value agree.
     setFormData((prev) => ({
       ...prev,
       [name]: name === 'message' ? value.slice(0, MAX_MESSAGE) : value,
@@ -83,57 +88,31 @@ const ContactPage = () => {
     }
   };
 
-  /*
-   * "सम्पर्कका लागि" details block.
-   *
-   * The location row replaces the old "Address" tile rather than sitting
-   * beside it — both name the same place, so keeping both would just print the
-   * address twice on one page. Phone and email are the only direct channels
-   * that are not repeated here.
-   */
+  // Details list — Office and Religious Programs & Puja removed.
   const details = [
     {
       key: 'location',
       label: t.contactLocationLabel || 'Location',
       value: t.contactLocationValue || 'Battisputali, Kathmandu, Nepal',
-      Icon: MapPin,
       href: DIRECTIONS_URL,
       external: true,
-    },
-    {
-      key: 'office',
-      label: t.contactOfficeLabel || 'Office',
-      value: t.contactOfficeValue || 'Shree Ramchandra Temple Office',
-      Icon: Building2,
-      href: DIRECTIONS_URL,
-      external: true,
-    },
-    {
-      key: 'puja',
-      label: t.contactPujaLabel || 'Religious Programs & Puja',
-      value: t.contactPujaValue || 'Please contact at the temple office.',
-      Icon: Sparkles,
-      href: '/booking',
     },
     {
       key: 'donate',
       label: t.contactDonateLabel || 'Donation & Support',
       value: t.contactDonateValue || 'Get details through the temple office.',
-      Icon: HeartHandshake,
       href: '/donate',
     },
     {
       key: 'phone',
       label: t.contactPhone || 'Phone',
       value: '+977-1-4598526',
-      Icon: Phone,
       href: 'tel:+97714598526',
     },
     {
       key: 'email',
       label: t.contactEmail || 'Email',
       value: 'shreramchandra@gmail.com',
-      Icon: Mail,
       href: 'mailto:shreramchandra@gmail.com',
     },
   ];
@@ -169,8 +148,8 @@ const ContactPage = () => {
 
       <div className="relative z-10">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-20 sm:pt-24 pb-24">
-          {/* Page heading */}
-          <div className="mb-12">
+          {/* Page heading — bold */}
+          <div className="mb-12 [&_h1]:font-bold [&_h1]:tracking-tight">
             <PageHeader sub={t.contactSubtitle || 'We would love to hear from you.'}>
               {t.contactTitle || 'Get in Touch'}
             </PageHeader>
@@ -185,10 +164,9 @@ const ContactPage = () => {
               className="lg:col-span-7 relative overflow-hidden rounded-3xl bg-white border border-[#F1E4DE] transition-shadow duration-500 hover:shadow-[0_28px_70px_-28px_rgba(122,0,0,0.28)]"
               style={{ boxShadow: '0 12px 40px -20px rgba(0,0,0,0.12)' }}
             >
-              {/* Gradient top rule, brightens on hover */}
               <span
                 aria-hidden
-                className="absolute inset-x-0 top-0 h-[5px] origin-left scale-x-75 transition-transform duration-500 group-hover:scale-x-100"
+                className="absolute inset-x-0 top-0 h-[5px]"
                 style={{
                   background:
                     'linear-gradient(90deg, #7A0000, #C1440E 30%, #E8A93D 55%, #7A1F2B 100%)',
@@ -196,24 +174,13 @@ const ContactPage = () => {
               />
 
               <div className="p-6 sm:p-9">
-                <div className="flex items-center gap-3.5 mb-8">
-                  <span
-                    className="w-12 h-12 rounded-2xl grid place-items-center flex-shrink-0 text-white"
-                    style={{
-                      background: 'linear-gradient(135deg, #7A0000, #C1440E)',
-                      boxShadow: '0 10px 22px -8px rgba(122,0,0,0.6)',
-                    }}
-                  >
-                    <Send size={19} />
-                  </span>
-                  <div>
-                    <h2 className="font-serif text-2xl sm:text-[1.75rem] leading-tight text-ink">
-                      {t.contactMessage || 'Send us a Message'}
-                    </h2>
-                    <p className="text-xs text-ink-soft mt-0.5">
-                      {t.contactSubtitle || 'We usually reply within a day.'}
-                    </p>
-                  </div>
+                <div className="mb-8">
+                  <h2 className="font-serif text-2xl sm:text-[1.75rem] font-bold leading-tight text-ink">
+                    {t.contactMessage || 'Send us a Message'}
+                  </h2>
+                  <p className="text-xs text-ink-soft mt-0.5">
+                    {t.contactSubtitle || 'We usually reply within a day.'}
+                  </p>
                 </div>
 
                 <form onSubmit={handleSubmit} noValidate className="space-y-5">
@@ -225,25 +192,18 @@ const ContactPage = () => {
                     >
                       {t.contactYourName || 'Your Name'}
                     </label>
-                    <div className="relative">
-                      <User
-                        size={17}
-                        className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none transition-colors duration-200"
-                        style={{ color: focused === 'name' ? '#7A0000' : '#c9c2bd' }}
-                      />
-                      <input
-                        id="contact-name"
-                        type="text"
-                        name="name"
-                        value={formData.name}
-                        onChange={handleChange}
-                        onFocus={() => setFocused('name')}
-                        onBlur={() => setFocused('')}
-                        placeholder={t.contactNamePlaceholder || 'Enter your name'}
-                        aria-invalid={!!errors.name}
-                        className={fieldClass(!!errors.name, focused === 'name')}
-                      />
-                    </div>
+                    <input
+                      id="contact-name"
+                      type="text"
+                      name="name"
+                      value={formData.name}
+                      onChange={handleChange}
+                      onFocus={() => setFocused('name')}
+                      onBlur={() => setFocused('')}
+                      placeholder={t.contactNamePlaceholder || 'Enter your name'}
+                      aria-invalid={!!errors.name}
+                      className={fieldClass(!!errors.name, focused === 'name')}
+                    />
                     {errors.name && (
                       <p className="text-xs mt-1.5 text-red-600">{errors.name}</p>
                     )}
@@ -257,25 +217,18 @@ const ContactPage = () => {
                     >
                       {t.contactYourEmail || 'Your Email'}
                     </label>
-                    <div className="relative">
-                      <AtSign
-                        size={17}
-                        className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none transition-colors duration-200"
-                        style={{ color: focused === 'email' ? '#7A0000' : '#c9c2bd' }}
-                      />
-                      <input
-                        id="contact-email"
-                        type="email"
-                        name="email"
-                        value={formData.email}
-                        onChange={handleChange}
-                        onFocus={() => setFocused('email')}
-                        onBlur={() => setFocused('')}
-                        placeholder={t.contactEmailPlaceholder || 'Enter your email'}
-                        aria-invalid={!!errors.email}
-                        className={fieldClass(!!errors.email, focused === 'email')}
-                      />
-                    </div>
+                    <input
+                      id="contact-email"
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      onFocus={() => setFocused('email')}
+                      onBlur={() => setFocused('')}
+                      placeholder={t.contactEmailPlaceholder || 'Enter your email'}
+                      aria-invalid={!!errors.email}
+                      className={fieldClass(!!errors.email, focused === 'email')}
+                    />
                     {errors.email && (
                       <p className="text-xs mt-1.5 text-red-600">{errors.email}</p>
                     )}
@@ -290,7 +243,6 @@ const ContactPage = () => {
                       >
                         {t.contactYourMessage || 'Your Message'}
                       </label>
-                      {/* Turns amber as the limit approaches, red at the cap */}
                       <span
                         className="text-[11px] tabular-nums transition-colors duration-200"
                         style={{
@@ -305,25 +257,18 @@ const ContactPage = () => {
                         {formData.message.length}/{MAX_MESSAGE}
                       </span>
                     </div>
-                    <div className="relative">
-                      <MessageSquare
-                        size={17}
-                        className="absolute left-4 top-4 pointer-events-none transition-colors duration-200"
-                        style={{ color: focused === 'message' ? '#7A0000' : '#c9c2bd' }}
-                      />
-                      <textarea
-                        id="contact-message"
-                        name="message"
-                        value={formData.message}
-                        onChange={handleChange}
-                        onFocus={() => setFocused('message')}
-                        onBlur={() => setFocused('')}
-                        rows={5}
-                        placeholder={t.contactMsgPlaceholder || 'Write your message here...'}
-                        aria-invalid={!!errors.message}
-                        className={`${fieldClass(!!errors.message, focused === 'message')} resize-none min-h-[130px]`}
-                      />
-                    </div>
+                    <textarea
+                      id="contact-message"
+                      name="message"
+                      value={formData.message}
+                      onChange={handleChange}
+                      onFocus={() => setFocused('message')}
+                      onBlur={() => setFocused('')}
+                      rows={5}
+                      placeholder={t.contactMsgPlaceholder || 'Write your message here...'}
+                      aria-invalid={!!errors.message}
+                      className={`${fieldClass(!!errors.message, focused === 'message')} resize-none min-h-[130px]`}
+                    />
                     {errors.message && (
                       <p className="text-xs mt-1.5 text-red-600">{errors.message}</p>
                     )}
@@ -340,7 +285,6 @@ const ContactPage = () => {
                       boxShadow: '0 10px 28px -10px rgba(122,0,0,0.6)',
                     }}
                   >
-                    {/* Sheen that sweeps across on hover */}
                     <span
                       aria-hidden
                       className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out"
@@ -390,27 +334,15 @@ const ContactPage = () => {
                 />
 
                 <div className="p-6 sm:p-8">
-                  <div className="flex items-center gap-3.5 mb-6">
-                    <span
-                      className="w-12 h-12 rounded-2xl grid place-items-center flex-shrink-0 text-white"
-                      style={{
-                        background: 'linear-gradient(135deg, #5B1420, #C1440E)',
-                        boxShadow: '0 10px 22px -8px rgba(91,20,32,0.6)',
-                      }}
-                    >
-                      <Compass size={19} />
-                    </span>
-                    <div>
-                      <h2 className="font-serif text-2xl sm:text-[1.75rem] leading-tight text-ink">
-                        {t.contactForTitle || 'For Contact'}
-                      </h2>
-                      <p className="text-xs text-ink-soft mt-0.5">{contactHeading}</p>
-                    </div>
+                  <div className="mb-6">
+                    <h2 className="font-serif text-2xl sm:text-[1.75rem] font-bold leading-tight text-ink">
+                      {t.contactForTitle || 'For Contact'}
+                    </h2>
+                    <p className="text-xs font-bold text-ink-soft mt-0.5">{contactHeading}</p>
                   </div>
 
                   <ul className="space-y-2">
                     {details.map((item, index) => {
-                      const { Icon } = item;
                       const isExternal = !!item.external;
                       return (
                         <motion.li
@@ -429,17 +361,6 @@ const ContactPage = () => {
                                        hover:bg-white hover:border-[#E8D3CB] hover:shadow-[0_10px_26px_-12px_rgba(122,0,0,0.35)]
                                        hover:-translate-y-0.5"
                           >
-                            <span
-                              className="w-10 h-10 rounded-xl grid place-items-center flex-shrink-0
-                                         transition-all duration-300 group-hover:scale-110 group-hover:-rotate-6"
-                              style={{
-                                background:
-                                  'linear-gradient(135deg, rgba(122,0,0,0.10), rgba(193,68,14,0.10))',
-                              }}
-                            >
-                              <Icon size={17} className="text-[#7A0000]" />
-                            </span>
-
                             <span className="min-w-0 flex-1">
                               <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-[#9A3412]">
                                 {item.label}
@@ -448,13 +369,6 @@ const ContactPage = () => {
                                 {item.value}
                               </span>
                             </span>
-
-                            <ArrowUpRight
-                              size={15}
-                              className="mt-1 flex-shrink-0 text-[#C1440E]/40
-                                         transition-all duration-300 group-hover:text-[#7A0000]
-                                         group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-                            />
                           </a>
                         </motion.li>
                       );
@@ -462,13 +376,12 @@ const ContactPage = () => {
                   </ul>
 
                   <div
-                    className="mt-5 flex items-center gap-2.5 px-4 py-3 rounded-2xl"
+                    className="mt-5 flex items-center px-4 py-3 rounded-2xl"
                     style={{
                       background: 'rgba(122,0,0,0.05)',
                       border: '1px solid rgba(122,0,0,0.12)',
                     }}
                   >
-                    <Clock size={14} className="flex-shrink-0 text-[#7A0000]" />
                     <span className="text-[11px] font-medium text-gray-600">
                       We typically respond within 24 hours
                     </span>
@@ -476,36 +389,59 @@ const ContactPage = () => {
                 </div>
               </motion.section>
 
-              {/* Map */}
+              {/* ============= MAP (primary + fallback) ============= */}
               <motion.section
                 initial={{ opacity: 0, y: 24 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.55, delay: 0.2 }}
-                className="relative overflow-hidden rounded-3xl border border-[#F1E4DE] bg-white transition-shadow duration-500 hover:shadow-[0_28px_70px_-28px_rgba(122,0,0,0.24)]"
-                style={{ boxShadow: '0 12px 40px -20px rgba(0,0,0,0.12)' }}
+                className="relative overflow-hidden rounded-3xl border border-[#F1E4DE] bg-white"
+                style={{ boxShadow: '0 20px 50px -22px rgba(122,0,0,0.30)' }}
               >
-                {/* Map viewport. The inner pane scales slightly on hover, which
-                    reads as "zoom in" without needing map controls. */}
-                <div className="relative h-64 overflow-hidden">
-                  <div className="absolute inset-0 transition-transform duration-700 ease-out hover:scale-105">
+                <div className="relative h-72 overflow-hidden group">
+                  {/* Soft brand tint */}
+                  <div
+                    aria-hidden
+                    className="absolute inset-0 z-10 pointer-events-none mix-blend-multiply"
+                    style={{
+                      background:
+                        'linear-gradient(180deg, rgba(122,0,0,0.06) 0%, transparent 30%, transparent 70%, rgba(122,0,0,0.10) 100%)',
+                    }}
+                  />
+
+                  {/* iframe — Google (primary) or OSM (fallback) */}
+                  <div className="absolute inset-0 transition-transform duration-[1200ms] ease-out group-hover:scale-110">
                     <iframe
-                      title="Shree Ramchandra Mandir Location"
-                      className="w-full h-full border-0 grayscale-[35%] hover:grayscale-0 transition-all duration-700"
-                      src={OSM_EMBED}
+                      key={mapSource}
+                      title="Shree Ramchandra Mandir Location — Battisputali, Kathmandu, Nepal"
+                      className="w-full h-full border-0 saturate-[0.9] group-hover:saturate-100 transition-all duration-700"
+                      src={mapSource === 'primary' ? GOOGLE_EMBED : FALLBACK_EMBED}
                       loading="lazy"
-                      referrerPolicy="no-referrer-when-downgrade"
+                      allowFullScreen
+                      referrerPolicy="strict-origin-when-cross-origin"
+                      onError={() => setMapSource('fallback')}
                     />
                   </div>
 
-                  {/* Direction CTA, bottom-right */}
+                  {/* Floating pill */}
+                  <div className="absolute top-4 left-4 z-20 inline-flex items-center gap-2 rounded-full bg-white/95 backdrop-blur-md px-3.5 py-1.5 shadow-md border border-white">
+                    <span className="w-2 h-2 rounded-full bg-[#C1440E] animate-pulse" />
+                    <span className="text-[11px] font-semibold text-[#7A0000] tracking-wide">
+                      Battisputali · Kathmandu
+                    </span>
+                  </div>
+
+                  {/* Directions CTA → opens the shared short link */}
                   <a
                     href={DIRECTIONS_URL}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="absolute bottom-4 right-4 inline-flex items-center gap-1.5
-                               rounded-full bg-white/95 backdrop-blur px-4 py-2.5 text-xs font-semibold
-                               text-[#7A0000] shadow-lg border border-white
-                               transition-all duration-300 hover:-translate-y-0.5 hover:bg-white"
+                    className="absolute bottom-4 right-4 z-20 inline-flex items-center gap-1.5
+                               rounded-full px-4 py-2.5 text-xs font-semibold text-white
+                               transition-all duration-300 hover:-translate-y-0.5"
+                    style={{
+                      background: 'linear-gradient(120deg, #7A0000, #C1440E)',
+                      boxShadow: '0 10px 24px -8px rgba(122,0,0,0.55)',
+                    }}
                   >
                     <MapPin size={13} />
                     {t.contactDirections || 'Get Directions'}
@@ -513,21 +449,23 @@ const ContactPage = () => {
                 </div>
 
                 {/* Address strip */}
-                <div className="flex items-center gap-3 px-5 py-4 border-t border-[#F1E4DE] bg-[#FBF8F7]">
-                  <span
-                    className="w-9 h-9 rounded-xl grid place-items-center flex-shrink-0 text-white"
-                    style={{ background: 'linear-gradient(135deg, #7A0000, #C1440E)' }}
-                  >
-                    <MapPin size={16} />
-                  </span>
+                <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-[#F1E4DE] bg-[#FBF8F7]">
                   <div className="min-w-0">
                     <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#9A3412]">
                       {t.contactLocationLabel || 'Location'}
                     </p>
                     <p className="text-[13px] font-medium text-gray-700 truncate">
-                      {t.contactLocationValue || 'Battisputali, Kathmandu, Nepal'}
+                      Battisputali, Kathmandu, Nepal
                     </p>
                   </div>
+                  <a
+                    href={DIRECTIONS_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] font-semibold text-[#7A0000] hover:underline whitespace-nowrap"
+                  >
+                    Open in Maps →
+                  </a>
                 </div>
               </motion.section>
             </div>
@@ -538,10 +476,10 @@ const ContactPage = () => {
   );
 };
 
-/** Shared input styling, so all three fields focus and error identically. */
+/** Shared input styling. */
 const fieldClass = (hasError, isFocused) =>
   [
-    'w-full pl-11 pr-4 py-3.5 rounded-2xl border text-sm transition-all duration-200',
+    'w-full px-4 py-3.5 rounded-2xl border text-sm transition-all duration-200',
     'placeholder:text-gray-400 outline-none',
     hasError
       ? 'border-red-300 bg-red-50/40 focus:border-red-400 focus:ring-4 focus:ring-red-100'

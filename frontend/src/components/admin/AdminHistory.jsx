@@ -6,6 +6,7 @@ import LanguageSwitcher from '../common/LanguageSwitcher';
 import api from '../../services/api';
 import ImageCropper from '../common/ImageCropper';
 import OmLoader from '../../components/common/OmLoader';
+import getLocalizedYear from '../../utils/localizedYear';
 
 const AdminHistory = ({ history, setHistory, t, settings, updateSettings }) => {
   const { showToast } = useToast();
@@ -161,7 +162,7 @@ const AdminHistory = ({ history, setHistory, t, settings, updateSettings }) => {
     listTitle: { en: '', ne: '', hi: '', zh: '', ta: '' },
     points: [],
     entries: [],
-    year: '',
+    year: { en: '', ne: '', hi: '', zh: '', ta: '' },
     order: history.length,
     enabled: true,
   });
@@ -263,7 +264,7 @@ const AdminHistory = ({ history, setHistory, t, settings, updateSettings }) => {
   const addYearEntry = () => {
     setEditing((prev) => ({
       ...prev,
-      entries: [...(prev.entries || []), { year: '', text: { en: '', ne: '', hi: '', zh: '', ta: '' } }]
+      entries: [...(prev.entries || []), { year: { en: '', ne: '', hi: '', zh: '', ta: '' }, text: { en: '', ne: '', hi: '', zh: '', ta: '' } }]
     }));
   };
 
@@ -272,9 +273,7 @@ const AdminHistory = ({ history, setHistory, t, settings, updateSettings }) => {
       ...prev,
       entries: (prev.entries || []).map((e, i) => {
         if (i !== index) return e;
-        return field === 'year'
-          ? { ...e, year: value }
-          : { ...e, text: { ...(e.text || {}), [activeLang]: value } };
+        return { ...e, [field]: { ...(e[field] || {}), [activeLang]: value } };
       })
     }));
   };
@@ -575,7 +574,7 @@ const AdminHistory = ({ history, setHistory, t, settings, updateSettings }) => {
                     </td>
                     <td className="px-4 py-3 font-medium">{item.period?.en || 'Untitled'}</td>
                     <td className="px-4 py-3 hidden md:table-cell text-ink-soft">{item.title?.en || ''}</td>
-                    <td className="px-4 py-3 hidden lg:table-cell text-ink-soft">{item.year || '—'}</td>
+                    <td className="px-4 py-3 hidden lg:table-cell text-ink-soft">{getLocalizedYear(item.year, activeLang) || '—'}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
                         item.enabled !== false ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-500'
@@ -694,13 +693,13 @@ const AdminHistory = ({ history, setHistory, t, settings, updateSettings }) => {
               {/* Year */}
               <div>
                 <label className="text-xs font-bold text-ink block mb-1.5">Year (Optional)</label>
-                <input
-                  type="text"
-                  value={editing.year || ''}
-                  onChange={(e) => setEditing({ ...editing, year: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
-                  placeholder="e.g., 1800, 1950, Present"
-                />
+                  <input
+                    type="text"
+                    value={getLocalizedValue(editing.year, activeLang)}
+                    onChange={(e) => setEditing({ ...editing, year: { ...(editing.year || {}), [activeLang]: e.target.value } })}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
+                    placeholder="e.g., 1800, 1950, Present"
+                  />
               </div>
 
               {/* Language Switcher */}
@@ -874,13 +873,13 @@ const AdminHistory = ({ history, setHistory, t, settings, updateSettings }) => {
                   (editing.entries || []).map((entry, i) => (
                     <div key={i} className="mb-2 p-2.5 rounded-lg bg-gray-50">
                       <div className="flex items-start gap-1.5">
-                        <input
-                          type="text"
-                          value={entry.year || ''}
-                          onChange={(e) => updateYearEntry(i, 'year', e.target.value)}
-                          className="w-28 px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
-                          placeholder="वि.सं. २०५०"
-                        />
+                          <input
+                            type="text"
+                            value={getLocalizedValue(entry.year, activeLang)}
+                            onChange={(e) => updateYearEntry(i, 'year', e.target.value)}
+                            className="w-28 px-3 py-2 border border-gray-200 rounded-lg focus:border-vermilion focus:outline-none text-sm"
+                            placeholder="वि.सं. २०५०"
+                          />
                         <textarea
                           rows={2}
                           value={getLocalizedValue(entry.text, activeLang)}

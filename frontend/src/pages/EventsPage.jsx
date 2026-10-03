@@ -58,6 +58,8 @@ const readSlot = (map, key, lang) => {
 /* ===== पर्वहरू — festivals added from Admin → Events =====================
  * Dated, photographed announcements. Kept as cards because they carry an
  * image and a calendar date, unlike the standing programs below.
+ * The home-page position number (homeSlot) overlay has been removed
+ * from the photo, per request.
  * ====================================================================== */
 const FestivalCards = ({ events, lang, title }) => {
   if (!events || events.length === 0) return null;
@@ -89,7 +91,7 @@ const FestivalCards = ({ events, lang, title }) => {
                     src={e.photo || '/default-event.jpg'}
                     alt={title}
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                       onError={(ev) => { handleImageError(ev, '/default-event.jpg'); }}
+                    onError={(ev) => { handleImageError(ev, '/default-event.jpg'); }}
                   />
                   <div
                     className="absolute inset-0"
@@ -101,13 +103,7 @@ const FestivalCards = ({ events, lang, title }) => {
                     </span>
                   )}
 
-                  {/* Home page position set in Admin -> Events, same number as the home page */}
-                  {(e.homeSlot || 0) > 0 && (
-                    <div className="absolute top-4 left-4 w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shadow-md border-2 border-white/90"
-                      style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_2})` }}>
-                      {e.homeSlot}
-                    </div>
-                  )}
+                  {/* Home-page position number overlay removed */}
                 </div>
 
                 <div className="p-6 flex-1 flex flex-col">
