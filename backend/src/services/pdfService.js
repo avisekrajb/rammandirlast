@@ -1,6 +1,20 @@
-const jsPDF = require('jspdf');
+// jsPDF >= 4 (the installed version is 4.x) exports a namespace object whose
+// callable constructor lives on `.jsPDF`. `require('jspdf')` itself is no longer
+// a function, so `new jsPDF(...)` threw "jsPDF is not a constructor" and every
+// server-side receipt silently failed to generate. Take `.jsPDF` and fall back
+// to `.default` so both old and new shapes work.
+const jsPDFModule = require('jspdf');
+const jsPDF = jsPDFModule.jsPDF || jsPDFModule.default || jsPDFModule;
 
-const generateReceiptPDF = async (donation, user) => {
+const generateReceiptPDF = async (donation, user, options = {}) => {
+  // Callers pass the new status vocabulary; keep the original receipt wording as
+  // the default so existing callers are unaffected.
+  const {
+    title = 'OFFICIAL DONATION RECEIPT',
+    watermarkText = 'Shree Ramchandra Temple',
+    note = 'This is a system generated receipt. No signature required.',
+  } = options;
+
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -13,7 +27,7 @@ const generateReceiptPDF = async (donation, user) => {
   // Add watermark
   doc.setFontSize(60);
   doc.setTextColor(200, 200, 200);
-  doc.text(templeName, 105, 150, { align: 'center', angle: -45 });
+  doc.text(watermarkText, 105, 150, { align: 'center', angle: -45 });
 
   // Header
   doc.setFontSize(24);
@@ -29,7 +43,7 @@ const generateReceiptPDF = async (donation, user) => {
 
   doc.setFontSize(18);
   doc.setTextColor(50, 50, 50);
-  doc.text('OFFICIAL DONATION RECEIPT', 105, 55, { align: 'center' });
+  doc.text(title, 105, 55, { align: 'center' });
 
   // Receipt Details
   doc.setFontSize(11);
@@ -104,8 +118,8 @@ const generateReceiptPDF = async (donation, user) => {
   // Bottom text
   doc.setFontSize(8);
   doc.setTextColor(150, 150, 150);
-  doc.text('This is a system generated receipt. No signature required.', 105, yPos + 30, { align: 'center' });
-  doc.text(`${templeName} • Gaushala, Kathmandu, Nepal`, 105, yPos + 37, { align: 'center' });
+  doc.text(note, 105, yPos + 30, { align: 'center' });
+  doc.text(`${templeName} ? Gaushala, Kathmandu, Nepal`, 105, yPos + 37, { align: 'center' });
   doc.text(`Generated on: ${new Date().toLocaleString()}`, 105, yPos + 44, { align: 'center' });
 
   // Return PDF as buffer

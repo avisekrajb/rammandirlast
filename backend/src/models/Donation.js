@@ -32,10 +32,31 @@ const donationSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
+  // Cloudinary URL of the donor's payment screenshot. Paired with
+  // `transactionId`, at least one of the two is required on a manual donation
+  // so the admin has something to verify against.
+  screenshot: {
+    type: String,
+    default: null,
+  },
   status: {
     type: String,
-    enum: ['pending', 'completed', 'failed', 'refunded'],
+    enum: ['pending', 'completed', 'failed', 'refunded', 'rejected'],
     default: 'pending',
+  },
+  // Set when an admin rejects a donation; shown to the donor in the email.
+  rejectionReason: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  reviewedAt: {
+    type: Date,
+    default: null,
+  },
+  reviewedBy: {
+    type: String,
+    default: '',
   },
   message: {
     type: String,

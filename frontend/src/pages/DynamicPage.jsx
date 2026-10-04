@@ -136,8 +136,10 @@ const DonatePage = () => {
     fetchData();
   }, []);
 
-  // Get qrPhoto and signature from settings
-  const qrPhoto = settings?.donate?.qrPhoto;
+  // Get qrPhoto and signature from settings.
+  // The super admin can switch the donation QR off from Admin → Donation Account.
+  const qrEnabled = settings?.donate?.qrEnabled !== false;
+  const qrPhoto = qrEnabled ? settings?.donate?.qrPhoto : null;
   const signature = settings?.signature;
   const logoPhoto = settings?.logo?.photo;
   const templeName = settings?.logo?.text?.[lang] || 'Shree Ramchandra Temple';
@@ -681,7 +683,8 @@ const DonatePage = () => {
               </div>
             </div>
 
-            {/* QR Code */}
+            {/* QR Code - only while the super admin has it switched on */}
+            {qrEnabled && (
             <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 sm:p-8 text-center">
               <h3 className="font-serif text-lg mb-4" style={{ color: "#7A0000" }}>
                 {t.scanQR || 'Scan to Pay'}
@@ -695,6 +698,7 @@ const DonatePage = () => {
               </div>
               <p className="text-xs text-mute mt-3">eSewa / Khalti / IPS / FonePay</p>
             </div>
+            )}
 
             {/* Real Donors - No scrollbar */}
             <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 sm:p-8">

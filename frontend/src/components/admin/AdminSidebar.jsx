@@ -44,7 +44,8 @@ import {
   PieChart,
   TrendingUp,
   Database,
-  Share2 // <-- Added Share2 icon
+  Share2, // <-- Added Share2 icon
+  Landmark // <-- Added Landmark icon for Donation Account
 } from 'lucide-react';
 
 const AdminSidebar = ({ isOpen, onClose }) => {
@@ -91,15 +92,15 @@ const AdminSidebar = ({ isOpen, onClose }) => {
       icon: LayoutDashboard,
       items: [
         { key: 'overview', label: t.overview || 'Overview', icon: LayoutDashboard },
-        { key: 'home', label: 'Home Settings', icon: Home },
+        { key: 'home', label: t.navHomeSettings || 'Home Settings', icon: Home },
         { key: 'about', label: t.aboutSection || 'About', icon: Info },
         { key: 'history', label: t.manageHistory || 'History', icon: ScrollText },
         { key: 'team', label: t.manageTeam || 'Team', icon: UsersIcon },
         { key: 'events', label: t.manageEvents || 'Events', icon: CalendarDays },
-        { key: 'events/aarti', label: 'Daily Aarti & Info', icon: Clock },
-        { key: 'blogs', label: 'Blogs', icon: BookOpen },
+        { key: 'events/aarti', label: t.navDailyAarti || 'Daily Aarti & Info', icon: Clock },
+        { key: 'blogs', label: t.navBlogs || 'Blogs', icon: BookOpen },
         { key: 'gallery', label: t.manageGallery || 'Gallery', icon: GalleryIcon },
-        { key: 'notice', label: 'Notice Modal', icon: Bell },
+        { key: 'notice', label: t.navNoticeModal || 'Notice Modal', icon: Bell },
       ]
     },
     {
@@ -110,10 +111,15 @@ const AdminSidebar = ({ isOpen, onClose }) => {
         { key: 'users', label: t.manageUsers || 'Users', icon: Users },
         { key: 'bookings', label: t.manageBooking || 'Bookings', icon: ClipboardList },
         { key: 'donations', label: t.manageDonate || 'Donations', icon: Gift },
-        { key: 'contact', label: 'Contact Messages', icon: Mail },
-        { key: 'visitors', label: 'Visitor Analytics', icon: Activity },
-        { key: 'backup', label: 'Backup & Restore', icon: Database },
-        { key: 'cloud', label: 'Cloud Storage', icon: Cloud },
+        // Super admin only: switches payment features on /donate, manages the QR
+        // and the account numbers donors transfer to.
+        ...(user?.role === 'superadmin'
+          ? [{ key: 'account', label: t.donationAccount || 'Donation Account', icon: Landmark }]
+          : []),
+        { key: 'contact', label: t.navContactMessages || 'Contact Messages', icon: Mail },
+        { key: 'visitors', label: t.navVisitorAnalytics || 'Visitor Analytics', icon: Activity },
+        { key: 'backup', label: t.navBackupRestore || 'Backup & Restore', icon: Database },
+        { key: 'cloud', label: t.navCloudStorage || 'Cloud Storage', icon: Cloud },
       ]
     },
     {
@@ -125,9 +131,9 @@ const AdminSidebar = ({ isOpen, onClose }) => {
         { key: 'quote', label: t.dailyQuote || 'Daily Quote', icon: Quote },
         { key: 'timings', label: t.templeTimings || 'Timings', icon: Clock },
         { key: 'logo', label: t.logoQr || 'Logo', icon: Image },
-        { key: 'footer', label: 'Footer Settings', icon: Settings },
-        { key: 'social', label: 'Social Links', icon: Share2 }, // <-- Added Social Links
-        { key: 'facebook-video', label: 'Facebook Video', icon: Video }, // <-- Facebook Video Embeds
+        { key: 'footer', label: t.navFooterSettings || 'Footer Settings', icon: Settings },
+        { key: 'social', label: t.navSocialLinks || 'Social Links', icon: Share2 }, // <-- Added Social Links
+        { key: 'facebook-video', label: t.navFacebookVideo || 'Facebook Video', icon: Video }, // <-- Facebook Video Embeds
       ]
     }
   ];
@@ -239,7 +245,7 @@ const AdminSidebar = ({ isOpen, onClose }) => {
             className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-ink-soft hover:bg-gray-50 hover:text-ink transition-all duration-200"
           >
             <ArrowLeft size={18} />
-            <span>{t.goHome || 'Back to Site'}</span>
+              <span>{t.navGoHome || 'Back to Site'}</span>
           </button>
           <button
             onClick={handleLogout}

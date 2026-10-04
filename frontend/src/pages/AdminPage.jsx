@@ -34,6 +34,7 @@ import CloudPhotoPage from './CloudPhotoPage';
 import AdminContact from '../components/admin/AdminContact';
 import AdminVisitor from '../components/admin/AdminVisitor';
 import AdminBackup from '../components/admin/AdminBackup';
+import AdminAccount from '../components/admin/AdminAccount';
 
 import { Menu, Settings, Bell, Globe, CheckCircle } from 'lucide-react';
 
@@ -137,6 +138,7 @@ const AdminPage = () => {
     if (path === 'visitors') return 'Visitor Analytics';
     if (path === 'backup') return 'Backup & Restore';
     if (path === 'social') return 'Social Links'; // <-- Added social page title
+    if (path === 'account') return t.donationAccount || 'Donation Account'; // <-- Payment features, QR & account numbers
     return path.charAt(0).toUpperCase() + path.slice(1);
   };
 
@@ -307,6 +309,7 @@ const AdminPage = () => {
               settings={settings} updateSettings={updateSettings} 
               t={t} lang={lang} 
             />} />
+            <Route path="account" element={<AdminAccount />} />
             <Route path="bookings" element={<AdminBookings 
               bookings={bookings} setBookings={setBookings} t={t} 
             />} />

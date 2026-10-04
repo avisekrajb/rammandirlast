@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const protect = require('../middleware/auth');
 const requireSuperAdmin = require('../middleware/superadmin');
+const upload = require('../middleware/upload');
 const {
   getDashboard,
   getAdmins,
@@ -22,6 +23,16 @@ const {
   clearCollection,
   deleteCollection,
 } = require('../controllers/superAdminController');
+const {
+  getDonationConfigAdmin,
+  updateDonationFeatures,
+  uploadDonationQR,
+  deleteDonationQR,
+  getAccounts,
+  createAccount,
+  updateAccount,
+  deleteAccount,
+} = require('../controllers/donationAccountController');
 
 // All super admin routes require authentication + superadmin role
 router.use(protect, requireSuperAdmin);
@@ -40,6 +51,21 @@ router.get('/bookings', getAllBookings);
 router.put('/bookings/:id/status', updateBookingStatus);
 router.get('/donations', getAllDonations);
 router.put('/donations/:id/status', updateDonationStatus);
+
+// ---------- Donation page: feature switches, QR & account numbers ----------
+// Toggles for eSewa / Khalti / IPS / QR / bank details on the public /donate page.
+router.get('/donation-config', getDonationConfigAdmin);
+router.put('/donation-features', updateDonationFeatures);
+
+// Donation QR code
+router.post('/donation/qr', upload.single('image'), uploadDonationQR);
+router.delete('/donation/qr', deleteDonationQR);
+
+// Donation account numbers (add / update / delete)
+router.get('/donation/accounts', getAccounts);
+router.post('/donation/accounts', createAccount);
+router.put('/donation/accounts/:id', updateAccount);
+router.delete('/donation/accounts/:id', deleteAccount);
 
 // Languages
 router.get('/languages', getLanguages);

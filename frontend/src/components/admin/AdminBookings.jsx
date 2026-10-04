@@ -3,12 +3,15 @@ import {
   Check, X, Clock, Calendar, User, Phone, Tag, FileText, 
   ChevronDown, ChevronUp, Plus, Trash2, Edit2, 
   Eye, EyeOff, Settings, CalendarDays, AlertCircle,
-    Search, Filter, Sparkles, Shield, Save,
+    Search, Filter, Sparkles, Shield, Save, Printer,
   Image, Upload, Trash
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { handleImageError } from '../../utils/imageFallback';
+import { formatDateTime } from '../../utils/formatDate';
 import api from '../../services/api';
+import DownloadMenu from './DownloadMenu';
+import { PrintBooking, PrintRecordList } from './PrintRecords';
 
 // Localized text helper: reads a { en, ne, hi, zh, ta } object
 const getLocalizedValue = (obj, lang) => {
@@ -16,6 +19,31 @@ const getLocalizedValue = (obj, lang) => {
   if (typeof obj === 'string') return obj;
   return obj[lang] || obj.en || '';
 };
+
+/**
+ * Column definitions shared by the CSV export and the "print all" sheet, so the
+ * downloaded file and the printed page always line up.
+ */
+const BOOKING_CSV_COLUMNS = (t) => [
+  { key: 'reference', label: t?.bookingReference || 'Reference No.', value: (b) => `BKG-${String(b._id || '').slice(-8).toUpperCase()}` },
+  { key: 'name', label: t?.fullName || 'Full Name' },
+  { key: 'phone', label: t?.phoneNumber || 'Phone', mono: true },
+  { key: 'email', label: t?.yourEmail || 'Email' },
+  { key: 'type', label: t?.pujaType || 'Puja Type' },
+  { key: 'date', label: t?.pujaDate || 'Puja Date', value: (b) => b.date || '' },
+  { key: 'status', label: t?.status || 'Status' },
+  {
+    key: 'description',
+    label: t?.specialInstruction || 'Instruction',
+    value: (b) => b.description || '',
+  },
+  {
+    key: 'createdAt',
+    label: t?.bookedOn || 'Booked On',
+    value: (b) => formatDateTime(b.createdAt),
+  },
+];
+
 
 const AdminBookings = ({ bookings, setBookings, t }) => {
   const { showToast } = useToast();
@@ -62,6 +90,10 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
   const [uploadingBg, setUploadingBg] = useState(false);
   const fileInputRef = useRef(null);
   const [previewImages, setPreviewImages] = useState([]);
+
+  // Printing: a single booking, or every row currently visible after filtering
+  const [printBooking, setPrintBooking] = useState(null);
+  const [printAllBookings, setPrintAllBookings] = useState(false);
 
   const statusColors = {
     pending: '#F59E0B',
@@ -1318,6 +1350,24 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
               <option value="name">Name (A-Z)</option>
               <option value="status">Status</option>
             </select>
+
+            <button
+              type="button"
+              onClick={() => setPrintAllBookings(true)}
+              disabled={!sortedBookings.length}
+              className="inline-flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-xl bg-white text-sm font-semibold text-gray-700 hover:border-[#7A0000] hover:text-[#7A0000] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Printer size={15} className="text-[#7A0000]" />
+              <span className="hidden sm:inline">{t?.printAll || 'Print All'}</span>
+            </button>
+
+            <DownloadMenu
+              rows={sortedBookings}
+              baseName="bookings"
+              dateField="createdAt"
+              t={t}
+              columns={BOOKING_CSV_COLUMNS(t)}
+            />
           </div>
         </div>
 
@@ -1592,12 +1642,22 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
                                 </div>
                                 <div className="sm:col-span-2 lg:col-span-2">
                                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
-                                    Description
+                                    {t?.specialInstruction || 'Special Instruction'}
                                   </p>
                                   <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
                                     {booking.description || '—'}
                                   </p>
                                 </div>
+                              </div>
+
+                              <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-gray-100">
+                                <button
+                                  type="button"
+                                  onClick={() => setPrintBooking(booking)}
+                                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:border-[#7A0000] hover:text-[#7A0000] transition-colors"
+                                >
+                                  <Printer size={13} /> {t?.print || 'Print'}
+                                </button>
                               </div>
                             </div>
                           </td>
@@ -1673,6 +1733,25 @@ const AdminBookings = ({ bookings, setBookings, t }) => {
           </div>
         )}
       </div>
+
+      {/* ============ Printable bookings ============ */}
+      {printBooking && (
+        <PrintBooking
+          booking={printBooking}
+          onClose={() => setPrintBooking(null)}
+          t={t}
+        />
+      )}
+
+      {printAllBookings && (
+        <PrintRecordList
+          title={t?.bookingsListTitle || 'All Bookings'}
+          columns={BOOKING_CSV_COLUMNS(t)}
+          rows={sortedBookings}
+          onClose={() => setPrintAllBookings(false)}
+          t={t}
+        />
+      )}
     </div>
   );
 };

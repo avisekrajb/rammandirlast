@@ -241,7 +241,9 @@ const NoticeModal = () => {
   }, []);
 
   const notice = allNotices[noticeIndex] || {};
-  const qrPhoto = settings?.donate?.qrPhoto || null;
+  // The super admin can switch the donation QR off from Admin → Donation Account.
+  const qrEnabled = settings?.donate?.qrEnabled !== false;
+  const qrPhoto = qrEnabled ? settings?.donate?.qrPhoto || null : null;
 
   const handleClose = useCallback(() => {
     dismissNotice(notice?.id);
@@ -608,7 +610,9 @@ const NoticeModal = () => {
                 style={{ background: 'linear-gradient(135deg, #1a5e3a 0%, #0d4228 100%)' }}
               >
                 <div className="flex flex-col sm:flex-row">
-                  {/* QR Code section - smaller on mobile */}
+                  {/* QR Code section - smaller on mobile. Hidden when the super
+                      admin has switched the QR off. */}
+                  {qrEnabled && (
                   <div
                     className={`flex items-center justify-center sm:border-r border-b sm:border-b-0 border-white/20 ${
                       isMobile ? 'p-2.5' : 'p-3 sm:p-5'
@@ -636,6 +640,7 @@ const NoticeModal = () => {
                       </p>
                     </div>
                   </div>
+                  )}
 
                   {/* Contact info - smaller on mobile */}
                   <div

@@ -400,6 +400,15 @@ aboutPreview: {
     bankNumber: { type: String, default: 'eSewa / COD — 98XXXXXXXX' },
     bankName: { type: String, default: 'Nepal Investment Bank' },
     accountHolder: { type: String, default: 'Temple Trust Fund' },
+    // ---- Feature switches (toggled by the super admin) ----
+    // Each payment gateway can be hidden independently from /donate.
+    esewaEnabled: { type: Boolean, default: true },
+    khaltiEnabled: { type: Boolean, default: true },
+    ipsEnabled: { type: Boolean, default: true },
+    // When false the QR image is hidden everywhere on the public donate page.
+    qrEnabled: { type: Boolean, default: true },
+    // When false the bank account numbers are hidden.
+    showBankDetails: { type: Boolean, default: true },
   },
   
   // ============================================

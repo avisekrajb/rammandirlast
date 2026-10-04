@@ -2,15 +2,36 @@ const express = require('express');
 const router = express.Router();
 const protect = require('../middleware/auth');
 const admin = require('../middleware/admin');
+const upload = require('../middleware/upload').upload;
 const Donation = require('../models/Donation');
 const User = require('../models/User');
 const AdminSettings = require('../models/AdminSettings');
 const { sendDonationConfirmation, sendDonationConfirmationWithPDF } = require('../services/emailService');
 const { generateReceiptPDF } = require('../services/pdfService');
+const { getDonationConfig } = require('../controllers/donationAccountController');
+const {
+  ALLOWED_STATUSES,
+  updateDonationStatusById,
+} = require('../services/donationStatusService');
 
 // ============================================
 // USER ROUTES
 // ============================================
+
+// @desc    Upload a payment screenshot (returned URL is sent with the donation)
+// @route   POST /api/donations/screenshot
+// @access  Private
+router.post('/screenshot', protect, upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No image uploaded' });
+    }
+    res.json({ success: true, url: req.file.path });
+  } catch (error) {
+    console.error('Upload donation screenshot error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
 // @desc    Create donation (sets status to 'pending' by default)
 // @route   POST /api/donations
@@ -22,7 +43,28 @@ router.post('/', protect, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const { amount, paymentMethod, name, email, phone, message } = req.body;
+    const {
+      amount,
+      paymentMethod,
+      name,
+      email,
+      phone,
+      message,
+      transactionId,
+      screenshot,
+    } = req.body;
+
+    // A manual donation is only useful if the admin has something to verify it
+    // against, so a screenshot, a transaction reference, or both are required.
+    // (Gateway donations never come through here — they use /payment/*.)
+    const txn = String(transactionId || '').trim();
+    const shot = String(screenshot || '').trim();
+    if (!txn && !shot) {
+      return res.status(400).json({
+        message:
+          'Please upload a payment screenshot or enter the transaction number (at least one is required).',
+      });
+    }
 
     const donation = await Donation.create({
       userId: req.user.id,
@@ -30,12 +72,15 @@ router.post('/', protect, async (req, res) => {
       email: email || user.email,
       phone: phone || user.phone || '',
       amount: amount || 0,
-      paymentMethod: paymentMethod || 'cash',
+      paymentMethod: paymentMethod || 'bank',
+      transactionId: txn,
+      screenshot: shot || null,
       message: message || '',
-      status: 'pending', // Always start as pending
+      status: 'pending', // Always start as pending; an admin accepts or rejects it
     });
 
-    // Send confirmation email (but not receipt yet, since it's pending)
+    // Acknowledge receipt of the submission. The acceptance / rejection email
+    // goes out later, from the status change.
     try {
       await sendDonationConfirmation(donation, user);
     } catch (emailError) {
@@ -45,7 +90,7 @@ router.post('/', protect, async (req, res) => {
     res.status(201).json({
       success: true,
       data: donation,
-      message: 'Donation recorded successfully. Waiting for admin approval.'
+      message: 'Donation submitted successfully. Waiting for admin approval.',
     });
   } catch (error) {
     console.error('Create donation error:', error);
@@ -66,6 +111,39 @@ router.get('/my', protect, async (req, res) => {
     });
   } catch (error) {
     console.error('Get my donations error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ============================================
+// PUBLIC ROUTES
+// ============================================
+// These must stay ABOVE `GET /:id`, otherwise the `:id` route swallows them
+// and they blow up with a CastError instead of returning the config.
+
+// @desc    Donation config: enabled gateways, account numbers and QR
+// @route   GET /api/donations/config
+// @access  Public
+router.get('/config', getDonationConfig);
+
+// @desc    Get donation settings (public, legacy shape)
+// @route   GET /api/donations/settings
+// @access  Public
+router.get('/settings', async (req, res) => {
+  try {
+    const settings = await AdminSettings.getSettings();
+    res.json({
+      success: true,
+      data: {
+        qrPhoto: settings.donate?.qrPhoto || null,
+        baseCount: settings.donate?.baseCount || 0,
+        bankNumber: settings.donate?.bankNumber || '',
+        bankName: settings.donate?.bankName || '',
+        accountHolder: settings.donate?.accountHolder || ''
+      }
+    });
+  } catch (error) {
+    console.error('Get donation settings error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -159,56 +237,34 @@ router.get('/', protect, admin, async (req, res) => {
 });
 
 // @desc    Update donation status (admin only)
+//          Accept or reject; the donor is emailed either way.
 // @route   PUT /api/donations/:id/status
 // @access  Private/Admin
 router.put('/:id/status', protect, admin, async (req, res) => {
   try {
-    const { status } = req.body;
-    
-    // Validate status
-    if (!['pending', 'completed', 'failed', 'refunded'].includes(status)) {
+    const { status, rejectionReason } = req.body;
+
+    if (!ALLOWED_STATUSES.includes(status)) {
       return res.status(400).json({ message: 'Invalid status' });
     }
-    
-    const donation = await Donation.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true }
-    );
-    
-    if (!donation) {
-      return res.status(404).json({ message: 'Donation not found' });
-    }
-    
-    // If status changed to completed, send receipt and update count
-    if (status === 'completed') {
-      const user = await User.findById(donation.userId);
-      if (user) {
-        // Update donation count in settings
-        const settings = await AdminSettings.getSettings();
-        if (settings.donate) {
-          settings.donate.baseCount = (settings.donate.baseCount || 0) + 1;
-          await settings.save();
-        }
-        
-        // Send receipt with PDF
-        try {
-          const pdfBuffer = await generateReceiptPDF(donation, user);
-          await sendDonationConfirmationWithPDF(donation, user, pdfBuffer);
-        } catch (emailError) {
-          console.error('Email error:', emailError);
-        }
-      }
-    }
-    
+
+    // All side effects (donor counter, donor email) live in the service so this
+    // behaves identically to the admin and super admin endpoints.
+    const { donation, emailSent } = await updateDonationStatusById({
+      id: req.params.id,
+      status,
+      rejectionReason,
+      adminUser: req.user,
+    });
+
     res.json({
       success: true,
       data: donation,
-      message: `Donation status updated to ${status}`
+      message: `Donation status updated to ${status}${emailSent ? ' and the donor was notified' : ''}`,
     });
   } catch (error) {
     console.error('Update donation status error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(error.statusCode || 500).json({ message: error.message || 'Server error' });
   }
 });
 
@@ -328,32 +384,6 @@ router.post('/:id/email-receipt', protect, async (req, res) => {
   } catch (error) {
     console.error('Send receipt error:', error);
     res.status(500).json({ message: 'Failed to send receipt' });
-  }
-});
-
-// ============================================
-// PUBLIC ROUTES (for admin settings)
-// ============================================
-
-// @desc    Get donation settings (public)
-// @route   GET /api/donations/settings
-// @access  Public
-router.get('/settings', async (req, res) => {
-  try {
-    const settings = await AdminSettings.getSettings();
-    res.json({
-      success: true,
-      data: {
-        qrPhoto: settings.donate?.qrPhoto || null,
-        baseCount: settings.donate?.baseCount || 0,
-        bankNumber: settings.donate?.bankNumber || '',
-        bankName: settings.donate?.bankName || '',
-        accountHolder: settings.donate?.accountHolder || ''
-      }
-    });
-  } catch (error) {
-    console.error('Get donation settings error:', error);
-    res.status(500).json({ message: 'Server error' });
   }
 });
 

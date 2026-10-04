@@ -230,26 +230,35 @@ exports.getAllDonations = async (req, res) => {
 
 exports.updateDonationStatus = async (req, res) => {
   try {
-    const Donation = require('../models/Donation');
-    const { status } = req.body;
-    const allowed = ['pending', 'completed', 'failed', 'refunded'];
-    if (!allowed.includes(status)) {
-      return res.status(400).json({ message: 'Invalid status' });
-    }
-    const donation = await Donation.findByIdAndUpdate(req.params.id, { status }, { new: true });
-    if (!donation) return res.status(404).json({ message: 'Donation not found' });
+    const { status, rejectionReason } = req.body;
+    // Shared with the admin controller and /api/donations/:id/status, so a
+    // super admin approving a donation bumps the counter and emails the donor
+    // exactly like a regular admin does.
+    const { updateDonationStatusById } = require('../services/donationStatusService');
+    const { donation, changed, emailSent } = await updateDonationStatusById({
+      id: req.params.id,
+      status,
+      rejectionReason,
+      adminUser: req.user,
+    });
 
     await AdminLog.create({
       adminId: req.user.id,
       action: 'Donation Status Updated',
-      details: { id: req.params.id, status },
+      details: { id: req.params.id, status, changed },
       user: { id: req.user.id, name: req.user.name, email: req.user.email },
     });
 
-    res.json({ success: true, data: donation });
+    res.json({
+      success: true,
+      data: donation,
+      message: changed
+        ? `Donation status updated to ${status}${emailSent ? ' and the donor was notified' : ''}`
+        : `Donation was already marked "${status}" — no change made`,
+    });
   } catch (error) {
     console.error('Update donation status error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(error.statusCode || 500).json({ message: error.message || 'Server error' });
   }
 };
 

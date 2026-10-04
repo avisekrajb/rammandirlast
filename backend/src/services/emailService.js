@@ -1556,6 +1556,331 @@ const notifySubscribers = async ({ type, title, summary, url }) => {
   }
 };
 
+/**
+ * Escape a value for safe interpolation into the HTML email templates below.
+ * Donation names, messages and rejection reasons are free text typed by donors
+ * and admins, so they must never be able to inject markup.
+ */
+const escapeHtml = (value) =>
+  String(value === null || value === undefined ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+/**
+ * Send the donor a modern, watermarked receipt when an admin accepts or rejects
+ * their donation.
+ *
+ * House style for donation emails is the green family (#1F4E3D), so an accepted
+ * donation keeps it. A rejection is tinted red so it reads as a refusal at a
+ * glance, and both carry a large diagonal watermark.
+ *
+ * Gmail strips some absolutely-positioned markup, so the watermark sits inside
+ * `.container` (position:relative + overflow:hidden, the latter already in use
+ * by the other templates) and a tinted band backs it up if the rotated text is
+ * dropped.
+ *
+ * @param {Object} donation
+ * @param {Object} user      recipient — falls back to the donation's own contact
+ * @param {Object} options   { status, rejectionReason, pdfBuffer }
+ */
+const sendDonationStatusEmail = async (donation, user, options = {}) => {
+  const { status = 'pending', rejectionReason = '', pdfBuffer = null } = options;
+
+  const accepted = status === 'completed';
+  const rejected = status === 'rejected';
+
+  const accent = accepted ? '#1F4E3D' : rejected ? '#B42318' : '#8A6410';
+  const accentDark = accepted ? '#16382C' : rejected ? '#8A1C13' : '#6B4E0B';
+  const watermark = accepted ? 'ACCEPTED' : rejected ? 'REJECTED' : 'PENDING';
+  const emoji = accepted ? '✅' : rejected ? '❌' : '⏳';
+
+  const headline = accepted
+    ? 'Donation Accepted'
+    : rejected
+      ? 'Donation Not Accepted'
+      : 'Donation Received';
+  const intro = accepted
+    ? 'Thank you for your generous donation. Our committee has verified your payment and accepted it.'
+    : rejected
+      ? 'Thank you for reaching out. After reviewing your submission, the temple committee was unable to accept this donation as submitted.'
+      : 'We have received your donation details and they are awaiting review by the temple committee.';
+
+  const recipientName = escapeHtml(user?.name || donation.name || 'Devotee');
+  const to = user?.email || donation.email;
+  const amount = Number(donation.amount) || 0;
+  const donationId = String(donation._id || '');
+  const receiptNo = `RCT-${donationId.slice(-8).toUpperCase()}`;
+  const paidOn = donation.date ? new Date(donation.date).toLocaleDateString('en-GB') : '—';
+
+  const paymentLabel =
+    { esewa: 'eSewa', khalti: 'Khalti', ips: 'IPS (ConnectIPS)', bank: 'Bank Transfer', cash: 'Cash' }[
+      donation.paymentMethod
+    ] || donation.paymentMethod || '—';
+
+  // Detail rows are built as a list so the optional fields can be dropped
+  // without leaving empty labels behind.
+  const rows = [
+    ['Receipt No.', receiptNo, true],
+    ['Amount', `Rs. ${amount.toLocaleString()}`, true],
+    ['Payment Method', escapeHtml(paymentLabel), false],
+    ['Transaction ID', escapeHtml(donation.transactionId || '—'), true],
+    ['Screenshot', donation.screenshot ? 'Attached by donor' : 'Not provided', false],
+    ['Donation Date', paidOn, false],
+    ['Donation ID', donationId, true],
+  ]
+    .filter(([, value]) => value !== '' && value !== null)
+    .map(
+      ([label, value, mono]) => `
+            <div class="details-row">
+              <span class="label">${label}</span>
+              <span class="value"${mono ? ' style="font-family: monospace; font-size: 13px;"' : ''}>${value}</span>
+            </div>`
+    )
+    .join('');
+
+  const rejectionBlock = rejected
+    ? `
+          <div class="alert">
+            <strong>Reason:</strong>
+            <div style="margin-top: 4px;">${escapeHtml(rejectionReason || 'No reason was recorded. Please contact the temple office for details.')}</div>
+          </div>`
+    : '';
+
+  const proofBlock =
+    donation.screenshot || donation.transactionId
+      ? `
+          <div class="proof">
+            <strong>Your submitted proof</strong>
+            ${donation.transactionId ? `<div style="margin-top:4px;">Transaction ID: <span style="font-family:monospace;">${escapeHtml(donation.transactionId)}</span></div>` : ''}
+            ${donation.screenshot ? '<div style="margin-top:4px;">Payment screenshot: received</div>' : ''}
+          </div>`
+      : '';
+
+  const pdfNote = pdfBuffer
+    ? `<div class="proof">📄 <strong>Attached:</strong> your official donation receipt as a PDF. Please keep it for your records.</div>`
+    : '';
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${headline}</title>
+      <style>
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+          line-height: 1.6;
+          color: #1a1a2e;
+          max-width: 600px;
+          margin: 0 auto;
+          padding: 20px;
+          background: #fafafa;
+        }
+        .container {
+          position: relative;
+          overflow: hidden;
+          background: #ffffff;
+          border-radius: 16px;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+        /* Repeating watermark band. Sits behind the content (z-index:0) and the
+           content sits above it (z-index:1), so nothing is ever obscured. */
+        .watermark {
+          position: absolute;
+          top: 45%;
+          left: 50%;
+          transform: translate(-50%, -50%) rotate(-32deg);
+          font-size: 74px;
+          font-weight: 900;
+          letter-spacing: 6px;
+          color: ${accent};
+          opacity: 0.07;
+          white-space: nowrap;
+          pointer-events: none;
+          z-index: 0;
+        }
+        .content { position: relative; z-index: 1; }
+        .header {
+          background: linear-gradient(135deg, ${accent} 0%, ${accentDark} 100%);
+          color: white;
+          padding: 30px 20px;
+          text-align: center;
+        }
+        .header h1 {
+          margin: 0;
+          font-size: 24px;
+          font-weight: 700;
+        }
+        .status-pill {
+          display: inline-block;
+          margin-top: 12px;
+          padding: 5px 16px;
+          border-radius: 999px;
+          background: rgba(255,255,255,0.18);
+          border: 1px solid rgba(255,255,255,0.45);
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 1.5px;
+        }
+        .inner { padding: 30px 25px; }
+        .greeting {
+          font-size: 18px;
+          font-weight: 600;
+          color: #1a1a2e;
+          margin: 0 0 12px;
+        }
+        .amount-hero {
+          background: linear-gradient(135deg, ${accent} 0%, ${accentDark} 100%);
+          color: #fff;
+          border-radius: 14px;
+          padding: 18px;
+          text-align: center;
+          margin: 20px 0;
+        }
+        .amount-hero .label {
+          font-size: 11px;
+          letter-spacing: 1.5px;
+          text-transform: uppercase;
+          opacity: 0.85;
+        }
+        .amount-hero .value {
+          font-size: 30px;
+          font-weight: 800;
+          margin-top: 4px;
+        }
+        .details {
+          background: #f8f5f3;
+          padding: 18px 20px;
+          border-radius: 12px;
+          margin: 18px 0;
+          border-left: 4px solid ${accent};
+        }
+        .details h3 {
+          margin: 0 0 10px;
+          font-size: 16px;
+          color: ${accent};
+        }
+        .details-row {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 6px 0;
+          border-bottom: 1px solid #e8e4e0;
+          font-size: 14px;
+        }
+        .details-row:last-child { border-bottom: none; }
+        .details-row .label { color: #6b6b7a; font-weight: 500; flex-shrink: 0; }
+        .details-row .value { font-weight: 600; color: #1a1a2e; text-align: right; word-break: break-word; }
+        .alert {
+          background: #fef3f2;
+          border: 1px solid #fda29b;
+          border-left: 4px solid ${accent};
+          border-radius: 10px;
+          padding: 14px 16px;
+          margin: 18px 0;
+          font-size: 14px;
+          color: #7a271a;
+        }
+        .proof {
+          background: #f0f7f4;
+          padding: 12px 16px;
+          border-radius: 8px;
+          margin: 12px 0;
+          border-left: 4px solid ${accent};
+          font-size: 13px;
+          color: #2d5a47;
+        }
+        .btn {
+          display: inline-block;
+          padding: 10px 24px;
+          background: ${accent};
+          color: white;
+          text-decoration: none;
+          border-radius: 8px;
+          font-weight: 600;
+          margin-top: 10px;
+        }
+        .footer {
+          text-align: center;
+          padding: 20px;
+          border-top: 1px solid #e8e4e0;
+          font-size: 13px;
+          color: #8a8a9a;
+          background: #fafafa;
+        }
+        .footer .temple-name { font-weight: 600; color: ${accent}; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="watermark">${watermark}</div>
+        <div class="content">
+          <div class="header">
+            <h1>${emoji} ${headline}</h1>
+            <div class="status-pill">${watermark}</div>
+          </div>
+          <div class="inner">
+            <p class="greeting">Dear ${recipientName},</p>
+            <p style="margin:0 0 12px;">${intro}</p>
+
+            <div class="amount-hero">
+              <div class="label">Donation Amount</div>
+              <div class="value">Rs. ${amount.toLocaleString()}</div>
+            </div>
+
+            <div class="details">
+              <h3>📋 Donation Details</h3>${rows}
+            </div>
+
+            ${rejectionBlock}
+            ${proofBlock}
+            ${pdfNote}
+
+            ${
+              accepted
+                ? `<p style="font-size:16px;color:${accent};font-weight:600;margin-top:16px;">May Lord Ram bless you with peace, prosperity, and happiness.</p>
+                   <p style="margin-top:16px;">Jai Shree Ram! 🙏</p>`
+                : rejected
+                  ? `<p style="margin-top:16px;">If you believe this was a mistake, or you have a corrected transaction reference or screenshot, please contact the temple office and we will review it again.</p>`
+                  : `<p style="margin-top:16px;">We will email you again as soon as the committee finishes reviewing your donation.</p>`
+            }
+
+            <div style="text-align:center;margin-top:20px;">
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:4000'}" class="btn">Visit Temple Website</a>
+            </div>
+          </div>
+          <div class="footer">
+            <p style="margin:0;"><span class="temple-name">Shree Ramchandra Temple</span></p>
+            <p style="margin:4px 0 0;">Gaushala, Kathmandu, Nepal</p>
+            <p style="margin:10px 0 0;font-size:11px;color:#aaa;">This is an automated email. Please do not reply to this email.</p>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const attachments = [];
+  if (pdfBuffer) {
+    attachments.push({
+      filename: `Donation_Receipt_${donationId.slice(-6)}.pdf`,
+      content: pdfBuffer,
+      contentType: 'application/pdf',
+    });
+  }
+
+  return sendEmail({
+    to,
+    subject: `${emoji} ${headline} - Rs. ${amount.toLocaleString()} - Shree Ramchandra Temple`,
+    html,
+    attachments,
+  });
+};
+
 // ============================================
 // EXPORTS
 // ============================================
@@ -1569,6 +1894,7 @@ module.exports = {
   sendBookingConfirmation,
   sendDonationConfirmation,
   sendDonationConfirmationWithPDF,
+  sendDonationStatusEmail,
   sendTeamWelcomeEmail,
   sendContactReply,
   notifySubscribers,

@@ -4,11 +4,74 @@ import {
   Banknote, Mail, Settings, Gift, FileText, Download,
   Eye, Check, X, Clock, User, Calendar, Search,
   Filter, RefreshCw, ChevronDown, ChevronUp, ChevronRight,
-  Plus, Hand
+  Plus, Hand, Info, Printer, EyeOff, AlertTriangle, ExternalLink
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
+import { formatDateTime } from '../../utils/formatDate';
 import api from '../../services/api';
 import DonationReceipt from '../common/DonationReceipt';
+import DownloadMenu from './DownloadMenu';
+import { PrintDonation, PrintRecordList } from './PrintRecords';
+
+/**
+ * Column definitions shared by the CSV export and the "print all" sheet so the
+ * downloaded file and the printed page always line up.
+ * `Donation` stores its only date in `date` (a real Date), unlike Booking which
+ * uses `createdAt`.
+ */
+const DONATION_CSV_COLUMNS = (t) => [
+  { key: 'reference', label: t?.receiptNo || 'Receipt No.', value: (d) => `RCT-${String(d._id || '').slice(-8).toUpperCase()}` },
+  { key: 'name', label: t?.fullName || 'Full Name' },
+  { key: 'email', label: t?.yourEmail || 'Email' },
+  { key: 'phone', label: t?.phoneNumber || 'Phone', mono: true },
+  {
+    key: 'amount',
+    label: t?.amount || 'Amount',
+    align: 'right',
+    value: (d) => Number(d.amount) || 0,
+  },
+  {
+    key: 'paymentMethod',
+    label: t?.paymentMethod || 'Payment Method',
+    value: (d) => d.paymentMethod || '',
+  },
+  { key: 'status', label: t?.status || 'Status' },
+  {
+    key: 'transactionId',
+    label: t?.transactionId || 'Transaction ID',
+    mono: true,
+    value: (d) => d.transactionId || '',
+  },
+  {
+    key: 'screenshot',
+    label: t?.screenshot || 'Screenshot',
+    // The URL, so an admin can re-open the exact image the donor sent.
+    value: (d) => (d.screenshot ? 'Yes' : 'No'),
+  },
+  {
+    key: 'screenshotUrl',
+    label: t?.screenshotUrl || 'Screenshot URL',
+    mono: true,
+    value: (d) => d.screenshot || '',
+  },
+  {
+    key: 'rejectionReason',
+    label: t?.rejectionReason || 'Rejection Reason',
+    value: (d) => d.rejectionReason || '',
+  },
+  {
+    key: 'message',
+    label: t?.message || 'Message',
+    value: (d) => d.message || '',
+  },
+  {
+    key: 'date',
+    label: t?.donationDate || 'Donation Date',
+    value: (d) => formatDateTime(d.date || d.createdAt),
+  },
+];
 
 const EMPTY_LOC = { en: '', ne: '', hi: '', zh: '', ta: '' };
 const emptyLoc = () => ({ en: '', ne: '', hi: '', zh: '', ta: '' });
@@ -35,6 +98,8 @@ const normalizeSection = (raw) => {
 
 const AdminDonations = ({ donations, setDonations, settings, updateSettings, t, lang }) => {
   const { showToast } = useToast();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
@@ -47,6 +112,13 @@ const AdminDonations = ({ donations, setDonations, settings, updateSettings, t, 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [expandedId, setExpandedId] = useState(null);
+
+  // Printing: a single donation, or every row currently visible after filtering
+  const [printDonation, setPrintDonation] = useState(null);
+  const [printAllDonations, setPrintAllDonations] = useState(false);
+
+  // Full-size view of the payment screenshot the donor uploaded
+  const [screenshotView, setScreenshotView] = useState(null);
 
   // "दान तथा सहयोग" page content
   const [donateContent, setDonateContent] = useState([]);
@@ -80,6 +152,7 @@ const AdminDonations = ({ donations, setDonations, settings, updateSettings, t, 
     completed: '#10B981',
     failed: '#EF4444',
     refunded: '#6B7280',
+    rejected: '#DC2626',
   };
 
   const statusBadgeClasses = {
@@ -87,6 +160,7 @@ const AdminDonations = ({ donations, setDonations, settings, updateSettings, t, 
     completed: 'bg-green-50 text-green-700 border-green-200',
     failed: 'bg-red-50 text-red-700 border-red-200',
     refunded: 'bg-gray-50 text-gray-700 border-gray-200',
+    rejected: 'bg-red-50 text-red-700 border-red-300',
   };
 
   // ===== Donate page content helpers =====
@@ -227,17 +301,21 @@ const AdminDonations = ({ donations, setDonations, settings, updateSettings, t, 
     }
   };
 
-  const handleStatusChange = async (id, status) => {
+  const handleStatusChange = async (id, status, rejectionReason = '') => {
     setLoading(true);
     try {
-      const response = await api.put(`/admin/donations/${id}/status`, { status });
+      const response = await api.put(`/admin/donations/${id}/status`, {
+        status,
+        rejectionReason,
+      });
       setDonations(donations.map(d => d._id === id ? response.data.data : d));
-      
+
       const statusMessages = {
-        pending: 'Donation marked as pending',
-        completed: 'Donation approved! Receipt sent to donor via email',
-        failed: 'Donation marked as failed',
-        refunded: 'Donation refunded'
+        pending: t?.markedPending || 'Donation marked as pending',
+        completed: t?.approvedReceiptSent || 'Donation approved! Receipt sent to donor via email',
+        failed: t?.markedFailed || 'Donation marked as failed',
+        refunded: t?.markedRefunded || 'Donation refunded',
+        rejected: t?.rejectedEmailSent || 'Donation rejected and the donor was emailed',
       };
       showToast(statusMessages[status] || `Donation status updated to ${status}`, 'success');
     } catch (error) {
@@ -246,6 +324,19 @@ const AdminDonations = ({ donations, setDonations, settings, updateSettings, t, 
     } finally {
       setLoading(false);
     }
+  };
+
+  // Rejecting asks for a reason first: it is emailed to the donor verbatim, and a
+  // rejection with no explanation is not much use to them. `null` from the prompt
+  // means the admin cancelled, `''` means confirmed with no reason given.
+  const handleReject = (donation) => {
+    const reason = window.prompt(
+      t?.rejectionReasonPrompt ||
+        'Why is this donation being rejected? This message will be emailed to the donor.',
+      donation.rejectionReason || ''
+    );
+    if (reason === null) return;
+    handleStatusChange(donation._id, 'rejected', reason);
   };
 
   const handleSendEmail = async (donation) => {
@@ -321,6 +412,9 @@ const AdminDonations = ({ donations, setDonations, settings, updateSettings, t, 
     try {
       await updateSettings({ 
         donate: { 
+          // Spread the stored block so the super-admin-only feature switches
+          // (managed in Admin → Donation Account) are not dropped on save.
+          ...settings?.donate,
           qrPhoto, 
           baseCount, 
           bankNumber,
@@ -416,6 +510,24 @@ const AdminDonations = ({ donations, setDonations, settings, updateSettings, t, 
         </div>
 
         <div className="p-6">
+          {user?.role === 'superadmin' && (
+            <div className="mb-4 flex items-start gap-2 px-4 py-3 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-800">
+              <Info size={14} className="flex-shrink-0 mt-0.5" />
+              <span>
+                Payment feature switches (eSewa / Khalti / IPS / QR), the account numbers and the
+                main donation QR are managed in{' '}
+                <button
+                  type="button"
+                  onClick={() => navigate('/admin/account')}
+                  className="font-bold underline bg-transparent border-0 p-0 text-blue-800 hover:text-vermilion"
+                >
+                  Admin &rarr; Donation Account
+                </button>
+                .
+              </span>
+            </div>
+          )}
+
           <div className="relative border-2 border-dashed border-gray-300 rounded-xl overflow-hidden h-32 flex items-center justify-center cursor-pointer bg-gray-50 hover:border-[#7A0000] transition-colors mb-4">
             <input type="file" accept="image/*" onChange={handleQrUpload} className="hidden" id="qr-upload" />
             <label htmlFor="qr-upload" className="absolute inset-0 flex items-center justify-center cursor-pointer">
@@ -440,13 +552,23 @@ const AdminDonations = ({ donations, setDonations, settings, updateSettings, t, 
                     parent.appendChild(fallback);
                   }}
                 />
-              ) : (
+              ) : null}
+              {displayQrPhoto ? null : (
                 <div className="flex flex-col items-center gap-1.5 text-gray-400">
                   <QrCode size={32} />
                   <span className="text-xs font-semibold">{t.uploadPhoto || 'Upload QR Code'}</span>
                 </div>
               )}
             </label>
+
+            {/* Mirror the donate page: when the super admin has switched the QR
+                off, say so here too instead of silently previewing it. */}
+            {displayQrPhoto && settings?.donate?.qrEnabled === false && (
+              <div className="absolute bottom-2 left-2 right-2 flex items-center justify-center gap-1.5 px-2 py-1 rounded-lg bg-gray-900/70 text-white text-[10px] font-semibold">
+                <EyeOff size={11} />
+                {t.qrHiddenOnPage || 'Hidden on the donate page'}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
@@ -540,6 +662,24 @@ const AdminDonations = ({ donations, setDonations, settings, updateSettings, t, 
               >
                 <RefreshCw size={16} className="text-gray-400" />
               </button>
+
+              <button
+                type="button"
+                onClick={() => setPrintAllDonations(true)}
+                disabled={!sortedDonations.length}
+                className="inline-flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-xl bg-white text-sm font-semibold text-gray-700 hover:border-[#7A0000] hover:text-[#7A0000] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Printer size={15} className="text-[#7A0000]" />
+                <span className="hidden sm:inline">{t?.printAll || 'Print All'}</span>
+              </button>
+
+              <DownloadMenu
+                rows={sortedDonations}
+                baseName="donations"
+                dateField="date"
+                t={t}
+                columns={DONATION_CSV_COLUMNS(t)}
+              />
             </div>
           </div>
         </div>
@@ -594,18 +734,38 @@ const AdminDonations = ({ donations, setDonations, settings, updateSettings, t, 
                           {formatDate(donation.date)}
                         </td>
                         <td className="py-3">
-                          <select
-                            value={donation.status}
-                            onChange={(e) => handleStatusChange(donation._id, e.target.value)}
-                            disabled={loading}
-                            className={`text-xs font-semibold px-3 py-1 rounded-full border-2 focus:outline-none disabled:opacity-50 cursor-pointer ${getStatusBadge(donation.status)}`}
-                            style={{ borderColor: statusColors[donation.status] }}
-                          >
-                            <option value="pending">Pending</option>
-                            <option value="completed">Completed</option>
-                            <option value="failed">Failed</option>
-                            <option value="refunded">Refunded</option>
-                          </select>
+                          {/* Rejecting goes through handleReject so a reason can be
+                              captured and emailed to the donor. */}
+                          {donation.status === 'rejected' ? (
+                            <button
+                              type="button"
+                              onClick={() => handleReject(donation)}
+                              disabled={loading}
+                              title={t?.editRejectionReason || 'Change rejection reason'}
+                              className={`text-xs font-semibold px-3 py-1 rounded-full border-2 cursor-pointer disabled:opacity-50 ${getStatusBadge(donation.status)}`}
+                              style={{ borderColor: statusColors.rejected }}
+                            >
+                              {t?.rejected || 'Rejected'} ✎
+                            </button>
+                          ) : (
+                            <select
+                              value={donation.status}
+                              onChange={(e) => {
+                                const next = e.target.value;
+                                if (next === 'rejected') handleReject(donation);
+                                else handleStatusChange(donation._id, next);
+                              }}
+                              disabled={loading}
+                              className={`text-xs font-semibold px-3 py-1 rounded-full border-2 focus:outline-none disabled:opacity-50 cursor-pointer ${getStatusBadge(donation.status)}`}
+                              style={{ borderColor: statusColors[donation.status] }}
+                            >
+                              <option value="pending">{t?.pending || 'Pending'}</option>
+                              <option value="completed">{t?.accepted || 'Accepted'}</option>
+                              <option value="rejected">{t?.rejected || 'Rejected'}</option>
+                              <option value="failed">{t?.failed || 'Failed'}</option>
+                              <option value="refunded">{t?.refunded || 'Refunded'}</option>
+                            </select>
+                          )}
                         </td>
                         <td className="py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
@@ -617,6 +777,13 @@ const AdminDonations = ({ donations, setDonations, settings, updateSettings, t, 
                                   title="View Receipt"
                                 >
                                   <FileText size={16} />
+                                </button>
+                                <button
+                                  onClick={() => setPrintDonation(donation)}
+                                  className="p-1.5 rounded-lg text-[#7A0000] hover:bg-[#7A0000]/10 transition-all"
+                                  title={t?.print || 'Print'}
+                                >
+                                  <Printer size={16} />
                                 </button>
                                 <button 
                                   onClick={() => handleSendEmail(donation)} 
@@ -650,27 +817,91 @@ const AdminDonations = ({ donations, setDonations, settings, updateSettings, t, 
                           <td colSpan="8" className="px-4 py-4 bg-gray-50/50 border-b border-gray-100">
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
                               <div>
-                                <p className="text-xs text-gray-400">Donor Information</p>
+                                <p className="text-xs text-gray-400">{t?.donorInformation || 'Donor Information'}</p>
                                 <p className="font-medium text-gray-800">{donation.name}</p>
                                 <p className="text-gray-600 text-xs">{donation.email}</p>
                                 {donation.phone && <p className="text-gray-600 text-xs">{donation.phone}</p>}
                               </div>
                               <div>
-                                <p className="text-xs text-gray-400">Donation Details</p>
+                                <p className="text-xs text-gray-400">{t?.donationDetails || 'Donation Details'}</p>
                                 <p className="font-medium text-[#7A0000]">Rs. {donation.amount?.toLocaleString() || 0}</p>
-                                <p className="text-gray-600 text-xs capitalize">Method: {donation.paymentMethod || 'cash'}</p>
-                                <p className="text-gray-600 text-xs">Date: {formatDate(donation.date)}</p>
+                                <p className="text-gray-600 text-xs capitalize">
+                                  {t?.method || 'Method'}: {donation.paymentMethod || 'bank'}
+                                </p>
+                                <p className="text-gray-600 text-xs">
+                                  {t?.donationDate || 'Date'}: {formatDate(donation.date)}
+                                </p>
                               </div>
                               <div>
-                                <p className="text-xs text-gray-400">Additional Info</p>
-                                <p className="text-gray-600 text-xs">Status: <span className={`font-semibold ${getStatusBadge(donation.status)}`}>{donation.status}</span></p>
+                                <p className="text-xs text-gray-400">{t?.additionalInfo || 'Additional Info'}</p>
+                                <p className="text-gray-600 text-xs">
+                                  {t?.status || 'Status'}:{' '}
+                                  <span className={`font-semibold px-1.5 py-0.5 rounded ${getStatusBadge(donation.status)}`}>
+                                    {t?.[donation.status] || donation.status}
+                                  </span>
+                                </p>
                                 {donation.transactionId && (
-                                  <p className="text-gray-600 text-xs">Transaction ID: {donation.transactionId}</p>
+                                  <p className="text-gray-600 text-xs mt-1">
+                                    {t?.transactionId || 'Transaction ID'}:{' '}
+                                    <span className="font-mono font-semibold text-gray-800 break-all">
+                                      {donation.transactionId}
+                                    </span>
+                                  </p>
                                 )}
                                 {donation.message && (
-                                  <p className="text-gray-600 text-xs italic">"{donation.message}"</p>
+                                  <p className="text-gray-600 text-xs italic mt-1">"{donation.message}"</p>
+                                )}
+                                {donation.reviewedAt && (
+                                  <p className="text-gray-500 text-xs mt-1">
+                                    {t?.reviewedOn || 'Reviewed'}: {formatDate(donation.reviewedAt)}
+                                    {donation.reviewedBy ? ` — ${donation.reviewedBy}` : ''}
+                                  </p>
                                 )}
                               </div>
+                            </div>
+
+                            {/* Rejection reason the donor was emailed */}
+                            {donation.status === 'rejected' && (
+                              <div className="mt-3 flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2.5">
+                                <AlertTriangle size={14} className="text-red-500 flex-shrink-0 mt-0.5" />
+                                <div>
+                                  <p className="text-[10px] font-bold uppercase tracking-wider text-red-700">
+                                    {t?.rejectionReason || 'Rejection Reason'}
+                                  </p>
+                                  <p className="text-xs text-red-700 mt-0.5">
+                                    {donation.rejectionReason ||
+                                      t?.noRejectionReason ||
+                                      'No reason was recorded.'}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Payment proof submitted by the donor */}
+                            <div className="mt-4">
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">
+                                {t?.paymentProof || 'Payment Proof'}
+                              </p>
+                              {donation.screenshot ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setScreenshotView({ url: donation.screenshot, donation })}
+                                  className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 bg-white hover:border-[#7A0000] transition-colors"
+                                >
+                                  <img
+                                    src={donation.screenshot}
+                                    alt="Payment screenshot"
+                                    className="w-12 h-12 rounded-lg object-cover border border-gray-200"
+                                  />
+                                  <span className="text-xs font-semibold text-gray-700">
+                                    {t?.viewScreenshot || 'View Screenshot'}
+                                  </span>
+                                </button>
+                              ) : (
+                                <p className="text-xs text-gray-400">
+                                  {t?.noScreenshot || 'No screenshot uploaded'}
+                                </p>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -693,6 +924,82 @@ const AdminDonations = ({ donations, setDonations, settings, updateSettings, t, 
             setSelectedDonation(null);
           }}
           settings={settings}
+        />
+      )}
+
+      {/* Screenshot lightbox — what the admin checks before accepting */}
+      {screenshotView && (
+        <div
+          className="fixed inset-0 z-[9999] bg-black/85 backdrop-blur-sm flex flex-col"
+          onClick={() => setScreenshotView(null)}
+        >
+          <div className="flex items-center justify-between gap-3 px-5 py-4 text-white flex-shrink-0">
+            <div className="min-w-0">
+              <h3 className="font-serif font-bold text-lg truncate">
+                {t?.paymentScreenshot || 'Payment Screenshot'}
+              </h3>
+              {screenshotView.donation && (
+                <p className="text-xs text-white/70 truncate">
+                  {screenshotView.donation.name} • {t?.amount || 'Amount'}: Rs.{' '}
+                  {(screenshotView.donation.amount || 0).toLocaleString()}
+                  {screenshotView.donation.transactionId
+                    ? ` • ${t?.transactionId || 'Transaction ID'}: ${screenshotView.donation.transactionId}`
+                    : ''}
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <a
+                href={screenshotView.url}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-semibold transition-colors"
+              >
+                <ExternalLink size={15} /> {t?.openFull || 'Open full size'}
+              </a>
+              <button
+                type="button"
+                onClick={() => setScreenshotView(null)}
+                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
+                aria-label={t?.close || 'Close'}
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+
+          <div
+            className="flex-1 min-h-0 overflow-auto p-4 sm:p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={screenshotView.url}
+              alt="Payment screenshot"
+              className="mx-auto max-w-full rounded-2xl shadow-2xl bg-white"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Printable donations */}
+      {printDonation && (
+        <PrintDonation
+          donation={printDonation}
+          settings={settings}
+          onClose={() => setPrintDonation(null)}
+          t={t}
+        />
+      )}
+
+      {printAllDonations && (
+        <PrintRecordList
+          title={t?.donationsListTitle || 'All Donations'}
+          columns={DONATION_CSV_COLUMNS(t)}
+          rows={sortedDonations}
+          settings={settings}
+          onClose={() => setPrintAllDonations(false)}
+          t={t}
         />
       )}
 

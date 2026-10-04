@@ -6,11 +6,30 @@ import {
   Activity, BarChart3, Clock, Award
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
+import { formatDateTime } from '../../utils/formatDate';
 import api from '../../services/api';
+import DownloadMenu from './DownloadMenu';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar
 } from 'recharts';
+
+/**
+ * Column definitions for the CSV export. `User` records carry `createdAt`,
+ * which is the "joined" date shown in the table.
+ */
+const USER_CSV_COLUMNS = (t) => [
+  { key: 'name', label: t?.fullName || 'Full Name' },
+  { key: 'email', label: t?.yourEmail || 'Email' },
+  { key: 'phone', label: t?.phoneNumber || 'Phone', mono: true },
+  { key: 'address', label: t?.address || 'Address', value: (u) => u.address || '' },
+  { key: 'role', label: t?.role || 'Role' },
+  {
+    key: 'createdAt',
+    label: t?.memberSince || 'Member Since',
+    value: (u) => formatDateTime(u.createdAt),
+  },
+];
 
 const AdminUsers = ({ users, setUsers, t }) => {
   const { showToast } = useToast();
@@ -249,9 +268,18 @@ const AdminUsers = ({ users, setUsers, t }) => {
             <UsersIcon size={18} className="text-[#7A0000]" />
             <h4 className="text-gray-700 font-semibold">{t.manageUsers || 'Manage Users'}</h4>
           </div>
-          <span className="text-xs text-gray-400 bg-white px-3 py-1 rounded-full border border-gray-200">
-            {users?.length || 0} users
-          </span>
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-xs text-gray-400 bg-white px-3 py-1 rounded-full border border-gray-200">
+              {users?.length || 0} users
+            </span>
+            <DownloadMenu
+              rows={users || []}
+              baseName="users"
+              dateField="createdAt"
+              t={t}
+              columns={USER_CSV_COLUMNS(t)}
+            />
+          </div>
         </div>
 
         {/* Body */}

@@ -439,6 +439,34 @@ exports.updateSettings = async (req, res) => {
   try {
     const settings = await AdminSettings.getSettings();
     Object.assign(settings, req.body);
+
+    // The donation feature switches are super-admin-only. A plain admin saving
+    // the whole `donate` object (e.g. from Admin → Donations) must not silently
+    // reset them back to their defaults, so they are always restored here unless
+    // the caller is a super admin writing them explicitly.
+    if (req.body && req.body.donate && typeof req.body.donate === 'object') {
+      const current = settings.donate || {};
+      const switches = [
+        'esewaEnabled',
+        'khaltiEnabled',
+        'ipsEnabled',
+        'qrEnabled',
+        'showBankDetails',
+      ];
+      const incoming = req.body.donate;
+      const isSuperAdmin = req.user?.role === 'superadmin';
+
+      settings.donate = {
+        ...current,
+        ...incoming,
+        ...(!isSuperAdmin &&
+          switches.reduce((acc, key) => {
+            if (current[key] !== undefined) acc[key] = current[key];
+            return acc;
+          }, {})),
+      };
+    }
+
     settings.updatedAt = Date.now();
     await settings.save();
     logAdminActivity(req.user.id, 'Settings Updated', req.body);
@@ -1143,52 +1171,38 @@ exports.getAllDonations = async (req, res) => {
 exports.updateDonationStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
-    
-    if (!['pending', 'completed', 'failed', 'refunded'].includes(status)) {
-      return res.status(400).json({ message: 'Invalid status' });
-    }
-    
-    const donation = await Donation.findById(id);
-    if (!donation) {
-      return res.status(404).json({ message: 'Donation not found' });
-    }
-    
-    const oldStatus = donation.status;
-    donation.status = status;
-    await donation.save();
-    
-    logAdminActivity(req.user.id, 'Donation Status Updated', { 
-      donationId: id, 
-      oldStatus,
+    const { status, rejectionReason } = req.body;
+
+    // Shared with the super admin and /api/donations/:id/status so the counter
+    // bump and the donor email happen exactly once per real status change.
+    const { updateDonationStatusById } = require('../services/donationStatusService');
+    const { donation, previousStatus, changed, emailSent } = await updateDonationStatusById({
+      id,
+      status,
+      rejectionReason,
+      adminUser: req.user,
+    });
+
+    logAdminActivity(req.user.id, 'Donation Status Updated', {
+      donationId: id,
+      oldStatus: previousStatus,
       newStatus: status,
       donorName: donation.name,
-      amount: donation.amount 
+      amount: donation.amount,
+      rejectionReason: donation.rejectionReason || '',
+      changed,
     });
-    
-    if (status === 'completed' && oldStatus !== 'completed') {
-      try {
-        const user = await User.findById(donation.userId);
-        if (user) {
-          const { generateReceiptPDF } = require('../services/pdfService');
-          const { sendDonationConfirmationWithPDF } = require('../services/emailService');
-          const pdfBuffer = await generateReceiptPDF(donation, user);
-          await sendDonationConfirmationWithPDF(donation, user, pdfBuffer);
-          console.log(`✅ Receipt sent to ${user.email}`);
-        }
-      } catch (emailError) {
-        console.error('Email error:', emailError);
-      }
-    }
-    
+
     res.json({
       success: true,
       data: donation,
-      message: `Donation status updated to ${status}`
+      message: changed
+        ? `Donation status updated to ${status}${emailSent ? ' and the donor was notified' : ''}`
+        : `Donation was already marked "${status}" — no change made`,
     });
   } catch (error) {
     console.error('Update donation status error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(error.statusCode || 500).json({ message: error.message || 'Server error' });
   }
 };
 
