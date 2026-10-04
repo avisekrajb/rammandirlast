@@ -156,7 +156,7 @@ const AdminSidebar = ({ isOpen, onClose }) => {
     <>
       {/* Mobile overlay - slides in from left */}
       <aside 
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-white shadow-2xl border-r border-gray-100 transform transition-all duration-300 ease-in-out ${
+        className={`fixed inset-y-0 left-0 z-50 w-72 flex-shrink-0 bg-white shadow-2xl border-r border-gray-100 transform transition-all duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         } lg:translate-x-0 lg:static lg:shadow-none flex flex-col h-screen`}
       >

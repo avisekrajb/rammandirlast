@@ -144,22 +144,47 @@ const AdminPage = () => {
 
   return (
     <div className="flex min-h-screen bg-gray-50 admin-page">
-      {/* Sidebar - sticky and independent */}
-      <div className="sticky top-0 h-screen">
+      {/* Sidebar column.
+          w-0 on mobile because the <aside> is fixed there (a fixed child
+          contributes no width, so the spacer must be forced to 0 or the main
+          column is pushed 288px right). At lg the aside becomes static, so the
+          spacer reserves exactly its width.
+          flex-shrink-0 stops wide media sections (video / photo grids) from
+          squeezing the sidebar.
+          lg:relative lg:z-40 makes this column a stacking context at lg. Without
+          it the sidebar sits in the z-index:auto layer, and any positioned
+          element in the content column (sticky header z-30, sticky table
+          headers z-10, gallery lightbox z-50) paints on top of it.
+          No z-index below lg, so the fixed aside keeps its own z-50 and still
+          sits above its z-40 backdrop. */}
+      <div className="sticky top-0 h-screen flex-shrink-0 w-0 lg:w-72 lg:relative lg:z-40">
         <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       </div>
 
-      {/* Main Content - scrollable independently */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto h-screen main-content-scroll">
-        <header className="sticky top-0 z-30 flex items-center justify-between px-6 py-4 bg-white border-b border-gray-100 shadow-sm">
-          <div className="flex items-center gap-4">
+      {/* Main Content - scrollable independently.
+          min-w-0 lets it shrink below its content width; overflow-y-auto also
+          computes overflow-x to auto, so a wide media section scrolls inside
+          this column instead of escaping over the sidebar. */}
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto main-content-scroll">
+        {/* sticky top-0 AND left-0: the column is a scroll container, so pinning
+            only vertically still lets the header slide sideways and carry the
+            menu button out of view when a wide section is scrolled.
+            z-40 lifts it above the content column's sticky bits (z-10 table
+            headers); modals at z-50 / z-[9999] still cover it. */}
+        <header className="sticky top-0 left-0 z-40 flex items-center justify-between gap-3 px-4 sm:px-6 py-4 bg-white border-b border-gray-100 shadow-sm">
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+            {/* shrink-0 + relative z-10 so layout pressure from the title can
+                never squeeze or cover the toggle. */}
             <button
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              aria-label={t?.openMenu || 'Open menu'}
+              className="lg:hidden relative z-10 shrink-0 p-2 -ml-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors"
             >
-              <Menu size={20} className="text-ink-soft" />
+              <Menu size={22} className="text-ink-soft" />
             </button>
-            <h2 className="text-lg font-serif font-semibold text-ink">
+            {/* truncate instead of wrap: a long page title can then never push
+                the button out of the header on a narrow phone. */}
+            <h2 className="text-base sm:text-lg font-serif font-semibold text-ink truncate min-w-0">
               {getPageTitle()}
             </h2>
           </div>
@@ -230,7 +255,7 @@ const AdminPage = () => {
           </div>
         </header>
 
-        <div className="flex-1 p-6 overflow-y-auto content-scroll">
+        <div className="flex-1 p-4 sm:p-6 overflow-y-auto content-scroll">
           <Routes>
             {/* Overview */}
             <Route index element={<AdminOverview 
@@ -355,8 +380,8 @@ const AdminPage = () => {
         </div>
       </div>
 
-      {/* Hide scrollbar styles */}
-      <style>{`
+        {/* Hide scrollbar styles */}
+        <style>{`
         /* Hide scrollbar for main content */
         .main-content-scroll::-webkit-scrollbar,
         .content-scroll::-webkit-scrollbar {
@@ -368,12 +393,27 @@ const AdminPage = () => {
           -ms-overflow-style: none;
           scrollbar-width: none;
         }
-        
-        /* Hide scrollbar for entire page */
+
+        /* Clip the admin shell so the page itself never scrolls (the main column
+           scrolls instead). MUST be clip, not hidden: overflow:hidden creates
+           a scroll container, which becomes the nearest scrollport for
+           position:sticky and silently kills it. overflow:clip clips the same
+           way without creating a scrollport. */
         .admin-page {
-          overflow: hidden;
+          overflow: clip;
         }
-        
+
+        /* Keep the admin column out of horizontal scrolling entirely.
+           overflow-y:auto on its own computes overflow-x to auto, turning the
+           column into a two-axis scroll container; wide media sections then make
+           it scroll sideways and drag the sticky header (and the menu button)
+           off screen. overflow-x:clip stops that without creating a scrollport.
+           Wide tables keep scrolling because they carry their own
+           overflow-x-auto wrapper. */
+        .content-scroll {
+          overflow-x: clip;
+        }
+
         /* Smooth scrolling */
         .main-content-scroll {
           scroll-behavior: smooth;
